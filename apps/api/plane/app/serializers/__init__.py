@@ -133,3 +133,10 @@ from .draft import (
     DraftIssueSerializer,
     DraftIssueDetailSerializer,
 )
+from .time_tracking import (
+    ClientSerializer,
+    IssueWorklogSerializer,
+    WorklogTimerSerializer,
+    TimesheetSerializer,
+    ResourceCapacitySerializer,
+)

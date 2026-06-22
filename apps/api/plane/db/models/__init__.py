@@ -15,6 +15,7 @@ from .draft import (
     DraftIssueModule,
     DraftIssueCycle,
 )
+from .client import Client
 from .estimate import Estimate, EstimatePoint
 from .exporter import ExporterHistory
 from .importer import Importer
@@ -88,5 +89,15 @@ from .label import Label
 from .device import Device, DeviceSession
 
 from .sticky import Sticky
+
+from .worklog import (
+    IssueWorklog,
+    WorklogTimer,
+    Timesheet,
+    ResourceCapacity,
+    WorklogSource,
+    WorklogApprovalStatus,
+    TimesheetStatus,
+)
 
 from .description import Description, DescriptionVersion

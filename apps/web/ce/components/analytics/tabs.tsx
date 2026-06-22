@@ -7,8 +7,15 @@
 import type { AnalyticsTab } from "@plane/types";
 import { Overview } from "@/components/analytics/overview";
 import { WorkItems } from "@/components/analytics/work-items";
+import { Clients } from "./clients/root";
+import { TimeReport } from "./time/root";
+import { Timesheets } from "./timesheets/root";
 
-export const getAnalyticsTabs = (t: (key: string, params?: Record<string, any>) => string): AnalyticsTab[] => [
-  { key: "overview", label: t("common.overview"), content: Overview, isDisabled: false },
-  { key: "work-items", label: t("sidebar.work_items"), content: WorkItems, isDisabled: false },
-];
+export const getAnalyticsTabs = (t: (key: string, params?: Record<string, any>) => string): AnalyticsTab[] =>
+  [
+    { key: "overview", label: t("common.overview"), content: Overview, isDisabled: false },
+    { key: "work-items", label: t("sidebar.work_items"), content: WorkItems, isDisabled: false },
+    { key: "time", label: "Time", content: TimeReport, isDisabled: false },
+    { key: "timesheets", label: "Timesheets", content: Timesheets, isDisabled: false },
+    { key: "clients", label: "Clients", content: Clients, isDisabled: false },
+  ] as AnalyticsTab[];
