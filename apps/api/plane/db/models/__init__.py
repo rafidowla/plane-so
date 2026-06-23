@@ -100,4 +100,6 @@ from .worklog import (
     TimesheetStatus,
 )
 
+from .jira_import import JiraImportJob, JiraImportStatus
+
 from .description import Description, DescriptionVersion

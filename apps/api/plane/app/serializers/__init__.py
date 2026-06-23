@@ -140,3 +140,4 @@ from .time_tracking import (
     TimesheetSerializer,
     ResourceCapacitySerializer,
 )
+from .jira_import import JiraImportJobSerializer

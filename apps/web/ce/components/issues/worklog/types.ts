@@ -109,3 +109,49 @@ export type TTimeReport = {
     entry_count: number;
   };
 };
+
+export type TJiraImportConfig = {
+  jira_url?: string;
+  jira_email?: string;
+  jira_token?: string;
+  jira_project?: string;
+  jql?: string;
+  with_worklogs?: boolean;
+  sample?: boolean;
+};
+
+export type TJiraPreviewRow = {
+  key: string;
+  summary: string;
+  state: string | null;
+  priority: string;
+  assignee: string | null;
+  labels: number;
+  comments: number;
+  worklogs: number;
+};
+
+export type TJiraPreview = {
+  dry_run: boolean;
+  fetched: number;
+  created: number;
+  skipped: number;
+  comments: number;
+  worklogs: number;
+  unmapped_states: string[];
+  unmapped_users: string[];
+  preview: TJiraPreviewRow[];
+};
+
+export type TJiraImportJob = {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  with_worklogs: boolean;
+  config: Record<string, unknown>;
+  total: number;
+  processed: number;
+  result: Partial<TJiraPreview> | Record<string, never>;
+  error: string;
+  created_at: string;
+  initiated_by_detail?: TUserLite;
+};

@@ -12,6 +12,9 @@ import type {
   TClient,
   TTimesheet,
   TTimeReport,
+  TJiraImportConfig,
+  TJiraPreview,
+  TJiraImportJob,
 } from "@/plane-web/components/issues/worklog/types";
 
 export class TimeTrackingService extends APIService {
@@ -105,6 +108,31 @@ export class TimeTrackingService extends APIService {
   timeReportCsvUrl(workspaceSlug: string, params: Record<string, string>): string {
     const qs = new URLSearchParams({ ...params, format: "csv" }).toString();
     return `${API_BASE_URL}/api/workspaces/${workspaceSlug}/time-report/?${qs}`;
+  }
+
+  // ---- Jira import (self-service) ----
+  async previewJiraImport(workspaceSlug: string, projectId: string, config: TJiraImportConfig): Promise<TJiraPreview> {
+    return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/jira-import/preview/`, config)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async startJiraImport(workspaceSlug: string, projectId: string, config: TJiraImportConfig): Promise<TJiraImportJob> {
+    return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/jira-import/`, config)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getJiraImportJob(workspaceSlug: string, projectId: string, jobId: string): Promise<TJiraImportJob> {
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/jira-import/${jobId}/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
   }
 
   async getWorklogs(workspaceSlug: string, projectId: string, issueId: string): Promise<TWorklog[]> {

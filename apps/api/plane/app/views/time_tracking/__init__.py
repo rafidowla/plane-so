@@ -7,3 +7,8 @@ from .worklog import IssueWorklogViewSet, WorklogTimerEndpoint
 from .timesheet import TimesheetViewSet
 from .capacity import ResourceCapacityViewSet
 from .report import TimeReportEndpoint
+from .jira_import import (
+    JiraImportPreviewEndpoint,
+    JiraImportEndpoint,
+    JiraImportJobDetailEndpoint,
+)
