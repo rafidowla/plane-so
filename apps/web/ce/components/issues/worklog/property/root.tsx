@@ -110,11 +110,11 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
   return (
     <>
       <SidebarPropertyListItem icon={Timer} label="Time tracking" childrenClassName="flex-col items-start">
-        <div className="flex w-full flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">{fmtMinutes(total)} logged</span>
-            {!disabled &&
-              (runningHere ? (
+        <div className="flex w-full min-w-0 flex-col gap-2">
+          <span className="text-sm font-medium">{fmtMinutes(total)} logged</span>
+          {!disabled && (
+            <div className="flex flex-wrap items-center gap-2">
+              {runningHere ? (
                 <Button variant="secondary" size="sm" onClick={handleStop}>
                   <Square className="mr-1 size-3" />
                   Stop {fmtElapsed(elapsed)}
@@ -124,20 +124,19 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                   <Play className="mr-1 size-3" />
                   Start
                 </Button>
-              ))}
-            {!disabled && (
+              )}
               <Button variant="secondary" size="sm" onClick={() => setLogOpen(true)}>
                 <Plus className="mr-1 size-3" />
                 Log time
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           {list.length > 0 && (
-            <div className="flex w-full flex-col gap-1">
+            <div className="flex w-full min-w-0 flex-col gap-1">
               {list.slice(0, 6).map((w) => (
-                <div key={w.id} className="text-xs flex items-center justify-between gap-2 text-tertiary">
-                  <span className="truncate">
+                <div key={w.id} className="text-xs flex min-w-0 items-center justify-between gap-2 text-tertiary">
+                  <span className="min-w-0 truncate">
                     {fmtMinutes(w.duration)} · {w.logged_by_detail?.display_name ?? "—"} · {w.logged_date}
                     {w.is_billable ? "" : " · non-billable"}
                     {w.is_locked ? " · 🔒" : ""}
