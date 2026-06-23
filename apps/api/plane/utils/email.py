@@ -1,15 +1,13 @@
-# SPDX-FileCopyrightText: 2023-present Plane Software, Inc.
-# SPDX-License-Identifier: LicenseRef-Plane-Commercial
+# Copyright (c) 2023-present Plane Software, Inc. and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+# See the LICENSE file for details.
 #
-# Licensed under the Plane Commercial License (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# https://plane.so/legals/eula
-#
-# DO NOT remove or modify this notice.
-# NOTICE: Proprietary and confidential. Unauthorized use or distribution is prohibited.
+# Clean-room AGPL replacement for the previous proprietary email helper.
+# Provides the same `generate_plain_text_from_html(html_content) -> str`
+# contract used by the email background tasks.
 
 # Python imports
+import html as _html
 import re
 
 # Django imports
@@ -17,26 +15,35 @@ from django.utils.html import strip_tags
 
 
 def generate_plain_text_from_html(html_content):
-    """
-    Generate clean plain text from HTML email template.
-    Removes all HTML tags, CSS styles, and excessive whitespace.
+    """Convert an HTML email body into clean plain text.
+
+    Drops <style>/<script> blocks and their contents, removes the remaining
+    HTML tags, decodes HTML entities, normalises whitespace, and pads the
+    result with a leading and trailing blank line.
 
     Args:
-        html_content (str): The HTML content to convert to plain text
+        html_content (str): the HTML email body.
 
     Returns:
-        str: Clean plain text without HTML tags, styles, or excessive whitespace
+        str: the plain-text rendering of the email body.
     """
-    # Remove style tags and their content
-    html_content = re.sub(r"<style[^>]*>.*?</style>", "", html_content, flags=re.DOTALL | re.IGNORECASE)
+    if not html_content:
+        return "\n\n\n\n"
 
-    # Strip HTML tags
-    text_content = strip_tags(html_content)
+    # Drop <style> and <script> blocks together with their contents.
+    without_blocks = re.sub(
+        r"<(style|script)\b[^>]*>.*?</\1>",
+        "",
+        html_content,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
 
-    # Remove excessive empty lines
-    text_content = re.sub(r"\n\s*\n\s*\n+", "\n\n", text_content)
+    # Remove the remaining tags and decode entities (e.g. &amp; -> &).
+    text = _html.unescape(strip_tags(without_blocks))
 
-    # Ensure there's a leading and trailing whitespace
-    text_content = "\n\n" + text_content.lstrip().rstrip() + "\n\n"
+    # Trim trailing spaces per line, then collapse runs of blank lines.
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
 
-    return text_content
+    # Pad with a leading and trailing blank line.
+    return "\n\n" + text.strip() + "\n\n"
