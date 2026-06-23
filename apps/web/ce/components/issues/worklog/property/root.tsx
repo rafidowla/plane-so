@@ -7,13 +7,12 @@ import { useEffect, useState } from "react";
 import { Play, Square, Plus, Timer, X } from "lucide-react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
-import { EUserProjectRoles } from "@plane/types";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
-import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
-import { useUser } from "@/hooks/store/user";
+import { useUser, useUserPermissions } from "@/hooks/store/user";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { LogTimeModal } from "../log-time-modal";
 
@@ -43,11 +42,12 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
   // hooks must run unconditionally
   const { getProjectById } = useProject();
   const { data: currentUser } = useUser();
-  const { project: projectMembers } = useMember();
+  const { allowPermissions } = useUserPermissions();
   const [isLogOpen, setLogOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
-  const project = getProjectById(projectId);
+  // is_time_tracking_enabled is returned by the project API but not on the TProject type.
+  const project = getProjectById(projectId) as ({ is_time_tracking_enabled?: boolean } & object) | undefined;
   const enabled = Boolean(project?.is_time_tracking_enabled);
 
   const { data: worklogs, mutate: mutateWorklogs } = useSWR(
@@ -68,8 +68,12 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
 
   if (!enabled) return null;
 
-  const role = currentUser?.id ? projectMembers.getUserProjectRole(currentUser.id, projectId) : undefined;
-  const isProjectAdmin = role === EUserProjectRoles.ADMIN;
+  const isProjectAdmin = allowPermissions(
+    [EUserPermissions.ADMIN],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
   const list = worklogs ?? [];
   const total = list.reduce((sum, w) => sum + (w.duration || 0), 0);
   const elapsed =
