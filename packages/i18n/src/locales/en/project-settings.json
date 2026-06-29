@@ -323,6 +323,13 @@
       "description": "Create and customize different types of work items with unique properties"
     },
     "features": {
+      "time_tracking": {
+        "title": "Time Tracking",
+        "short_title": "Time Tracking",
+        "description": "Track time spent on work items, log time on behalf of resources, and report by resource, project, and client.",
+        "toggle_title": "Enable time tracking",
+        "toggle_description": "Project members will be able to log time and run a timer on work items."
+      },
       "cycles": {
         "title": "Cycles",
         "short_title": "Cycles",

@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { Timer } from "lucide-react";
 import { observer } from "mobx-react";
 // plane imports
 import { useTranslation } from "@plane/i18n";
@@ -70,6 +71,15 @@ const PROJECT_FEATURES_LIST = {
     title: "Intake",
     description: "Consider and discuss work items before you add them to your project.",
     icon: <IntakeIcon className="h-5 w-5 flex-shrink-0 text-tertiary" />,
+    isPro: false,
+    isEnabled: true,
+  },
+  time_tracking: {
+    key: "time_tracking",
+    property: "is_time_tracking_enabled",
+    title: "Time Tracking",
+    description: "Log time spent on work items and projects.",
+    icon: <Timer className="h-5 w-5 flex-shrink-0 text-tertiary" />,
     isPro: false,
     isEnabled: true,
   },
