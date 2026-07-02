@@ -78,24 +78,55 @@ def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=N
     if not query:
         raise JiraConfigError("Provide a Jira project key or a JQL query")
 
-    issues, start, page = [], 0, 100
+    base = jira_url.rstrip("/")
+    auth = (jira_email, jira_token)
+    headers = {"Accept": "application/json"}
+
+    def _raise_for_response(resp):
+        # Surface auth/permission errors clearly instead of a generic failure.
+        if resp.status_code in (401, 403):
+            raise JiraConfigError(
+                f"Jira rejected the credentials ({resp.status_code}). Check the email + API token "
+                f"and that the token has permission to read this project."
+            )
+
+    # Jira Cloud (current): enhanced search with token-based pagination. The legacy
+    # GET /rest/api/3/search was removed in 2025, so we use /search/jql and fall
+    # back to the legacy endpoint only for older Jira Server/Data Center.
+    issues, next_token, guard = [], None, 0
+    use_legacy = False
     while True:
-        resp = requests.get(
-            f"{jira_url.rstrip('/')}/rest/api/3/search",
-            params={"jql": query, "startAt": start, "maxResults": page, "fields": ISSUE_FIELDS},
-            auth=(jira_email, jira_token),
-            headers={"Accept": "application/json"},
-            timeout=60,
-        )
+        params = {"jql": query, "maxResults": 100, "fields": ISSUE_FIELDS}
+        if next_token:
+            params["nextPageToken"] = next_token
+        resp = requests.get(f"{base}/rest/api/3/search/jql", params=params, auth=auth, headers=headers, timeout=60)
+        if resp.status_code in (404, 410):
+            use_legacy = True
+            break
+        _raise_for_response(resp)
         resp.raise_for_status()
         data = resp.json()
-        batch = data.get("issues", [])
-        issues.extend(batch)
-        start += len(batch)
-        if not batch or start >= data.get("total", 0):
+        issues.extend(data.get("issues", []))
+        next_token = data.get("nextPageToken")
+        guard += 1
+        if data.get("isLast") or not next_token or (limit and len(issues) >= limit) or guard > 10000:
             break
-        if limit and len(issues) >= limit:
-            break
+
+    if use_legacy:
+        # Legacy offset pagination (Jira Server / Data Center).
+        issues, start = [], 0
+        while True:
+            params = {"jql": query, "startAt": start, "maxResults": 100, "fields": ISSUE_FIELDS}
+            resp = requests.get(f"{base}/rest/api/2/search", params=params, auth=auth, headers=headers, timeout=60)
+            _raise_for_response(resp)
+            resp.raise_for_status()
+            data = resp.json()
+            batch = data.get("issues", [])
+            issues.extend(batch)
+            start += len(batch)
+            if not batch or start >= data.get("total", 0) or (limit and len(issues) >= limit):
+                break
+
     return issues[:limit] if limit else issues
 
 

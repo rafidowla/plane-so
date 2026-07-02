@@ -108,8 +108,12 @@ Mapping:
 - Jira **user → member** by email (unmapped assignees fall back to the initiator).
 - **Priority** and **labels** (labels are created if missing).
 
-> Note: rich Jira description formatting (ADF) is flattened to text. Attachments,
-> issue links, and sub-task hierarchy are not migrated.
+There are **two ways** to import: over the **Jira REST API** (richest fidelity)
+or from a **CSV export** (no API token needed — see [CSV import](#csv-import-no-api-token)).
+
+> Note: rich Jira description/comment formatting (ADF) is flattened to text.
+> Attachments and issue links are not migrated. Parent/sub-task **hierarchy is
+> preserved by the CSV path** but not the API path.
 
 ### Self-service UI
 
@@ -142,6 +146,43 @@ docker exec -it <api-container> python manage.py import_jira ... --execute
 Jira settings can also come from env vars: `JIRA_BASE_URL`, `JIRA_EMAIL`,
 `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`. Use `--sample` for an offline self-test with
 bundled fixtures. **Pass the token via the flag/env var — never commit it.**
+
+> The API path uses Jira Cloud's enhanced search (`/rest/api/3/search/jql`, which
+> replaced the `GET /rest/api/3/search` endpoint retired in 2025) and falls back to
+> the legacy `/rest/api/2/search` for older Jira Server / Data Center.
+
+### CSV import (no API token)
+
+For teams that can't issue an API token (or prefer not to), export issues from
+Jira (**Issue navigator → Export → CSV "all fields"**) and import the file
+directly. Same idempotency and mapping rules as the API path:
+
+```bash
+docker exec -it <api-container> python manage.py import_jira_csv \
+  --slug <workspace-slug> --project <PROJECT_IDENTIFIER> \
+  --initiator admin@yourco.com --file /tmp/export.csv --with-worklogs
+# add --execute to write (default is a dry-run preview)
+```
+
+It parses Jira's wide CSV (repeated columns for multi-value fields), maps
+**status → state**, **priority**, **labels**, **comments**, **worklogs**
+(`Log Work` cells), and links **parent/sub-task hierarchy** via the `Parent key`
+column. Worklogs go into the time-tracking tables and are billed using the
+resource/client rate rules above.
+
+**What CSV can't carry (vs the API path):**
+
+| Aspect                    | CSV export                                                                                                                                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User identity**         | Display **name only — no email**. Members are matched by name; worklog/comment authors resolve via a name table harvested from the Assignee/Reporter/Creator columns. Non-matching users fall back to the initiator. |
+| **Attachments**           | File **names/URLs** only appear in the CSV — the binaries aren't included, so files aren't migrated (same as API).                                                                                                   |
+| **Custom fields**         | Dropped (Plane CE has no custom issue properties).                                                                                                                                                                   |
+| **Comments**              | Plain text with a single timestamp; rich formatting/mentions lost.                                                                                                                                                   |
+| **Sprints / issue links** | Present in the CSV columns but not imported (Plane CE has no sprint/link model).                                                                                                                                     |
+| **Freshness**             | A point-in-time snapshot — no incremental re-sync (re-importing the same file just skips already-imported issues).                                                                                                   |
+
+Prefer the **API path** when you have a token and need email-accurate user
+mapping; use **CSV** when a token isn't available or for a quick offline migration.
 
 ---
 
