@@ -37,6 +37,17 @@ def is_project_admin(slug, project_id, user):
     ).exists()
 
 
+def is_project_member(slug, project_id, user):
+    """Internal roles (admin/member). Guests are clients and excluded."""
+    return ProjectMember.objects.filter(
+        workspace__slug=slug,
+        project_id=project_id,
+        member=user,
+        role__in=[ROLE.ADMIN.value, ROLE.MEMBER.value],
+        is_active=True,
+    ).exists()
+
+
 def resolve_billable_rate(project, logged_by_id):
     """Default billable rate: resource rate, else the project's client default."""
     capacity = ResourceCapacity.objects.filter(
@@ -73,7 +84,21 @@ class IssueWorklogViewSet(BaseViewSet):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def list(self, request, slug, project_id, issue_id):
         worklogs = self.get_queryset()
-        return Response(IssueWorklogSerializer(worklogs, many=True).data, status=status.HTTP_200_OK)
+        # Internal roles (admin/member) get full detail. Guests (clients) get the
+        # reported total only — never who logged the time or how (timer vs manual).
+        if is_project_member(slug, project_id, request.user):
+            return Response(IssueWorklogSerializer(worklogs, many=True).data, status=status.HTTP_200_OK)
+        stripped = [
+            {
+                "id": str(w.id),
+                "issue": str(w.issue_id),
+                "duration": w.duration,
+                "logged_date": w.logged_date,
+                "is_billable": w.is_billable,
+            }
+            for w in worklogs
+        ]
+        return Response(stripped, status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def create(self, request, slug, project_id, issue_id):

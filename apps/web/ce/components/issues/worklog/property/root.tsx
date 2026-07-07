@@ -74,6 +74,14 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     workspaceSlug,
     projectId
   );
+  // Guests (clients) see the reported total only — never the per-entry breakdown,
+  // who logged it, or the self/PM source. Internal roles (admin/member) see detail.
+  const canSeeDetails = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
   const currentUserId = currentUser?.id ?? "";
   const list = worklogs ?? [];
   const total = list.reduce((sum, w) => sum + (w.duration || 0), 0);
@@ -113,7 +121,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
       <SidebarPropertyListItem icon={Timer} label="Time tracking" childrenClassName="flex-col items-start">
         <div className="flex w-full min-w-0 flex-col gap-2">
           <span className="text-sm font-medium">{fmtMinutes(total)} logged</span>
-          {!disabled && (
+          {canSeeDetails && !disabled && (
             <div className="flex flex-wrap items-center gap-2">
               {runningHere ? (
                 <Button variant="secondary" size="sm" onClick={handleStop}>
@@ -136,7 +144,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
             </div>
           )}
 
-          {list.length > 0 && (
+          {canSeeDetails && list.length > 0 && (
             <div className="flex w-full min-w-0 flex-col gap-1">
               {list.slice(0, 6).map((w) => {
                 // Only PMs/admins, the resource, or whoever entered it may remove an entry.
