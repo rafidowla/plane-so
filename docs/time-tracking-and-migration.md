@@ -44,14 +44,28 @@ Enable it per project: **Project settings → Features → Time tracking** (sets
 
 On any work item, the **Time tracking** section in the properties sidebar shows:
 
-- **Start / Stop timer** — a live stopwatch. One running timer per user at a time;
-  stopping it records a worklog (rounded to the minute, minimum 1).
+- **Start / Stop timer** — a live stopwatch, available to members. One running timer
+  per user at a time; stopping it records a worklog (rounded to the minute, minimum
+  1. with `source=timer` ("self-tracked").
 - **Log time** — a modal for manual entry (hours/minutes, date, description, work
-  type, billable flag).
+  type, billable flag). **Manual entry is a PM/admin function** (members self-track
+  with the timer); entries are recorded with `source=manual` ("PM-reported") and the
+  create API enforces this, so a member cannot log manually and the source cannot be
+  spoofed.
 - **On-behalf logging** — project **admins/PMs** see a **Resource** picker in the
   modal and can log time for another member. The entry records `logged_by` (the
   resource) and `created_by` (who entered it) for an audit trail.
-- **Worklog list** — recent entries; locked (approved) entries are read-only.
+- **Worklog list** — recent entries; each tagged **self** (timer) or **PM** (manual).
+  Locked (approved) entries are read-only.
+
+**Self-reported vs PM-reported** is captured by `source` plus the
+`logged_by`/`created_by` audit trail, so you can see who tracks their own time
+accurately and who relies on a PM entering it.
+
+**Client visibility:** users with the **guest** role (clients) see only the reported
+**total** — never the per-entry list, the self/PM source, or who logged it. The
+worklog list API returns a stripped, totals-only payload to guests. Admin/PM client
+reports aggregate by project/client and never expose who reported the time.
 
 Billable rate is snapshotted at log time: the resource's rate
 (`ResourceCapacity.billable_rate`) if set, otherwise the project's client default
