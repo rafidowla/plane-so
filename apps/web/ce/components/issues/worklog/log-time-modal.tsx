@@ -86,7 +86,13 @@ export function LogTimeModal(props: Props) {
 
   return (
     <ModalCore isOpen={isOpen} handleClose={handleClose}>
-      <form onSubmit={handleSubmit(onSubmit)}>
+      {/*
+        data-prevent-outside-click keeps the issue peek overview open while this
+        modal is being used. The modal is portaled to <body> (outside the peek
+        panel), so without this marker a click into any field reads as an
+        "outside click" and collapses the peek, taking the modal with it.
+      */}
+      <form onSubmit={handleSubmit(onSubmit)} data-prevent-outside-click>
         <div className="space-y-4 p-5">
           <h3 className="text-lg font-medium">Log time</h3>
 

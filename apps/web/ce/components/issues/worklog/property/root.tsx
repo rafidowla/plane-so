@@ -74,6 +74,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     workspaceSlug,
     projectId
   );
+  const currentUserId = currentUser?.id ?? "";
   const list = worklogs ?? [];
   const total = list.reduce((sum, w) => sum + (w.duration || 0), 0);
   const elapsed =
@@ -125,34 +126,46 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                   Start
                 </Button>
               )}
-              <Button variant="secondary" size="sm" onClick={() => setLogOpen(true)}>
-                <Plus className="mr-1 size-3" />
-                Log time
-              </Button>
+              {/* Manual entry is a PM/admin function; members self-track with the timer. */}
+              {isProjectAdmin && (
+                <Button variant="secondary" size="sm" onClick={() => setLogOpen(true)}>
+                  <Plus className="mr-1 size-3" />
+                  Log time
+                </Button>
+              )}
             </div>
           )}
 
           {list.length > 0 && (
             <div className="flex w-full min-w-0 flex-col gap-1">
-              {list.slice(0, 6).map((w) => (
-                <div key={w.id} className="text-xs flex min-w-0 items-center justify-between gap-2 text-tertiary">
-                  <span className="min-w-0 truncate">
-                    {fmtMinutes(w.duration)} · {w.logged_by_detail?.display_name ?? "—"} · {w.logged_date}
-                    {w.is_billable ? "" : " · non-billable"}
-                    {w.is_locked ? " · 🔒" : ""}
-                  </span>
-                  {!disabled && !w.is_locked && (
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(w.id)}
-                      className="hover:text-danger shrink-0 text-tertiary"
-                      aria-label="Delete time entry"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
+              {list.slice(0, 6).map((w) => {
+                // Only PMs/admins, the resource, or whoever entered it may remove an entry.
+                const canModify = isProjectAdmin || w.logged_by === currentUserId || w.created_by === currentUserId;
+                const isSelfTracked = w.source === "timer";
+                return (
+                  <div key={w.id} className="text-xs flex min-w-0 items-center justify-between gap-2 text-tertiary">
+                    <span className="min-w-0 truncate">
+                      {fmtMinutes(w.duration)} · {w.logged_by_detail?.display_name ?? "—"} ·{" "}
+                      <span title={isSelfTracked ? "Self-tracked with the timer" : "Entered manually by a PM/admin"}>
+                        {isSelfTracked ? "self" : "PM"}
+                      </span>{" "}
+                      · {w.logged_date}
+                      {w.is_billable ? "" : " · non-billable"}
+                      {w.is_locked ? " · 🔒" : ""}
+                    </span>
+                    {!disabled && !w.is_locked && canModify && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(w.id)}
+                        className="hover:text-danger shrink-0 text-tertiary"
+                        aria-label="Delete time entry"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

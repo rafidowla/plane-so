@@ -108,6 +108,32 @@ class TestWorklog:
         )
         assert r.status_code == status.HTTP_403_FORBIDDEN
 
+    def test_member_cannot_log_manually(self, session_client, tt):
+        # Manual entry is a PM/admin function: a plain member is refused even for
+        # their own time and must use the start/stop timer instead.
+        slug, pid, iid = _ids(tt)
+        member = _member(tt["workspace"], tt["project"])
+        session_client.force_authenticate(user=member)
+        r = session_client.post(
+            _wl_url(slug, pid, iid),
+            {"duration": 45, "logged_date": "2026-06-22"},
+            format="json",
+        )
+        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert IssueWorklog.objects.filter(issue=tt["issue"], logged_by=member).count() == 0
+
+    def test_manual_entry_is_forced_source_manual(self, session_client, tt):
+        # The manual endpoint always records source=manual ("PM reported"), even
+        # if the client tries to relabel the entry as self-tracked.
+        slug, pid, iid = _ids(tt)
+        r = session_client.post(
+            _wl_url(slug, pid, iid),
+            {"duration": 30, "logged_date": "2026-06-22", "source": "timer"},
+            format="json",
+        )
+        assert r.status_code == status.HTTP_201_CREATED
+        assert IssueWorklog.objects.get(id=r.data["id"]).source == "manual"
+
     def test_timer_start_conflict_and_stop(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         timer_url = f"/api/workspaces/{slug}/projects/{pid}/issues/{iid}/worklog-timer/"

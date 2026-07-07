@@ -84,13 +84,21 @@ class IssueWorklogViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Resolve the resource the time belongs to (on-behalf requires PM/admin).
-        logged_by_id = request.data.get("logged_by") or request.user.id
-        if str(logged_by_id) != str(request.user.id) and not is_project_admin(slug, project_id, request.user):
+        # Manual time entry is a PM/admin function. Regular members self-track via
+        # the start/stop timer (source=timer); an admin entering time on their
+        # behalf produces source=manual ("PM reported"). Keeping the two paths
+        # distinct is what lets us tell self-reported from PM-reported time.
+        if not is_project_admin(slug, project_id, request.user):
             return Response(
-                {"error": "Only project admins can log time on behalf of another resource."},
+                {
+                    "error": "Only project admins/PMs can enter time manually. "
+                    "Members log their own time with the start/stop timer."
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        # The resource the time belongs to (defaults to the admin entering it).
+        logged_by_id = request.data.get("logged_by") or request.user.id
 
         serializer = IssueWorklogSerializer(data=request.data)
         if not serializer.is_valid():
@@ -103,13 +111,16 @@ class IssueWorklogViewSet(BaseViewSet):
         if is_billable and billable_rate is None:
             billable_rate, currency = resolve_billable_rate(project, logged_by_id)
 
+        # Force source=manual: this endpoint is the manual/PM-reported path. The
+        # timer endpoint is the only producer of source=timer, so the client
+        # cannot relabel a manually entered record as self-tracked.
         worklog = serializer.save(
             project_id=project_id,
             issue_id=issue_id,
             logged_by_id=logged_by_id,
             billable_rate=billable_rate,
             currency=currency,
-            source=serializer.validated_data.get("source", WorklogSource.MANUAL),
+            source=WorklogSource.MANUAL,
         )
         return Response(IssueWorklogSerializer(worklog).data, status=status.HTTP_201_CREATED)
 
