@@ -31,6 +31,7 @@ class JiraImportJob(BaseModel):
     )
     status = models.CharField(max_length=20, choices=JiraImportStatus.choices, default=JiraImportStatus.QUEUED)
     with_worklogs = models.BooleanField(default=False)
+    with_attachments = models.BooleanField(default=False)
     # Non-secret connection info for display/audit (url, project key, jql) — never the token.
     config = models.JSONField(default=dict)
     total = models.PositiveIntegerField(default=0)

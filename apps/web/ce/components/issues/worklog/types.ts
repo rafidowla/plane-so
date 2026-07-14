@@ -117,6 +117,7 @@ export type TJiraImportConfig = {
   jira_project?: string;
   jql?: string;
   with_worklogs?: boolean;
+  with_attachments?: boolean;
   sample?: boolean;
 };
 
@@ -129,6 +130,7 @@ export type TJiraPreviewRow = {
   labels: number;
   comments: number;
   worklogs: number;
+  attachments?: number;
 };
 
 export type TJiraPreview = {
@@ -138,6 +140,10 @@ export type TJiraPreview = {
   skipped: number;
   comments: number;
   worklogs: number;
+  attachments?: number;
+  attachments_created?: number;
+  attachments_skipped_size?: number;
+  attachments_failed?: number;
   unmapped_states: string[];
   unmapped_users: string[];
   preview: TJiraPreviewRow[];
@@ -147,6 +153,7 @@ export type TJiraImportJob = {
   id: string;
   status: "queued" | "processing" | "completed" | "failed";
   with_worklogs: boolean;
+  with_attachments?: boolean;
   config: Record<string, unknown>;
   total: number;
   processed: number;

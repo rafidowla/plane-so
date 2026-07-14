@@ -34,6 +34,7 @@ class JiraImportPreviewEndpoint(BaseAPIView):
     def post(self, request, slug, project_id):
         project = Project.objects.get(pk=project_id)
         with_worklogs = bool(request.data.get("with_worklogs"))
+        with_attachments = bool(request.data.get("with_attachments")) and not request.data.get("sample")
         try:
             if request.data.get("sample"):
                 issues = sample_issues()
@@ -52,12 +53,14 @@ class JiraImportPreviewEndpoint(BaseAPIView):
         except Exception as e:
             return Response({"error": f"Could not reach Jira: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Dry-run only counts attachments (no download), so jira_auth isn't needed here.
         result = run_import(
             project=project,
             initiator=request.user,
             issues=issues,
             with_worklogs=with_worklogs,
             dry_run=True,
+            with_attachments=with_attachments,
         )
         return Response(result, status=status.HTTP_200_OK)
 
@@ -81,12 +84,14 @@ class JiraImportEndpoint(BaseAPIView):
             )
         workspace = Workspace.objects.get(slug=slug)
         with_worklogs = bool(request.data.get("with_worklogs"))
+        with_attachments = bool(request.data.get("with_attachments")) and not is_sample
 
         job = JiraImportJob.objects.create(
             workspace=workspace,
             project_id=project_id,
             initiated_by=request.user,
             with_worklogs=with_worklogs,
+            with_attachments=with_attachments,
             # config is non-secret display info only — never store the token.
             config={"jira_url": cfg["jira_url"], "jira_project": cfg["jira_project"], "jql": cfg["jql"], "sample": is_sample},
         )
@@ -112,6 +117,7 @@ class JiraImportEndpoint(BaseAPIView):
                 cfg["jira_project"],
                 cfg["jql"],
                 with_worklogs,
+                with_attachments,
             )
 
         return Response(JiraImportJobSerializer(job).data, status=status.HTTP_201_CREATED)

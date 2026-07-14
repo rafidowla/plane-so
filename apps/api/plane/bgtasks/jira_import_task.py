@@ -11,7 +11,9 @@ from plane.utils.jira_importer import fetch_jira_issues, run_import
 
 
 @shared_task
-def run_jira_import_task(job_id, jira_url, jira_email, jira_token, jira_project, jql, with_worklogs):
+def run_jira_import_task(
+    job_id, jira_url, jira_email, jira_token, jira_project, jql, with_worklogs, with_attachments=False
+):
     """Run a self-service Jira import in the background and track progress.
 
     The Jira token is received as an argument only and is never persisted.
@@ -42,6 +44,8 @@ def run_jira_import_task(job_id, jira_url, jira_email, jira_token, jira_project,
             dry_run=False,
             progress=progress,
             preview_limit=0,
+            with_attachments=with_attachments,
+            jira_auth=(jira_email, jira_token) if with_attachments else None,
         )
         JiraImportJob.objects.filter(id=job_id).update(
             status=JiraImportStatus.COMPLETED,

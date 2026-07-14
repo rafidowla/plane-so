@@ -31,6 +31,7 @@ export const Imports = observer(function Imports() {
   const [jiraToken, setJiraToken] = useState("");
   const [jiraProject, setJiraProject] = useState("");
   const [withWorklogs, setWithWorklogs] = useState(true);
+  const [withAttachments, setWithAttachments] = useState(false);
   const [useSample, setUseSample] = useState(false);
 
   const [preview, setPreview] = useState<TJiraPreview | null>(null);
@@ -45,6 +46,7 @@ export const Imports = observer(function Imports() {
     jira_token: jiraToken,
     jira_project: jiraProject,
     with_worklogs: withWorklogs,
+    with_attachments: withAttachments,
     sample: useSample,
   });
   const canRun = Boolean(projectId) && (useSample || (jiraUrl && jiraEmail && jiraToken));
@@ -193,6 +195,16 @@ export const Imports = observer(function Imports() {
           Import logged time (Jira worklogs → time tracking)
         </label>
 
+        <label className="text-sm flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={withAttachments}
+            disabled={useSample}
+            onChange={(e) => setWithAttachments(e.target.checked)}
+          />
+          Migrate attachments (downloads files from Jira — needs your Jira login above)
+        </label>
+
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={handlePreview} disabled={!canRun || previewing}>
             {previewing ? "Previewing…" : "Preview"}
@@ -214,6 +226,7 @@ export const Imports = observer(function Imports() {
             <span>Skipped (already imported): {preview.skipped}</span>
             <span>Comments: {preview.comments}</span>
             <span>Worklogs: {preview.worklogs}</span>
+            {withAttachments && <span>Attachments: {preview.attachments ?? 0}</span>}
           </div>
           {preview.unmapped_states.length > 0 && (
             <p className="text-xs text-amber-600 mb-1">
