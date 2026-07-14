@@ -138,7 +138,9 @@ idempotent on the Jira attachment id, so re-runs don't duplicate. Files over
 before a run if you need larger files. The original uploader is mapped to the
 matching Plane member (else the initiator). The CSV export only lists attachment
 names/URLs (not the bytes), and those URLs still require Jira auth to download, so
-the CSV path cannot migrate attachments on its own.
+the CSV path cannot migrate attachments on its own. For deployment (S3/MinIO
+wiring) and a first-run test checklist, see the
+[attachment migration runbook](jira-attachments-runbook.md).
 
 ### Self-service UI
 
