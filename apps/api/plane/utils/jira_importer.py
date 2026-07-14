@@ -11,12 +11,16 @@ tables). Idempotent via Issue.external_id.
 """
 
 import math
+from io import BytesIO
+from uuid import uuid4
 
 import requests
+from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from plane.db.models import (
+    FileAsset,
     Issue,
     IssueAssignee,
     IssueComment,
@@ -30,6 +34,8 @@ from plane.db.models import (
     User,
     WorkspaceMember,
 )
+from plane.settings.storage import S3Storage
+from plane.utils.path_validator import sanitize_filename
 
 PRIORITY_MAP = {
     "highest": "urgent",
@@ -40,7 +46,7 @@ PRIORITY_MAP = {
     "lowest": "low",
 }
 
-ISSUE_FIELDS = "summary,description,status,assignee,reporter,priority,labels,created,duedate,comment,worklog"
+ISSUE_FIELDS = "summary,description,status,assignee,reporter,priority,labels,created,duedate,comment,worklog,attachment"
 
 
 def norm(name):
@@ -158,7 +164,80 @@ def is_project_admin(project, user):
     ).exists()
 
 
-def run_import(project, initiator, issues, with_worklogs=False, dry_run=True, progress=None, preview_limit=25):
+def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map):
+    """Download each Jira attachment and store it as a Plane FileAsset.
+
+    Bytes are streamed from Jira's authenticated `content` URL straight into the
+    configured object store (S3/MinIO) via Plane's storage helper, then a
+    FileAsset row links them to the issue. Idempotent on
+    (external_source='jira', external_id=<jira attachment id>). Files over
+    settings.FILE_SIZE_LIMIT are skipped (counted, not fatal).
+    """
+    counts = {"created": 0, "skipped_size": 0, "skipped_existing": 0, "failed": 0}
+    storage = None
+    for att in jira_attachments or []:
+        att_id = str(att.get("id") or "")
+        content_url = att.get("content")
+        if not att_id or not content_url:
+            counts["failed"] += 1
+            continue
+        if FileAsset.objects.filter(issue_id=issue.id, external_source="jira", external_id=att_id).exists():
+            counts["skipped_existing"] += 1
+            continue
+        # Skip early on the size Jira reports, before spending a download.
+        if int(att.get("size") or 0) > settings.FILE_SIZE_LIMIT:
+            counts["skipped_size"] += 1
+            continue
+        try:
+            resp = requests.get(content_url, auth=jira_auth, timeout=120)
+            resp.raise_for_status()
+        except requests.RequestException:
+            counts["failed"] += 1
+            continue
+        content = resp.content
+        if len(content) > settings.FILE_SIZE_LIMIT:
+            counts["skipped_size"] += 1
+            continue
+
+        filename = sanitize_filename(att.get("filename") or "") or uuid4().hex
+        mime = att.get("mimeType") or "application/octet-stream"
+        asset_key = f"{project.workspace_id}/{uuid4().hex}-{filename}"
+        if storage is None:
+            storage = S3Storage()
+        if not storage.upload_file(BytesIO(content), asset_key, content_type=mime):
+            counts["failed"] += 1
+            continue
+
+        author_email = ((att.get("author") or {}).get("emailAddress") or "").lower()
+        author = member_map.get(author_email) or initiator
+        FileAsset.objects.create(
+            attributes={"name": filename, "type": mime, "size": len(content)},
+            asset=asset_key,
+            size=len(content),
+            workspace_id=project.workspace_id,
+            project_id=project.id,
+            issue_id=issue.id,
+            entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
+            is_uploaded=True,
+            external_id=att_id,
+            external_source="jira",
+            created_by=author,
+        )
+        counts["created"] += 1
+    return counts
+
+
+def run_import(
+    project,
+    initiator,
+    issues,
+    with_worklogs=False,
+    dry_run=True,
+    progress=None,
+    preview_limit=25,
+    with_attachments=False,
+    jira_auth=None,
+):
     """Process Jira issues into Plane. Returns a result dict.
 
     `issues` is a list of Jira issue dicts (already fetched). When dry_run,
@@ -167,7 +246,8 @@ def run_import(project, initiator, issues, with_worklogs=False, dry_run=True, pr
     after each issue for background-job status updates.
     """
     total = len(issues)
-    created = skipped = comments_n = worklogs_n = 0
+    created = skipped = comments_n = worklogs_n = attachments_n = 0
+    att_totals = {"created": 0, "skipped_size": 0, "skipped_existing": 0, "failed": 0}
     unmapped_states, unmapped_users = set(), set()
     preview = []
 
@@ -201,8 +281,10 @@ def run_import(project, initiator, issues, with_worklogs=False, dry_run=True, pr
         desc = adf_to_text(f.get("description"))
         jira_comments = (f.get("comment") or {}).get("comments", [])
         jira_worklogs = (f.get("worklog") or {}).get("worklogs", []) if with_worklogs else []
+        jira_attachments = (f.get("attachment") or []) if with_attachments else []
         comments_n += len(jira_comments)
         worklogs_n += len(jira_worklogs)
+        attachments_n += len(jira_attachments)
         created += 1
 
         if len(preview) < preview_limit:
@@ -216,6 +298,7 @@ def run_import(project, initiator, issues, with_worklogs=False, dry_run=True, pr
                     "labels": len(labels),
                     "comments": len(jira_comments),
                     "worklogs": len(jira_worklogs),
+                    "attachments": len(jira_attachments),
                 }
             )
 
@@ -278,6 +361,11 @@ def run_import(project, initiator, issues, with_worklogs=False, dry_run=True, pr
                     currency=currency,
                 ).save(created_by_id=initiator.id)
 
+            if with_attachments and jira_auth and jira_attachments:
+                c = migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map)
+                for k in att_totals:
+                    att_totals[k] += c[k]
+
         if progress:
             progress(idx + 1, total)
 
@@ -288,6 +376,10 @@ def run_import(project, initiator, issues, with_worklogs=False, dry_run=True, pr
         "skipped": skipped,
         "comments": comments_n,
         "worklogs": worklogs_n,
+        "attachments": attachments_n,
+        "attachments_created": att_totals["created"],
+        "attachments_skipped_size": att_totals["skipped_size"],
+        "attachments_failed": att_totals["failed"],
         "unmapped_states": sorted(s for s in unmapped_states if s),
         "unmapped_users": sorted(unmapped_users),
         "preview": preview,

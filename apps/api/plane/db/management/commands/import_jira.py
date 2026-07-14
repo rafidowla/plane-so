@@ -49,6 +49,12 @@ class Command(BaseCommand):
         parser.add_argument("--jql", default=None)
         parser.add_argument("--limit", type=int, default=0)
         parser.add_argument("--with-worklogs", action="store_true", default=False)
+        parser.add_argument(
+            "--with-attachments",
+            action="store_true",
+            default=False,
+            help="download Jira attachments into Plane storage (API path only; needs Jira credentials)",
+        )
         parser.add_argument("--sample", action="store_true", default=False, help="use bundled sample data, skip Jira")
         parser.add_argument("--execute", action="store_true", default=False, help="write to DB (default is dry-run)")
 
@@ -67,17 +73,25 @@ class Command(BaseCommand):
         if not ProjectMember.objects.filter(project=project, member=initiator, is_active=True).exists():
             raise CommandError("Initiator must be a member of the project")
 
+        jira_email = _opt(options, "jira_email", "JIRA_EMAIL")
+        jira_token = _opt(options, "jira_token", "JIRA_API_TOKEN")
         if options["sample"]:
             issues = sample_issues()
         else:
             issues = fetch_jira_issues(
                 jira_url=_opt(options, "jira_url", "JIRA_BASE_URL"),
-                jira_email=_opt(options, "jira_email", "JIRA_EMAIL"),
-                jira_token=_opt(options, "jira_token", "JIRA_API_TOKEN"),
+                jira_email=jira_email,
+                jira_token=jira_token,
                 jira_project=_opt(options, "jira_project", "JIRA_PROJECT_KEY"),
                 jql=options["jql"],
                 limit=options["limit"],
             )
+
+        # Attachments need Jira credentials to download the binaries; the CSV/sample
+        # paths can't supply them.
+        with_attachments = options["with_attachments"] and not options["sample"]
+        if options["with_attachments"] and options["sample"]:
+            self.stdout.write(self.style.WARNING("Sample data has no downloadable attachments; --with-attachments ignored."))
 
         self.stdout.write(self.style.MIGRATE_HEADING(f"{'DRY-RUN' if dry else 'IMPORT'}: Jira -> {project.name}"))
         self.stdout.write(f"Fetched {len(issues)} Jira issue(s)\n")
@@ -88,17 +102,29 @@ class Command(BaseCommand):
             with_worklogs=options["with_worklogs"],
             dry_run=dry,
             preview_limit=10**6,
+            with_attachments=with_attachments,
+            jira_auth=(jira_email, jira_token) if with_attachments else None,
         )
         for row in result["preview"]:
             self.stdout.write(
                 f"  + {row['key']} | {row['summary'][:48]!r} | state={row['state'] or '—'} | "
                 f"priority={row['priority']} | assignee={row['assignee'] or '—'} | "
-                f"labels={row['labels']} | comments={row['comments']} | worklogs={row['worklogs']}"
+                f"labels={row['labels']} | comments={row['comments']} | worklogs={row['worklogs']} | "
+                f"attachments={row.get('attachments', 0)}"
             )
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(f"{'Would create' if dry else 'Created'}: {result['created']} issue(s)"))
         self.stdout.write(f"Skipped (already imported): {result['skipped']}")
         self.stdout.write(f"Comments: {result['comments']} | Worklogs: {result['worklogs']}")
+        if with_attachments:
+            if dry:
+                self.stdout.write(f"Attachments to migrate: {result['attachments']}")
+            else:
+                self.stdout.write(
+                    f"Attachments: {result['attachments_created']} migrated"
+                    f" | {result['attachments_skipped_size']} skipped (too large)"
+                    f" | {result['attachments_failed']} failed"
+                )
         if result["unmapped_states"]:
             self.stdout.write(self.style.WARNING(f"Unmapped statuses (used default): {result['unmapped_states']}"))
         if result["unmapped_users"]:

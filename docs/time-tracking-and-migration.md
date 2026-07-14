@@ -125,9 +125,20 @@ Mapping:
 There are **two ways** to import: over the **Jira REST API** (richest fidelity)
 or from a **CSV export** (no API token needed — see [CSV import](#csv-import-no-api-token)).
 
-> Note: rich Jira description/comment formatting (ADF) is flattened to text.
-> Attachments and issue links are not migrated. Parent/sub-task **hierarchy is
-> preserved by the CSV path** but not the API path.
+> Note: rich Jira description/comment formatting (ADF) is flattened to text, and
+> issue links are not migrated. **Attachments** can be migrated on the **API path**
+> (opt-in, `--with-attachments`) but not the CSV path. Parent/sub-task **hierarchy**
+> is preserved by the **CSV path** but not the API path.
+
+**Attachments (API path).** With `--with-attachments`, the importer streams each
+Jira attachment's binary from its authenticated `content` URL straight into Plane's
+object store (S3/MinIO) and links it to the work item as a real attachment —
+idempotent on the Jira attachment id, so re-runs don't duplicate. Files over
+`FILE_SIZE_LIMIT` (default **5 MB**) are skipped and counted; raise that env var
+before a run if you need larger files. The original uploader is mapped to the
+matching Plane member (else the initiator). The CSV export only lists attachment
+names/URLs (not the bytes), and those URLs still require Jira auth to download, so
+the CSV path cannot migrate attachments on its own.
 
 ### Self-service UI
 
@@ -151,11 +162,14 @@ docker exec -it <api-container> python manage.py import_jira \
   --initiator admin@yourco.com \
   --jira-url https://yourorg.atlassian.net --jira-email you@yourco.com \
   --jira-token "$JIRA_API_TOKEN" --jira-project ENG \
-  --with-worklogs
+  --with-worklogs --with-attachments
 
 # Execute the import:
 docker exec -it <api-container> python manage.py import_jira ... --execute
 ```
+
+`--with-attachments` downloads the binaries into Plane's object store (needs the
+Jira credentials above; ignored for `--sample`).
 
 Jira settings can also come from env vars: `JIRA_BASE_URL`, `JIRA_EMAIL`,
 `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`. Use `--sample` for an offline self-test with
@@ -189,7 +203,7 @@ resource/client rate rules above.
 | Aspect                    | CSV export                                                                                                                                                                                                           |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **User identity**         | Display **name only — no email**. Members are matched by name; worklog/comment authors resolve via a name table harvested from the Assignee/Reporter/Creator columns. Non-matching users fall back to the initiator. |
-| **Attachments**           | File **names/URLs** only appear in the CSV — the binaries aren't included, so files aren't migrated (same as API).                                                                                                   |
+| **Attachments**           | Only **names/URLs** are in the CSV — the binaries aren't, so the CSV path can't migrate files. The **API path** _can_ (`--with-attachments`).                                                                        |
 | **Custom fields**         | Dropped (Plane CE has no custom issue properties).                                                                                                                                                                   |
 | **Comments**              | Plain text with a single timestamp; rich formatting/mentions lost.                                                                                                                                                   |
 | **Sprints / issue links** | Present in the CSV columns but not imported (Plane CE has no sprint/link model).                                                                                                                                     |

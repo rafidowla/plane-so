@@ -266,3 +266,98 @@ class TestJiraImport:
         )
         assert r2.data["result"]["created"] == 0
         assert r2.data["result"]["skipped"] == 2
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestAttachmentImport:
+    """Server-side Jira attachment migration (API path). The Jira download and the
+    S3/MinIO upload are mocked so the test verifies our record-creation logic and
+    idempotency without external services."""
+
+    def _issue(self, key="ENG-500", size=11):
+        return {
+            "key": key,
+            "fields": {
+                "summary": "Has an attachment",
+                "status": {"name": "Todo"},
+                "priority": {"name": "Medium"},
+                "attachment": [
+                    {
+                        "id": "att-1",
+                        "filename": "spec.pdf",
+                        "mimeType": "application/pdf",
+                        "size": size,
+                        "content": "https://acme.atlassian.net/rest/api/3/attachment/content/att-1",
+                        "author": {"emailAddress": "someone@acme.com"},
+                    }
+                ],
+                "comment": {"comments": []},
+                "worklog": {"worklogs": []},
+            },
+        }
+
+    def _patch_io(self, monkeypatch, body=b"hello-bytes"):
+        from plane.settings.storage import S3Storage
+        from plane.utils import jira_importer
+
+        class FakeResp:
+            content = body
+
+            def raise_for_status(self):
+                return None
+
+        monkeypatch.setattr(jira_importer.requests, "get", lambda *a, **k: FakeResp())
+        monkeypatch.setattr(S3Storage, "upload_file", lambda self, f, key, content_type=None, extra_args={}: True)
+
+    def test_attachment_migrated_and_idempotent(self, tt, monkeypatch):
+        from plane.db.models import FileAsset, Issue
+        from plane.utils.jira_importer import run_import
+
+        self._patch_io(monkeypatch)
+        res = run_import(
+            project=tt["project"], initiator=tt["user"], issues=[self._issue()],
+            dry_run=False, with_attachments=True, jira_auth=("e@x.com", "tok"),
+        )
+        assert res["attachments_created"] == 1
+        issue = Issue.objects.get(project=tt["project"], external_source="jira", external_id="ENG-500")
+        fa = FileAsset.objects.get(external_source="jira", external_id="att-1")
+        assert fa.issue_id == issue.id
+        assert fa.entity_type == FileAsset.EntityTypeContext.ISSUE_ATTACHMENT
+        assert fa.is_uploaded is True
+        assert fa.size == len(b"hello-bytes")
+
+        # Re-running skips the already-imported issue (and its attachment).
+        res2 = run_import(
+            project=tt["project"], initiator=tt["user"], issues=[self._issue()],
+            dry_run=False, with_attachments=True, jira_auth=("e@x.com", "tok"),
+        )
+        assert res2["attachments_created"] == 0
+        assert FileAsset.objects.filter(external_source="jira", external_id="att-1").count() == 1
+
+    def test_oversized_attachment_skipped(self, tt, monkeypatch):
+        from django.conf import settings
+        from plane.db.models import FileAsset
+        from plane.utils.jira_importer import run_import
+
+        self._patch_io(monkeypatch)
+        res = run_import(
+            project=tt["project"], initiator=tt["user"],
+            issues=[self._issue(key="ENG-501", size=settings.FILE_SIZE_LIMIT + 1)],
+            dry_run=False, with_attachments=True, jira_auth=("e@x.com", "tok"),
+        )
+        assert res["attachments_created"] == 0
+        assert res["attachments_skipped_size"] == 1
+        assert not FileAsset.objects.filter(external_source="jira", external_id="att-1").exists()
+
+    def test_attachments_off_by_default(self, tt, monkeypatch):
+        from plane.db.models import FileAsset
+        from plane.utils.jira_importer import run_import
+
+        self._patch_io(monkeypatch)
+        res = run_import(
+            project=tt["project"], initiator=tt["user"], issues=[self._issue(key="ENG-502")],
+            dry_run=False,
+        )
+        assert res.get("attachments_created", 0) == 0
+        assert not FileAsset.objects.filter(external_source="jira").exists()
