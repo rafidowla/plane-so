@@ -1307,3 +1307,47 @@
   --tw-prose-th-borders: var(--border-color-subtle);
   --tw-prose-td-borders: var(--border-color-subtle);
 }
+
+/* -------------------- Monday.com-inspired theme (light-based) -------------------- */
+/* Selectable preset ("Monday" in the theme switcher). Base tokens are inherited
+   from :root (light); this block only overrides what differs. The whole accent
+   system derives from --brand-*, so recoloring that scale recolors buttons, links,
+   selected states, focus rings and active nav across the app. */
+[data-theme="monday"] {
+  /* Accent -> Monday indigo */
+  --brand-100: #f3f3ff;
+  --brand-200: #e9e9ff;
+  --brand-300: #dadaff;
+  --brand-400: #c4c4ff;
+  --brand-500: #a9a9ff;
+  --brand-600: #8f8fff;
+  --brand-700: #7a7aff;
+  --brand-900: #4d4de0;
+  --brand-1000: #3f3fc9;
+  --brand-1100: #3131a0;
+  --brand-1200: #26267a;
+  --brand-default: #6161ff;
+
+  /* Cooler app canvas; keep cards/panels white for the bright Monday look */
+  --bg-canvas: #eef0f8;
+  --bg-surface-2: #f5f6fb;
+
+  /* Punchier filled status colors (Monday green / orange / red) */
+  --bg-success-primary: #00c875;
+  --bg-warning-primary: #fdab3d;
+  --bg-danger-primary: #e2445c;
+  --bg-danger-primary-hover: #cf3a52;
+  --bg-danger-primary-active: #bb3149;
+
+  /* Chunkier corners (medium bucket) - Tailwind v4 radius tokens */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+/* Monday uses Figtree; scope it to the theme so other themes keep Inter. */
+[data-theme="monday"] body {
+  font-family: "Figtree Variable", "Figtree", ui-sans-serif, system-ui, sans-serif;
+}

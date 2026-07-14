@@ -30,6 +30,8 @@ import { AppProvider } from "./provider";
 // fonts
 import "@fontsource-variable/inter";
 import interVariableWoff2 from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+// Figtree — applied only under the Monday theme (see [data-theme="monday"] in variables.css).
+import "@fontsource-variable/figtree";
 import "@fontsource/material-symbols-rounded";
 import "@fontsource/ibm-plex-mono";
 
