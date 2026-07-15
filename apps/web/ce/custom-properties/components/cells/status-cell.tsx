@@ -42,6 +42,7 @@ export const StatusPropertyCell = observer(function StatusPropertyCell(props: TP
         options={dropdownOptions}
         disabled={disabled}
         keyExtractor={(opt) => opt.value}
+        queryArray={["name"]}
         placement="bottom-start"
         inputPlaceholder="Search options"
         buttonContainerClassName="h-full w-full"

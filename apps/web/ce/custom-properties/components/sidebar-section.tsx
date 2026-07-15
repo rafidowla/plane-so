@@ -6,6 +6,7 @@
 
 import { observer } from "mobx-react";
 // local imports
+import { useProjectCustomProperties } from "@/plane-web/custom-properties";
 import { PropertyInputRows } from "./property-input-rows";
 
 type Props = {
@@ -24,8 +25,11 @@ type Props = {
  */
 export const CustomPropertiesSidebarSection = observer(function CustomPropertiesSidebarSection(props: Props) {
   const { workItemId, projectId, workspaceSlug, isEditable } = props;
+  const { enabled, properties } = useProjectCustomProperties(workspaceSlug || undefined, projectId || undefined);
 
-  if (!workItemId || !projectId || !workspaceSlug) return null;
+  // Feature off (or nothing to show) ⇒ render nothing, so the sidebar/peek DOM
+  // stays byte-identical to stock Plane. Every seam must gate on `enabled`.
+  if (!enabled || !workItemId || !projectId || !workspaceSlug || properties.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2">

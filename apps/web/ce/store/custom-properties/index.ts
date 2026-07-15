@@ -241,10 +241,12 @@ export interface IPropertyValuesStore {
 export class PropertyValuesStore implements IPropertyValuesStore {
   valuesMap: Record<string, Record<string, string[]>> = {};
   rootStore: RootStore;
-  // non-observable batch state
+  // non-observable batch state. The queue is bucketed by workspace+project so a
+  // multi-project board (each card enqueues against its OWN project) never
+  // fetches one project's issues against another project's context — which would
+  // return empty rows and permanently mark them `requested`.
   private requested = new Set<string>();
-  private pendingIds = new Set<string>();
-  private pendingContext: { workspaceSlug: string; projectId: string } | null = null;
+  private pending = new Map<string, { workspaceSlug: string; projectId: string; ids: Set<string> }>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(rootStore: RootStore) {
@@ -262,8 +264,13 @@ export class PropertyValuesStore implements IPropertyValuesStore {
 
   enqueueValueFetch = (workspaceSlug: string, projectId: string, issueId: string): void => {
     if (this.requested.has(issueId)) return;
-    this.pendingIds.add(issueId);
-    this.pendingContext = { workspaceSlug, projectId };
+    const key = `${workspaceSlug}::${projectId}`;
+    let bucket = this.pending.get(key);
+    if (!bucket) {
+      bucket = { workspaceSlug, projectId, ids: new Set() };
+      this.pending.set(key, bucket);
+    }
+    bucket.ids.add(issueId);
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.flushTimer = setTimeout(() => {
       void this.flush();
@@ -271,13 +278,20 @@ export class PropertyValuesStore implements IPropertyValuesStore {
   };
 
   private flush = async (): Promise<void> => {
-    const context = this.pendingContext;
-    const ids = Array.from(this.pendingIds);
-    this.pendingIds.clear();
+    const buckets = Array.from(this.pending.values());
+    this.pending.clear();
     this.flushTimer = null;
-    if (!context || ids.length === 0) return;
-    for (let i = 0; i < ids.length; i += BULK_CAP) {
-      await this.fetchBulkValues(context.workspaceSlug, context.projectId, ids.slice(i, i + BULK_CAP));
+    for (const bucket of buckets) {
+      const ids = Array.from(bucket.ids);
+      for (let i = 0; i < ids.length; i += BULK_CAP) {
+        try {
+          await this.fetchBulkValues(bucket.workspaceSlug, bucket.projectId, ids.slice(i, i + BULK_CAP));
+        } catch {
+          // A failed page must not abort the other pages/buckets. fetchBulkValues
+          // only marks ids `requested` on success, so these ids stay eligible for
+          // a later mount to retry.
+        }
+      }
     }
   };
 

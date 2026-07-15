@@ -41,6 +41,7 @@ export const StatusPropertyInput = observer(function StatusPropertyInput(props: 
       options={dropdownOptions}
       disabled={disabled}
       keyExtractor={(opt) => opt.value}
+      queryArray={["name"]}
       placement="bottom-start"
       inputPlaceholder="Search options"
       buttonContainerClassName="w-full"

@@ -299,6 +299,11 @@ class IssuePropertyOptionsEndpoint(_PropertiesBaseView):
         ).first()
         if not prop:
             return Response({"error": "Property not found."}, status=status.HTTP_404_NOT_FOUND)
+        # A hierarchical parent, if supplied, must be an option of THIS property —
+        # never one belonging to another property or project.
+        parent_id = request.data.get("parent")
+        if parent_id and not IssuePropertyOption.objects.filter(property=prop, pk=parent_id).exists():
+            return Response({"error": "Invalid parent option."}, status=status.HTTP_400_BAD_REQUEST)
         project = Project.objects.get(pk=project_id)
         opt = IssuePropertyOption.objects.create(
             workspace_id=project.workspace_id,
@@ -310,7 +315,7 @@ class IssuePropertyOptionsEndpoint(_PropertiesBaseView):
             is_default=bool(request.data.get("is_default", False)),
             is_active=bool(request.data.get("is_active", True)),
             sort_order=request.data.get("sort_order", 65535),
-            parent_id=request.data.get("parent"),
+            parent_id=parent_id,
             external_source=request.data.get("external_source"),
             external_id=request.data.get("external_id"),
         )
