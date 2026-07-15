@@ -12,6 +12,7 @@ import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { ToggleSwitch } from "@plane/ui";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useCustomProperties } from "@/plane-web/custom-properties/hooks/use-custom-properties";
+import { CustomPropertyList } from "./property-list";
 
 type Props = {
   workspaceSlug: string;
@@ -54,6 +55,23 @@ export const ProjectPropertiesSettings = observer(function ProjectPropertiesSett
         )}
       </div>
       <ToggleSwitch value={isEnabled} onChange={handleToggle} disabled={!isAdmin || !instanceEnabled} />
+    </div>
+  );
+});
+
+export const ProjectPropertiesSettingsRoot = observer(function ProjectPropertiesSettingsRoot({
+  workspaceSlug,
+  projectId,
+}: Props) {
+  const store = useCustomProperties();
+  const { allowPermissions } = useUserPermissions();
+  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId);
+  const isEnabled = store.isFeatureEnabled(projectId);
+
+  return (
+    <div className="flex flex-col">
+      <ProjectPropertiesSettings workspaceSlug={workspaceSlug} projectId={projectId} />
+      {isEnabled && isAdmin && <CustomPropertyList workspaceSlug={workspaceSlug} projectId={projectId} />}
     </div>
   );
 });

@@ -1,4 +1,37 @@
 {
+  "custom_properties": {
+    "type": {
+      "status": "Status",
+      "text": "Text",
+      "number": "Number",
+      "date": "Date",
+      "checkbox": "Checkbox",
+      "member": "Member",
+      "url": "URL",
+      "email": "Email",
+      "file": "File"
+    },
+    "soon": "Soon",
+    "add_property": "Add property",
+    "new_property": "New property",
+    "edit_property": "Edit property",
+    "property_name": "Property name",
+    "property_name_placeholder": "e.g. Deal stage",
+    "options": "Options",
+    "add_option": "Add option",
+    "option_name_placeholder": "Option label",
+    "default_badge": "Default",
+    "set_default": "Set as default",
+    "delete_property": "Delete property",
+    "no_properties": "No custom properties yet. Add one to start tracking typed data on your work items.",
+    "name_required": "Enter a property name.",
+    "options_required": "Add at least one option.",
+    "delete_values_warning": "removes this column and all of its values from every work item in the project. This can't be undone.",
+    "creating": "Creating",
+    "saving": "Saving",
+    "create": "Create",
+    "save_changes": "Save changes"
+  },
   "cloud_maintenance_message": {
     "we_are_working_on_this_if_you_need_immediate_assistance": "We're working on this. If you need immediate assistance,",
     "reach_out_to_us": "reach out to us",

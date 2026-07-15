@@ -8,7 +8,10 @@ import { useEffect } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // plane imports
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { TIssue } from "@plane/types";
+// hooks
+import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { useProjectCustomProperties } from "@/plane-web/custom-properties";
 import { usePropertyValues } from "../../hooks/use-property-values";
@@ -36,12 +39,16 @@ export const CustomPropertyValueCells = observer(function CustomPropertyValueCel
   const pid = projectId?.toString();
   const { enabled, properties } = useProjectCustomProperties(ws, pid);
   const valuesStore = usePropertyValues();
+  const { allowPermissions } = useUserPermissions();
 
   useEffect(() => {
     if (enabled && ws && pid && issue.id) valuesStore.enqueueValueFetch(ws, pid, issue.id);
   }, [enabled, ws, pid, issue.id, valuesStore]);
 
-  if (!enabled || properties.length === 0) return null;
+  if (!enabled) return null;
+
+  // Matches the admin-only trailing "+" <th> in the header so columns stay aligned.
+  const isAdmin = !!ws && !!pid && allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, ws, pid);
 
   return (
     <>
@@ -69,6 +76,9 @@ export const CustomPropertyValueCells = observer(function CustomPropertyValueCel
           </td>
         );
       })}
+      {isAdmin && (
+        <td className="h-11 min-w-11 border-r-[1px] border-subtle after:absolute after:bottom-[-1px] after:w-full after:border after:border-subtle" />
+      )}
     </>
   );
 });

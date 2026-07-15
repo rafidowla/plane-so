@@ -17,7 +17,7 @@ import { SettingsHeading } from "@/components/settings/heading";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
 // plane-web
-import { ProjectPropertiesSettings } from "@/plane-web/custom-properties/components/settings/project-properties-settings";
+import { ProjectPropertiesSettingsRoot } from "@/plane-web/custom-properties/components/settings/project-properties-settings";
 // local imports
 import type { Route } from "./+types/page";
 import { FeaturesCustomPropertiesProjectSettingsHeader } from "./header";
@@ -48,7 +48,7 @@ function FeaturesCustomPropertiesSettingsPage({ params }: Route.ComponentProps) 
           description={t("project_settings.features.custom_properties.description")}
         />
         <div className="mt-7">
-          <ProjectPropertiesSettings workspaceSlug={workspaceSlug} projectId={projectId} />
+          <ProjectPropertiesSettingsRoot workspaceSlug={workspaceSlug} projectId={projectId} />
         </div>
       </section>
     </SettingsContentWrapper>

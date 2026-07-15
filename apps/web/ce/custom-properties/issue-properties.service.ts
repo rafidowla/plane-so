@@ -52,7 +52,7 @@ export class IssuePropertiesService extends APIService {
   async createProperty(
     workspaceSlug: string,
     projectId: string,
-    data: Partial<TIssueProperty> & { options?: Partial<TIssuePropertyOption>[] }
+    data: Omit<Partial<TIssueProperty>, "options"> & { options?: Partial<TIssuePropertyOption>[] }
   ): Promise<TIssueProperty> {
     return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/work-item-properties/`, data)
       .then((res) => res?.data)

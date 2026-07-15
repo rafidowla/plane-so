@@ -21,6 +21,9 @@ export * from "./hooks/use-property-values";
 export * from "./hooks/use-project-custom-properties";
 // components
 export * from "./components/settings/project-properties-settings";
+export * from "./components/settings/property-list";
+export * from "./components/column-type-picker";
+export * from "./components/property-form-modal";
 export * from "./components/cells/registry";
 export * from "./components/spreadsheet/additional-headers";
 export * from "./components/spreadsheet/additional-columns";

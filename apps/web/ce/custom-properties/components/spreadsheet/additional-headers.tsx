@@ -6,8 +6,14 @@
 
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
+import { Plus } from "lucide-react";
+// plane imports
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
+// hooks
+import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { useProjectCustomProperties } from "@/plane-web/custom-properties";
+import { ColumnTypePicker } from "../column-type-picker";
 
 type Props = {
   isEpic?: boolean;
@@ -24,9 +30,14 @@ type Props = {
  */
 export const CustomPropertyHeaderCells = observer(function CustomPropertyHeaderCells(_props: Props) {
   const { workspaceSlug, projectId } = useParams();
-  const { enabled, properties } = useProjectCustomProperties(workspaceSlug?.toString(), projectId?.toString());
+  const ws = workspaceSlug?.toString();
+  const pid = projectId?.toString();
+  const { enabled, properties } = useProjectCustomProperties(ws, pid);
+  const { allowPermissions } = useUserPermissions();
 
-  if (!enabled || properties.length === 0) return null;
+  if (!enabled) return null;
+
+  const isAdmin = !!ws && !!pid && allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, ws, pid);
 
   return (
     <>
@@ -40,6 +51,19 @@ export const CustomPropertyHeaderCells = observer(function CustomPropertyHeaderC
           </div>
         </th>
       ))}
+      {isAdmin && ws && pid && (
+        <th className="h-11 min-w-11 items-center border border-t-0 border-b-0 border-subtle bg-layer-1 py-1 text-13 font-medium">
+          <div className="flex h-full w-full items-center justify-center">
+            <ColumnTypePicker
+              workspaceSlug={ws}
+              projectId={pid}
+              menuPlacement="right"
+              triggerContent={<Plus className="size-4" />}
+              triggerClassName="rounded p-1 hover:bg-layer-2"
+            />
+          </div>
+        </th>
+      )}
     </>
   );
 });

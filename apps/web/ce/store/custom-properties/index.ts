@@ -37,7 +37,7 @@ export interface ICustomPropertiesStore {
   createProperty: (
     workspaceSlug: string,
     projectId: string,
-    data: Partial<TIssueProperty> & { options?: Partial<TIssuePropertyOption>[] }
+    data: Omit<Partial<TIssueProperty>, "options"> & { options?: Partial<TIssuePropertyOption>[] }
   ) => Promise<TIssueProperty>;
   updateProperty: (
     workspaceSlug: string,
@@ -133,7 +133,7 @@ export class CustomPropertiesStore implements ICustomPropertiesStore {
   createProperty = async (
     workspaceSlug: string,
     projectId: string,
-    data: Partial<TIssueProperty> & { options?: Partial<TIssuePropertyOption>[] }
+    data: Omit<Partial<TIssueProperty>, "options"> & { options?: Partial<TIssuePropertyOption>[] }
   ): Promise<TIssueProperty> => {
     const res = await issuePropertiesService.createProperty(workspaceSlug, projectId, data);
     runInAction(() => set(this.propertyMap, [res.id], res));
