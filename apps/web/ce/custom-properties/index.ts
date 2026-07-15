@@ -21,3 +21,6 @@ export * from "./hooks/use-property-values";
 export * from "./hooks/use-project-custom-properties";
 // components
 export * from "./components/settings/project-properties-settings";
+export * from "./components/cells/registry";
+export * from "./components/spreadsheet/additional-headers";
+export * from "./components/spreadsheet/additional-columns";
