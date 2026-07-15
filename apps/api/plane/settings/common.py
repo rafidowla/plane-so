@@ -93,6 +93,7 @@ INSTALLED_APPS = [
     "plane.license",
     "plane.api",
     "plane.authentication",
+    "plane.properties",  # FORK: custom-properties
     # Third-party things
     "rest_framework",
     "corsheaders",
