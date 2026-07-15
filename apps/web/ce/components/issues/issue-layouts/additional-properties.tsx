@@ -6,12 +6,14 @@
 
 import React from "react";
 import type { IIssueDisplayProperties, TIssue } from "@plane/types";
+// FORK: custom-properties
+import { CustomPropertiesCardChips } from "@/plane-web/custom-properties";
 
 export type TWorkItemLayoutAdditionalProperties = {
   displayProperties: IIssueDisplayProperties;
   issue: TIssue;
 };
 
-export function WorkItemLayoutAdditionalProperties(_props: TWorkItemLayoutAdditionalProperties) {
-  return <></>;
+export function WorkItemLayoutAdditionalProperties(props: TWorkItemLayoutAdditionalProperties) {
+  return <CustomPropertiesCardChips issue={props.issue} />; // FORK: custom-properties
 }

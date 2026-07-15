@@ -4,6 +4,9 @@
  * See the LICENSE file for details.
  */
 
+// FORK: custom-properties
+import { CustomPropertiesModalSection } from "@/plane-web/custom-properties";
+
 export type TWorkItemModalAdditionalPropertiesProps = {
   isDraft?: boolean;
   projectId: string | null;
@@ -11,6 +14,6 @@ export type TWorkItemModalAdditionalPropertiesProps = {
   workspaceSlug: string;
 };
 
-export function WorkItemModalAdditionalProperties(_props: TWorkItemModalAdditionalPropertiesProps) {
-  return null;
+export function WorkItemModalAdditionalProperties(props: TWorkItemModalAdditionalPropertiesProps) {
+  return <CustomPropertiesModalSection {...props} />; // FORK: custom-properties
 }

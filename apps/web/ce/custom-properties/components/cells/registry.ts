@@ -10,6 +10,7 @@ import type { TIssue } from "@plane/types";
 // local imports
 import { EIssuePropertyType } from "@/plane-web/custom-properties";
 import type { TIssueProperty } from "@/plane-web/custom-properties";
+import { StatusPropertyInput } from "../inputs/status-input";
 import { StatusPropertyCell } from "./status-cell";
 
 /**
@@ -18,7 +19,8 @@ import { StatusPropertyCell } from "./status-cell";
  * property-values store (optimistic).
  */
 export type TPropertyCellProps = {
-  issue: TIssue;
+  /** Present in the spreadsheet; omitted in the modal/sidebar (which have only a work-item id). */
+  issue?: TIssue;
   property: TIssueProperty;
   values: string[];
   onChange: (values: string[]) => Promise<void>;
@@ -33,4 +35,12 @@ export type TPropertyCellProps = {
  */
 export const PROPERTY_CELL_REGISTRY: Partial<Record<EIssuePropertyType, React.FC<TPropertyCellProps>>> = {
   [EIssuePropertyType.OPTION]: StatusPropertyCell,
+};
+
+/**
+ * Compact input variant of the registry — used by the issue modal and detail
+ * sidebar (chip + picker) where the full-cell spreadsheet fill doesn't fit.
+ */
+export const PROPERTY_INPUT_REGISTRY: Partial<Record<EIssuePropertyType, React.FC<TPropertyCellProps>>> = {
+  [EIssuePropertyType.OPTION]: StatusPropertyInput,
 };

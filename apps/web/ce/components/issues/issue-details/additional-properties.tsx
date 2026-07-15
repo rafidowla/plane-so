@@ -5,7 +5,8 @@
  */
 
 import React from "react";
-// plane imports
+// FORK: custom-properties
+import { CustomPropertiesSidebarSection } from "@/plane-web/custom-properties";
 
 export type TWorkItemAdditionalSidebarProperties = {
   workItemId: string;
@@ -16,6 +17,6 @@ export type TWorkItemAdditionalSidebarProperties = {
   isPeekView?: boolean;
 };
 
-export function WorkItemAdditionalSidebarProperties(_props: TWorkItemAdditionalSidebarProperties) {
-  return <></>;
+export function WorkItemAdditionalSidebarProperties(props: TWorkItemAdditionalSidebarProperties) {
+  return <CustomPropertiesSidebarSection {...props} />; // FORK: custom-properties
 }

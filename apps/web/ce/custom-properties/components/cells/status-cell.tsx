@@ -7,14 +7,10 @@
 import { observer } from "mobx-react";
 // plane imports
 import { Dropdown } from "@plane/ui";
-import { getContrastRatio, hexToRgb } from "@plane/utils";
 // local imports
 import type { TIssuePropertyOption } from "@/plane-web/custom-properties";
+import { EMPTY_OPTION_BG as EMPTY_BG, textColorFor } from "../../utils/contrast";
 import type { TPropertyCellProps } from "./registry";
-
-const WHITE = { r: 255, g: 255, b: 255 };
-const NEAR_BLACK = { r: 23, g: 23, b: 23 };
-const EMPTY_BG = "#e5e5e5";
 
 /**
  * Monday-style status cell: the option's colour fills the entire cell and the
@@ -22,15 +18,6 @@ const EMPTY_BG = "#e5e5e5";
  * contrast ratio. Clicking opens the option picker (positioning/keyboard/close
  * handled by the shared `@plane/ui` Dropdown, so we don't fork a popover).
  */
-const textColorFor = (background: string): string => {
-  try {
-    const rgb = hexToRgb(background);
-    return getContrastRatio(rgb, WHITE) >= getContrastRatio(rgb, NEAR_BLACK) ? "#ffffff" : "#171717";
-  } catch {
-    return "#171717";
-  }
-};
-
 const activeSortedOptions = (options: TIssuePropertyOption[] | undefined): TIssuePropertyOption[] =>
   (options ?? []).filter((o) => o.is_active).sort((a, b) => a.sort_order - b.sort_order);
 
