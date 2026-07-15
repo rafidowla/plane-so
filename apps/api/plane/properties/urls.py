@@ -11,12 +11,20 @@ Phase 1/2; Phase 0 exposes only the health probe.
 
 from django.urls import path
 
-from plane.properties.views import CustomPropertiesHealthEndpoint
+from plane.properties.views import (
+    CustomPropertiesHealthEndpoint,
+    ProjectPropertiesFeatureEndpoint,
+)
 
 urlpatterns = [
     path(
         "custom-properties/health/",
         CustomPropertiesHealthEndpoint.as_view(),
         name="custom-properties-health",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/properties-feature/",
+        ProjectPropertiesFeatureEndpoint.as_view(),
+        name="project-properties-feature",
     ),
 ]
