@@ -327,6 +327,11 @@ export const coreRoutes: RouteConfigEntry[] = [
               ":workspaceSlug/settings/projects/:projectId/features/time-tracking",
               "./(all)/[workspaceSlug]/(settings)/settings/projects/[projectId]/features/time-tracking/page.tsx"
             ),
+            // FORK: custom-properties
+            route(
+              ":workspaceSlug/settings/projects/:projectId/features/custom-properties",
+              "./(all)/[workspaceSlug]/(settings)/settings/projects/[projectId]/features/custom-properties/page.tsx"
+            ),
             // Project States
             route(
               ":workspaceSlug/settings/projects/:projectId/states",

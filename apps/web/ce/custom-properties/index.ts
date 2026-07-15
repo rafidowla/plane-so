@@ -13,3 +13,11 @@
 
 export * from "./types";
 export * from "./constants";
+// services
+export * from "./issue-properties.service";
+// hooks
+export * from "./hooks/use-custom-properties";
+export * from "./hooks/use-property-values";
+export * from "./hooks/use-project-custom-properties";
+// components
+export * from "./components/settings/project-properties-settings";

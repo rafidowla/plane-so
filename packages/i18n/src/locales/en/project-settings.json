@@ -323,6 +323,14 @@
       "description": "Create and customize different types of work items with unique properties"
     },
     "features": {
+      "custom_properties": {
+        "title": "Custom Properties",
+        "short_title": "Custom Properties",
+        "description": "Add typed, project-scoped columns — such as status pills, text, dates, and numbers — to your work items.",
+        "toggle_title": "Enable custom properties",
+        "toggle_description": "Project members will be able to see and set custom property values on work items.",
+        "instance_disabled": "Custom properties are turned off for this deployment. Ask your instance admin to enable them."
+      },
       "time_tracking": {
         "title": "Time Tracking",
         "short_title": "Time Tracking",

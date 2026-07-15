@@ -86,6 +86,14 @@ export const PROJECT_SETTINGS: Record<TProjectSettingsTabs, TProjectSettingsItem
     access: [EUserProjectRoles.ADMIN],
     highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/features/time-tracking/`,
   },
+  // FORK: custom-properties
+  features_custom_properties: {
+    key: "features_custom_properties",
+    i18n_label: "project_settings.features.custom_properties.short_title",
+    href: `/features/custom-properties`,
+    access: [EUserProjectRoles.ADMIN],
+    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/features/custom-properties/`,
+  },
   states: {
     key: "states",
     i18n_label: "common.states",
@@ -127,6 +135,7 @@ export const GROUPED_PROJECT_SETTINGS: Record<PROJECT_SETTINGS_CATEGORY, TProjec
     PROJECT_SETTINGS["features_pages"],
     PROJECT_SETTINGS["features_intake"],
     PROJECT_SETTINGS["features_time_tracking"],
+    PROJECT_SETTINGS["features_custom_properties"], // FORK: custom-properties
   ],
   [PROJECT_SETTINGS_CATEGORY.WORK_STRUCTURE]: [
     PROJECT_SETTINGS["states"],
