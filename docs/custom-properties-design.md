@@ -5,6 +5,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 # Custom Properties (Typed Columns) — Design & Build Plan
 
+> **Build status (as-built, 2026-07-15):** P0–P6 implemented, browser-verified,
+> and committed on `feat/custom-properties`. Ships the v1 **Status (OPTION)**
+> type end-to-end: instance + per-project feature toggle, spreadsheet column
+> (Monday-style filled cell), column-type picker + property CRUD (create/edit/
+> delete with option colours), kanban/list card chips, detail-sidebar & peek
+> rows, and edit-modal inputs. Verified upstream-safety: flag-off renders a
+> byte-identical DOM. Divergence **25 marked lines / 13 upstream files** (budget
+> ≤40). Backend contract suite: 19/19 green.
+>
+> Deliberately deferred to a follow-up: create-time modal value staging (task
+> 6.2, EDIT-mode only for now), column drag-reorder (5.5), non-OPTION property
+> types, and the optional public `/api/v1/` parity endpoints (7.3).
+
 This fork adds **user-defined custom properties** to work items — starting with
 Monday.com-style **Status columns** (a user-defined dropdown whose options each
 have a label + color, rendered as a full-color filled cell in the spreadsheet) —
