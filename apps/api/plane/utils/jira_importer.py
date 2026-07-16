@@ -14,6 +14,7 @@ import html as _html
 import math
 import re
 from io import BytesIO
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import requests
@@ -79,6 +80,37 @@ class JiraConfigError(Exception):
     """Raised for missing/invalid Jira connection settings."""
 
 
+def normalize_jira_base(jira_url):
+    """Return the base the REST API lives at.
+
+    Atlassian Cloud's API is always at the site origin, so a pasted path such as
+    ``/jira`` or ``/wiki`` (or a full board URL) would otherwise produce
+    ``.../jira/rest/api/3/...`` and a non-JSON page. For Cloud we drop the path;
+    for Server/Data Center we keep any context path and only trim trailing slashes.
+    """
+    raw = (jira_url or "").strip()
+    if not raw:
+        return raw
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    if (parsed.netloc or "").lower().endswith(".atlassian.net"):
+        return f"{parsed.scheme or 'https'}://{parsed.netloc}"
+    return raw.rstrip("/")
+
+
+def _jira_json(resp):
+    """resp.json() with a clear, actionable error when Jira returns non-JSON
+    (usually a wrong base URL serving an HTML page instead of the REST API)."""
+    try:
+        return resp.json()
+    except ValueError:
+        url = (resp.url or "").split("?")[0]
+        raise JiraConfigError(
+            f"Jira returned a non-JSON response (HTTP {resp.status_code}) from {url}. "
+            "Check the Jira URL — it should be your site root, e.g. "
+            "https://yourcompany.atlassian.net (no /jira or /wiki path)."
+        )
+
+
 def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=None, limit=0):
     """Fetch issues (with comments + worklogs) from Jira Cloud REST API v3."""
     for key, val in (("jira_url", jira_url), ("jira_email", jira_email), ("jira_token", jira_token)):
@@ -88,7 +120,7 @@ def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=N
     if not query:
         raise JiraConfigError("Provide a Jira project key or a JQL query")
 
-    base = jira_url.rstrip("/")
+    base = normalize_jira_base(jira_url)
     auth = (jira_email, jira_token)
     headers = {"Accept": "application/json"}
 
@@ -117,7 +149,7 @@ def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=N
             break
         _raise_for_response(resp)
         resp.raise_for_status()
-        data = resp.json()
+        data = _jira_json(resp)
         issues.extend(data.get("issues", []))
         next_token = data.get("nextPageToken")
         guard += 1
@@ -138,7 +170,7 @@ def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=N
             resp = requests.get(f"{base}/rest/api/2/search", params=params, auth=auth, headers=headers, timeout=60)
             _raise_for_response(resp)
             resp.raise_for_status()
-            data = resp.json()
+            data = _jira_json(resp)
             batch = data.get("issues", [])
             issues.extend(batch)
             start += len(batch)
