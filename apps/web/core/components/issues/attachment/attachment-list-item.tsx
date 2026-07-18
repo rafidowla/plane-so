@@ -23,6 +23,8 @@ import { getFileIcon } from "@/components/icons";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useMember } from "@/hooks/store/use-member";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+// FORK: attachment-preview
+import { AttachmentListThumbnail, getPreviewKind, requestAttachmentPreview } from "@/plane-web/attachment-preview";
 
 type TIssueAttachmentsListItem = {
   attachmentId: string;
@@ -57,12 +59,14 @@ export const IssueAttachmentsListItem = observer(function IssueAttachmentsListIt
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          window.open(fileURL, "_blank");
+          // FORK: attachment-preview — open the in-app viewer for previewable kinds
+          if (getPreviewKind(fileExtension)) requestAttachmentPreview(attachment.id);
+          else window.open(fileURL, "_blank");
         }}
       >
         <div className="group flex h-11 items-center justify-between gap-3 pr-2 pl-9 hover:bg-surface-2">
           <div className="flex items-center gap-3 truncate text-13">
-            <div className="flex items-center gap-3">{fileIcon}</div>
+            <AttachmentListThumbnail attachment={attachment} fallback={fileIcon} />{/* FORK: attachment-preview */}
             <Tooltip tooltipContent={`${fileName}.${fileExtension}`} isMobile={isMobile}>
               <p className="truncate font-medium text-secondary">{`${fileName}.${fileExtension}`}</p>
             </Tooltip>
