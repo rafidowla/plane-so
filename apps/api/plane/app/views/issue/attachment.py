@@ -181,9 +181,12 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
                 )
 
             storage = S3Storage(request=request)
+            # FORK: attachment-preview — `?disposition=inline` lets the in-app viewer
+            # render the file (img/iframe) instead of forcing a download.
+            disposition = "inline" if request.GET.get("disposition") == "inline" else "attachment"
             presigned_url = storage.generate_presigned_url(
                 object_name=asset.asset.name,
-                disposition="attachment",
+                disposition=disposition,
                 filename=asset.attributes.get("name"),
             )
             return HttpResponseRedirect(presigned_url)

@@ -15,6 +15,8 @@ import type { TIssueServiceType } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
+// FORK: attachment-preview
+import { AttachmentPreviewModalHost } from "@/plane-web/attachment-preview";
 // plane web hooks
 import { useFileSize } from "@/plane-web/hooks/use-file-size";
 // types
@@ -112,6 +114,7 @@ export const IssueAttachmentItemList = observer(function IssueAttachmentItemList
 
   return (
     <>
+      <AttachmentPreviewModalHost issueId={issueId} issueServiceType={issueServiceType} />{/* FORK: attachment-preview */}
       {uploadStatus?.map((uploadStatus) => (
         <IssueAttachmentsUploadItem key={uploadStatus.id} uploadStatus={uploadStatus} />
       ))}
