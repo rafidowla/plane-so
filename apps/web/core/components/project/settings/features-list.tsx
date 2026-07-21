@@ -74,6 +74,7 @@ const PROJECT_FEATURES_LIST = {
     isPro: false,
     isEnabled: true,
   },
+  // FORK: time-tracking
   time_tracking: {
     key: "time_tracking",
     property: "is_time_tracking_enabled",

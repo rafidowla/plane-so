@@ -97,6 +97,7 @@ class Project(BaseModel):
     intake_view = models.BooleanField(default=False)
     is_time_tracking_enabled = models.BooleanField(default=False)
     is_issue_type_enabled = models.BooleanField(default=False)
+    # FORK: time-tracking
     client = models.ForeignKey(
         "db.Client",
         on_delete=models.SET_NULL,

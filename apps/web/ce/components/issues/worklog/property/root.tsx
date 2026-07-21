@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * See the LICENSE file for details.
  */
+// FORK: time-tracking — fills the worklog property stub
 import { useEffect, useState } from "react";
 import { Play, Square, Plus, Timer, X } from "lucide-react";
 import { observer } from "mobx-react";

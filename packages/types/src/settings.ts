@@ -27,7 +27,7 @@ export type TProjectSettingsTabs =
   | "features_views"
   | "features_pages"
   | "features_intake"
-  | "features_time_tracking"
+  | "features_time_tracking" // FORK: time-tracking
   | "states"
   | "labels"
   | "estimates"
