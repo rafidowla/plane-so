@@ -292,22 +292,38 @@ def _rendered_attachment_ids(rendered_html):
     return ids
 
 
-def _ordered_image_attachments(rendered_html, attachments):
-    """Image attachments in document order (rendered <img> refs first, then any
-    remaining image attachments in list order). Non-images are never returned."""
+def _ordered_media_attachments(rendered_html, attachments):
+    """Attachments in document order (those referenced by rendered <img> tags
+    first, then the rest in list order).
+
+    Deliberately includes EVERY attachment type, not just images: an ADF `media`
+    node can reference a PDF, video or document, and filtering those out left
+    them unresolvable (they rendered as a dead "[image: attachment]" placeholder
+    even though the file had migrated fine into the attachments list).
+    """
     by_id = {str(a.get("id")): a for a in (attachments or [])}
-    image_ids = [str(a.get("id")) for a in (attachments or []) if str(a.get("mimeType") or "").startswith("image/")]
-    image_id_set = set(image_ids)
+    all_ids = [str(a.get("id")) for a in (attachments or [])]
     seen, ordered = set(), []
     for aid in _rendered_attachment_ids(rendered_html):
-        if aid in image_id_set and aid not in seen:
+        if aid in by_id and aid not in seen:
             seen.add(aid)
             ordered.append(by_id[aid])
-    for aid in image_ids:
+    for aid in all_ids:
         if aid not in seen:
             seen.add(aid)
             ordered.append(by_id[aid])
     return ordered
+
+
+def _attachment_link_html(att, asset):
+    """Anchor showing the original Jira file name, pointing at the migrated
+    attachment so it can be opened straight from the body/comment. Falls back to
+    a named placeholder when the file didn't migrate (never a generic label)."""
+    name = _html.escape(str(att.get("filename") or "attachment"), quote=False)
+    url = getattr(asset, "asset_url", None) if asset is not None else None
+    if not url:
+        return f"<p>[attachment: {name}]</p>"
+    return f'<p><a href="{_html.escape(str(url), quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a></p>'
 
 
 def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_auth, member_map, cache):
@@ -366,22 +382,33 @@ def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_a
     return str(asset.id)
 
 
-def _make_media_resolver(ordered_attachments, upload_fn):
-    """Build a `media_resolver(media_node) -> html` that walks the ordered image
-    attachments, embedding each as an <image-component>; emits a visible
-    placeholder when the image can't be resolved (never silently dropped)."""
-    state = {"i": 0}
+def _make_media_resolver(ordered_attachments, consumed, upload_fn, asset_lookup):
+    """Build a `media_resolver(media_node) -> html`.
+
+    Images are embedded inline as <image-component>; every other file type is
+    rendered as a named link to its migrated attachment, so a PDF/video/doc in a
+    Jira comment stays identifiable and openable. `consumed` is shared across an
+    issue's description and all of its comments so one attachment is never
+    assigned to two places.
+    """
 
     def resolve(media_node):
-        idx = state["i"]
-        state["i"] += 1
-        att = ordered_attachments[idx] if idx < len(ordered_attachments) else None
-        if att is not None:
+        att = None
+        for candidate in ordered_attachments:
+            if str(candidate.get("id")) not in consumed:
+                att = candidate
+                consumed.add(str(candidate.get("id")))
+                break
+        if att is None:
+            alt = (media_node.get("attrs") or {}).get("alt") or "attachment"
+            return f"<p>[attachment: {_html.escape(str(alt), quote=False)}]</p>"
+
+        if str(att.get("mimeType") or "").startswith("image/"):
             asset_id = upload_fn(att)
             if asset_id:
                 return f'<image-component src="{asset_id}"></image-component>'
-        alt = (media_node.get("attrs") or {}).get("alt") or (att.get("filename") if att else None) or "attachment"
-        return f"<p>[image: {_html.escape(str(alt), quote=False)}]</p>"
+        # Non-image (or an image whose inline upload failed): link to the file.
+        return _attachment_link_html(att, asset_lookup.get(str(att.get("id"))))
 
     return resolve
 
@@ -483,13 +510,33 @@ def run_import(
                 issue.target_date = f["duedate"]
             issue.save(created_by_id=initiator.id)
 
+            # Attachments are migrated BEFORE the body is converted so inline
+            # references (especially non-image files) can link to the migrated
+            # file rather than degrading to a placeholder.
+            attachment_assets = {}
+            if can_embed and jira_attachments:
+                c = migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map)
+                for k in att_totals:
+                    att_totals[k] += c[k]
+                attachment_assets = {
+                    str(a.external_id): a
+                    for a in FileAsset.objects.filter(
+                        issue_id=issue.id,
+                        external_source="jira",
+                        entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
+                    )
+                }
+            # One attachment is never assigned to two places across this issue.
+            consumed_media = set()
+
             # Convert the ADF description to editor HTML (formatting preserved),
             # embedding inline images when attachment migration is enabled.
             desc_resolver = None
             if can_embed:
-                desc_atts = _ordered_image_attachments(rendered.get("description") or "", jira_attachments)
+                desc_atts = _ordered_media_attachments(rendered.get("description") or "", jira_attachments)
                 desc_resolver = _make_media_resolver(
                     desc_atts,
+                    consumed_media,
                     lambda att: _upload_body_image(
                         att,
                         FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
@@ -500,6 +547,7 @@ def run_import(
                         member_map,
                         dl_cache,
                     ),
+                    attachment_assets,
                 )
             desc_html = adf_document_to_html(f.get("description"), desc_resolver)
             if desc_html and desc_html != issue.description_html:
@@ -533,9 +581,10 @@ def run_import(
                 c_resolver = None
                 if can_embed:
                     rc_html = rendered_comments[ci].get("body") if ci < len(rendered_comments) else ""
-                    c_atts = _ordered_image_attachments(rc_html or "", jira_attachments)
+                    c_atts = _ordered_media_attachments(rc_html or "", jira_attachments)
                     c_resolver = _make_media_resolver(
                         c_atts,
+                        consumed_media,
                         lambda att, _cid=comment.id: _upload_body_image(
                             att,
                             FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
@@ -546,6 +595,7 @@ def run_import(
                             member_map,
                             dl_cache,
                         ),
+                        attachment_assets,
                     )
                 body_html = adf_document_to_html(jc.get("body"), c_resolver)
                 if body_html and body_html != comment.comment_html:
@@ -572,10 +622,8 @@ def run_import(
                     currency=currency,
                 ).save(created_by_id=initiator.id)
 
-            if with_attachments and jira_auth and jira_attachments:
-                c = migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map)
-                for k in att_totals:
-                    att_totals[k] += c[k]
+            # (attachments were migrated earlier, before body conversion, so the
+            # description/comments could link to the migrated files)
 
         if progress:
             progress(idx + 1, total)

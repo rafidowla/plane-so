@@ -194,6 +194,20 @@ export const AttachmentPreviewModalHost = observer(function AttachmentPreviewMod
         {(kind === "pdf" || kind === "text") && inlineURL && (
           <iframe src={inlineURL} title={fileName} className="h-full w-full border-0 bg-white" />
         )}
+        {kind === "video" && inlineURL && (
+          <div className="flex h-full w-full items-center justify-center bg-black p-2">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video src={inlineURL} controls autoPlay={false} preload="metadata" className="max-h-full max-w-full">
+              Your browser can&apos;t play this video format.
+            </video>
+          </div>
+        )}
+        {kind === "audio" && inlineURL && (
+          <div className="flex h-full w-full items-center justify-center p-6">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <audio src={inlineURL} controls preload="metadata" className="w-full max-w-lg" />
+          </div>
+        )}
         {(!kind || !inlineURL) && (
           <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-tertiary">
             <FileIcon className="size-10" strokeWidth={1.5} />
