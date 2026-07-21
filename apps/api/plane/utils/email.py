@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 #
-# Clean-room AGPL replacement for the previous proprietary email helper.
+# FORK: clean-room AGPL replacement for the previous proprietary email helper.
 # Provides the same `generate_plain_text_from_html(html_content) -> str`
 # contract used by the email background tasks.
 
