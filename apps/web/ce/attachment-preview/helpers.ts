@@ -7,10 +7,14 @@
 import { getFileURL } from "@plane/utils";
 
 /** File kinds the in-app viewer can render. Everything else gets a download state. */
-export type TAttachmentPreviewKind = "image" | "pdf" | "text";
+export type TAttachmentPreviewKind = "image" | "pdf" | "text" | "video" | "audio";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "ico"];
 const TEXT_EXTENSIONS = ["txt", "log", "md", "csv", "json"];
+// Formats browsers can play natively. (.mov is h264/aac in practice and plays in
+// Safari/Chrome; .avi/.wmv/.mkv are not natively playable and fall through to download.)
+const VIDEO_EXTENSIONS = ["mp4", "webm", "ogv", "m4v", "mov"];
+const AUDIO_EXTENSIONS = ["mp3", "wav", "ogg", "m4a", "aac", "flac"];
 
 /** Accepts a full file name ("shot.png") or a bare extension ("png"). */
 export const getPreviewKind = (fileNameOrExtension: string | undefined): TAttachmentPreviewKind | null => {
@@ -20,6 +24,8 @@ export const getPreviewKind = (fileNameOrExtension: string | undefined): TAttach
   if (IMAGE_EXTENSIONS.includes(ext)) return "image";
   if (ext === "pdf") return "pdf";
   if (TEXT_EXTENSIONS.includes(ext)) return "text";
+  if (VIDEO_EXTENSIONS.includes(ext)) return "video";
+  if (AUDIO_EXTENSIONS.includes(ext)) return "audio";
   return null;
 };
 
