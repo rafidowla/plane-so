@@ -301,11 +301,24 @@ class TestAttachmentImport:
         from plane.settings.storage import S3Storage
         from plane.utils import jira_importer
 
+        # Attachment downloads are streamed, so the double has to behave like a
+        # `with requests.get(..., stream=True)` response, not a buffered one.
         class FakeResp:
             content = body
+            status_code = 200
 
             def raise_for_status(self):
                 return None
+
+            def iter_content(self, chunk_size=1024 * 1024):
+                for i in range(0, len(body), chunk_size):
+                    yield body[i : i + chunk_size]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
 
         monkeypatch.setattr(jira_importer.requests, "get", lambda *a, **k: FakeResp())
         monkeypatch.setattr(S3Storage, "upload_file", lambda self, f, key, content_type=None, extra_args={}: True)

@@ -332,7 +332,10 @@ CELERY_IMPORTS = (
     "plane.bgtasks.issue_description_version_sync",
 )
 
-FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))
+# FORK: large-attachments — default raised from upstream's 5 MB to 200 MB so
+# Jira video migration and large uploads work even if the deployment forgets
+# to set FILE_SIZE_LIMIT. Still overridable by the env var.
+FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 209715200))
 
 # Unsplash Access key
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
@@ -350,7 +353,7 @@ POSTHOG_HOST = os.environ.get("POSTHOG_HOST", False)
 # Skip environment variable configuration
 SKIP_ENV_VAR = os.environ.get("SKIP_ENV_VAR", "1") == "1"
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("FILE_SIZE_LIMIT", 209715200))  # FORK: large-attachments
 
 # Cookie Settings
 SESSION_COOKIE_SECURE = secure_origins

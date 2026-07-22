@@ -145,7 +145,11 @@ that is the whole point of the marker discipline.
 These live in your server's environment, not in git, so they must be
 re-checked on each deploy:
 
-- `FILE_SIZE_LIMIT=104857600` — 100 MB uploads + migration (default is 5 MB)
+- `FILE_SIZE_LIMIT=209715200` — 200 MB uploads + Jira migration. Our fork
+  already defaults to this, but an upgrade will **not** change a value already
+  set in your server's `.env`, and upstream's own default is 5 MB — so re-check
+  it after every merge. Must be set for the **worker** too, not just the api:
+  see [DEPLOYMENT-FILE-SIZE-LIMIT.md](./DEPLOYMENT-FILE-SIZE-LIMIT.md)
 - `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` /
   `EMAIL_FROM` — SMTP, for notification + invitation emails (or set them in
   God Mode → Email)
