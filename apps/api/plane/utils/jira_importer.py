@@ -12,8 +12,10 @@ tables). Idempotent via Issue.external_id.
 
 import html as _html
 import math
+import os
 import re
 from io import BytesIO
+from tempfile import SpooledTemporaryFile
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -208,6 +210,39 @@ def is_project_admin(project, user):
     ).exists()
 
 
+def _download_attachment(content_url, jira_auth, max_bytes):
+    """Stream a Jira attachment to a temp file (spilling to disk past 8 MB).
+
+    Large files (e.g. screen recordings) must not be buffered whole in memory —
+    the previous `resp.content` held the entire file in the worker's RAM. The
+    read timeout also scales with the file so a big download isn't cut off
+    mid-transfer on a slow link.
+
+    Returns (fileobj, size) on success, ("too_large", size) if it exceeds
+    max_bytes, or (None, 0) on a network/HTTP failure.
+    """
+    # 60s to connect; read timeout is per-chunk, so a slow-but-alive transfer
+    # keeps going. Tunable for very slow Jira instances.
+    read_timeout = int(os.environ.get("JIRA_ATTACHMENT_READ_TIMEOUT", 300))
+    try:
+        with requests.get(content_url, auth=jira_auth, timeout=(60, read_timeout), stream=True) as resp:
+            resp.raise_for_status()
+            tmp = SpooledTemporaryFile(max_size=8 * 1024 * 1024)
+            size = 0
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                if not chunk:
+                    continue
+                size += len(chunk)
+                if size > max_bytes:
+                    tmp.close()
+                    return "too_large", size
+                tmp.write(chunk)
+            tmp.seek(0)
+            return tmp, size
+    except requests.RequestException:
+        return None, 0
+
+
 def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map):
     """Download each Jira attachment and store it as a Plane FileAsset.
 
@@ -232,15 +267,12 @@ def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, 
         if int(att.get("size") or 0) > settings.FILE_SIZE_LIMIT:
             counts["skipped_size"] += 1
             continue
-        try:
-            resp = requests.get(content_url, auth=jira_auth, timeout=120)
-            resp.raise_for_status()
-        except requests.RequestException:
-            counts["failed"] += 1
-            continue
-        content = resp.content
-        if len(content) > settings.FILE_SIZE_LIMIT:
+        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT)
+        if fileobj == "too_large":
             counts["skipped_size"] += 1
+            continue
+        if fileobj is None:
+            counts["failed"] += 1
             continue
 
         filename = sanitize_filename(att.get("filename") or "") or uuid4().hex
@@ -248,16 +280,22 @@ def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, 
         asset_key = f"{project.workspace_id}/{uuid4().hex}-{filename}"
         if storage is None:
             storage = S3Storage()
-        if not storage.upload_file(BytesIO(content), asset_key, content_type=mime):
+        try:
+            uploaded = storage.upload_file(fileobj, asset_key, content_type=mime)
+        except Exception:
+            uploaded = False
+        finally:
+            fileobj.close()
+        if not uploaded:
             counts["failed"] += 1
             continue
 
         author_email = ((att.get("author") or {}).get("emailAddress") or "").lower()
         author = member_map.get(author_email) or initiator
         FileAsset.objects.create(
-            attributes={"name": filename, "type": mime, "size": len(content)},
+            attributes={"name": filename, "type": mime, "size": size},
             asset=asset_key,
-            size=len(content),
+            size=size,
             workspace_id=project.workspace_id,
             project_id=project.id,
             issue_id=issue.id,
