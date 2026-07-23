@@ -184,6 +184,13 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
             # FORK: attachment-preview — `?disposition=inline` lets the in-app viewer
             # render the file (img/iframe) instead of forcing a download.
             disposition = "inline" if request.GET.get("disposition") == "inline" else "attachment"
+            # SECURITY: SVG served inline on the app's own origin (default self-hosted
+            # USE_MINIO deployment) executes any embedded <script> as a same-origin
+            # document, enabling stored XSS. Force such "renders as an active document"
+            # types to always download, regardless of the requested disposition. This
+            # is the load-bearing enforcement — the frontend cannot opt back into inline.
+            if asset.attributes.get("type") in settings.INLINE_DISPOSITION_DENYLIST:
+                disposition = "attachment"
             presigned_url = storage.generate_presigned_url(
                 object_name=asset.asset.name,
                 disposition=disposition,
