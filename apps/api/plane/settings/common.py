@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     "plane.api",
     "plane.authentication",
     "plane.properties",  # FORK: custom-properties
+    "plane.dashboards",  # FORK: custom-dashboards
     # Third-party things
     "rest_framework",
     "corsheaders",

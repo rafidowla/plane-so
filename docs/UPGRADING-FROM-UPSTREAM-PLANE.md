@@ -34,12 +34,13 @@ plus new route/test/doc files.
 **Conflicts can only happen in the marked files below.** There are ~17 of them,
 most edits 1–12 lines. Keep this list handy during a merge:
 
-| Area | Marked files |
-|---|---|
-| **Custom properties** | `packages/types/src/settings.ts`, `packages/constants/src/settings/project.ts`, `apps/web/core/components/settings/project/sidebar/item-icon.tsx`, `apps/web/app/routes/core.ts`, `apps/web/ce/store/root.store.ts`, `apps/web/core/components/issues/issue-layouts/spreadsheet/{spreadsheet-header,issue-row}.tsx`, the 4 CE stub files under `apps/web/ce/components/issues/**`, `apps/web/ce/hooks/use-issue-properties.tsx`, `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py` |
-| **Time tracking / Jira** | `apps/api/plane/app/{serializers,urls,views}/__init__.py`, `apps/api/plane/db/models/__init__.py`, `apps/api/plane/db/models/project.py`, `apps/api/plane/utils/email.py`, `apps/web/ce/components/analytics/tabs.tsx`, `apps/web/ce/components/issues/worklog/property/root.tsx`, `apps/web/core/components/project/settings/features-list.tsx` (+ the settings-nav files shared with custom properties) |
-| **Attachment preview** | `apps/web/core/components/issues/attachment/{attachment-list-item,attachment-item-list}.tsx`, `apps/api/plane/app/views/issue/attachment.py` |
-| **i18n (JSON — no marker possible)** | `packages/i18n/src/locales/en/{common,project-settings}.json` — additive keys under `custom_properties` and `project_settings.features.*` |
+| Area                                 | Marked files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Custom properties**                | `packages/types/src/settings.ts`, `packages/constants/src/settings/project.ts`, `apps/web/core/components/settings/project/sidebar/item-icon.tsx`, `apps/web/app/routes/core.ts`, `apps/web/ce/store/root.store.ts`, `apps/web/core/components/issues/issue-layouts/spreadsheet/{spreadsheet-header,issue-row}.tsx`, the 4 CE stub files under `apps/web/ce/components/issues/**`, `apps/web/ce/hooks/use-issue-properties.tsx`, `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py` |
+| **Time tracking / Jira**             | `apps/api/plane/app/{serializers,urls,views}/__init__.py`, `apps/api/plane/db/models/__init__.py`, `apps/api/plane/db/models/project.py`, `apps/api/plane/utils/email.py`, `apps/web/ce/components/analytics/tabs.tsx`, `apps/web/ce/components/issues/worklog/property/root.tsx`, `apps/web/core/components/project/settings/features-list.tsx` (+ the settings-nav files shared with custom properties)                                                                                      |
+| **Attachment preview**               | `apps/web/core/components/issues/attachment/{attachment-list-item,attachment-item-list}.tsx`, `apps/api/plane/app/views/issue/attachment.py`                                                                                                                                                                                                                                                                                                                                                   |
+| **Custom dashboards**                | `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py`, `apps/web/ce/store/root.store.ts`, `apps/web/app/routes/core.ts`, `packages/constants/src/workspace.ts`, `apps/web/ce/components/workspace/sidebar/helper.tsx` (see `docs/custom-dashboards-design.md` §6 for exact line counts)                                                                                                                                                                                                |
+| **i18n (JSON — no marker possible)** | `packages/i18n/src/locales/en/{common,project-settings}.json` — additive keys under `custom_properties`, `project_settings.features.*`, and `common.custom_dashboard`                                                                                                                                                                                                                                                                                                                          |
 
 > The JSON locale files can't carry a `FORK:` comment. They only conflict if
 > upstream adds a key with the exact same name, which Git shows as a normal
@@ -68,13 +69,16 @@ git merge origin/preview
 
 **If Git reports conflicts:** they will only be in the marked files above.
 For each one:
+
 ```bash
 git diff --name-only --diff-filter=U        # list conflicted files
 grep -n "FORK:" <file>                       # find our addition inside it
 ```
+
 Keep **both** sides: upstream's new code **and** the line(s) tagged `FORK:`.
 Our additions are almost always independent (a new import, a new list entry, a
 new route), so "keep both" is nearly always correct. Then:
+
 ```bash
 git add <resolved-files>
 git merge --continue
@@ -131,7 +135,7 @@ git push fork preview
 git push fork feat/monday-custom-properties
 ```
 
-## When upstream changes the *same* code we did
+## When upstream changes the _same_ code we did
 
 Rare, but the honest failure mode. If upstream rewrites, say, the attachment
 list item or the analytics tabs in the same spot as our `FORK:` line, Git
