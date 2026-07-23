@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// FORK: monday-theme
 export const THEMES = ["light", "dark", "light-contrast", "dark-contrast", "monday", "custom"];
 
 export interface I_THEME_OPTION {
@@ -74,6 +75,7 @@ export const THEME_OPTIONS: I_THEME_OPTION[] = [
       color2: "#3A8BE9",
     },
   },
+  // FORK: monday-theme
   {
     key: "monday",
     value: "monday",

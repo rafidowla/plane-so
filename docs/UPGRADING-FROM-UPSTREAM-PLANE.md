@@ -25,13 +25,20 @@ comment. Find them all in seconds:
 grep -rn "FORK:" apps packages --include=*.py --include=*.ts --include=*.tsx
 ```
 
+> This grep only covers `.py`/`.ts`/`.tsx`. It will **not** find
+> `packages/tailwind-config/variables.css` (the Monday theme's
+> `[data-theme="monday"]` block) or `apps/web/package.json` (the
+> `@fontsource-variable/figtree` dependency) — CSS and JSON can't carry a
+> `FORK:` comment. Check those two by hand during an upgrade; see the "Monday
+> theme" and "i18n" rows in the table below.
+
 Everything else we added lives in **new files** that upstream will never touch
 (so they can't conflict): `apps/api/plane/properties/**`,
 `apps/web/ce/custom-properties/**`, `apps/web/ce/attachment-preview/**`,
 `apps/api/plane/app/views/time_tracking/**`, `apps/web/ce/components/analytics/**`,
 plus new route/test/doc files.
 
-**Conflicts can only happen in the marked files below.** There are ~17 of them,
+**Conflicts can only happen in the marked files below.** There are ~30 of them,
 most edits 1–12 lines. Keep this list handy during a merge:
 
 | Area                                 | Marked files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -40,6 +47,7 @@ most edits 1–12 lines. Keep this list handy during a merge:
 | **Time tracking / Jira**             | `apps/api/plane/app/{serializers,urls,views}/__init__.py`, `apps/api/plane/db/models/__init__.py`, `apps/api/plane/db/models/project.py`, `apps/api/plane/utils/email.py`, `apps/web/ce/components/analytics/tabs.tsx`, `apps/web/ce/components/issues/worklog/property/root.tsx`, `apps/web/core/components/project/settings/features-list.tsx` (+ the settings-nav files shared with custom properties)                                                                                      |
 | **Attachment preview**               | `apps/web/core/components/issues/attachment/{attachment-list-item,attachment-item-list}.tsx`, `apps/api/plane/app/views/issue/attachment.py`                                                                                                                                                                                                                                                                                                                                                   |
 | **Custom dashboards**                | `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py`, `apps/web/ce/store/root.store.ts`, `apps/web/app/routes/core.ts`, `packages/constants/src/workspace.ts`, `apps/web/ce/components/workspace/sidebar/helper.tsx` (see `docs/custom-dashboards-design.md` §6 for exact line counts)                                                                                                                                                                                                |
+| **Monday theme**                     | `packages/constants/src/themes.ts`, `apps/web/app/root.tsx` — plus `packages/tailwind-config/variables.css` (the `[data-theme="monday"]` block at EOF) and `apps/web/package.json` (the `@fontsource-variable/figtree` dependency), which carry the same feature's changes but can't hold a `FORK:` marker (CSS/JSON)                                                                                                                                                                          |
 | **i18n (JSON — no marker possible)** | `packages/i18n/src/locales/en/{common,project-settings}.json` — additive keys under `custom_properties`, `project_settings.features.*`, and `common.custom_dashboard`                                                                                                                                                                                                                                                                                                                          |
 
 > The JSON locale files can't carry a `FORK:` comment. They only conflict if
