@@ -130,7 +130,11 @@ class TimeReportEndpoint(BaseAPIView):
                 g["utilization_pct"] = None
         return groups
 
-    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    # Billing reports expose resource names, emails, and dollar amounts aggregated
+    # across the entire workspace (including projects the requester may not belong
+    # to). That is internal business data, not "totals a client should see", so
+    # GUEST (client) role is excluded entirely.
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
     def get(self, request, slug):
         group_by = request.GET.get("group_by", "resource")
         if group_by not in GROUP_BY_MAP:

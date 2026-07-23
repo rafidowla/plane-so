@@ -531,6 +531,16 @@ ATTACHMENT_MIME_TYPES = [
     "text/markdown",
 ]
 
+# MIME types that must never be served with an inline Content-Disposition.
+# An SVG served inline from the app's own origin (the default self-hosted
+# USE_MINIO deployment, where presigned attachment URLs share the app host)
+# is rendered as an active same-origin document and executes any embedded
+# <script>, enabling stored XSS with access to the victim's session. These
+# types are always forced to download regardless of the requested disposition.
+INLINE_DISPOSITION_DENYLIST = [
+    "image/svg+xml",
+]
+
 # Seed directory path
 SEED_DIR = os.path.join(BASE_DIR, "seeds")
 

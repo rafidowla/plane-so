@@ -17,10 +17,12 @@ from plane.db.models import (
     Project,
     ProjectIdentifier,
     ProjectMember,
+    ResourceCapacity,
     State,
     Timesheet,
     User,
     WorklogTimer,
+    WorkspaceMember,
 )
 
 
@@ -52,6 +54,21 @@ def _member(workspace, project, role=15):
     u.set_password("x")
     u.save()
     ProjectMember.objects.create(project=project, workspace=workspace, member=u, role=role, is_active=True)
+    return u
+
+
+def _ws_member(workspace, role=15):
+    """Create a user with a workspace-level membership at the given role.
+
+    The report and capacity endpoints authorize at WORKSPACE level (against
+    WorkspaceMember), so project-only membership is not enough to reach them.
+    role: 20=admin, 15=member, 5=guest.
+    """
+    uid = uuid.uuid4().hex[:8]
+    u = User.objects.create(email=f"ws-{uid}@plane.so", username=f"ws_{uid}", first_name="WsMem")
+    u.set_password("x")
+    u.save()
+    WorkspaceMember.objects.create(workspace=workspace, member=u, role=role, is_active=True)
     return u
 
 
@@ -199,16 +216,94 @@ class TestTimesheetApproval:
 @pytest.mark.contract
 @pytest.mark.django_db
 class TestReport:
-    def test_report_group_by_resource(self, session_client, tt):
+    def _seed(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         session_client.post(_wl_url(slug, pid, iid), {"duration": 90, "logged_date": "2026-06-22"}, format="json")
         session_client.post(_wl_url(slug, pid, iid), {"duration": 30, "logged_date": "2026-06-23"}, format="json")
+
+    def test_report_group_by_resource(self, session_client, tt):
+        # ADMIN (create_user) gets the full report — regression guard against
+        # over-tightening the legitimate admin/PM use case.
+        slug, pid, iid = _ids(tt)
+        self._seed(session_client, tt)
         r = session_client.get(
             f"/api/workspaces/{slug}/time-report/?group_by=resource&start_date=2026-06-01&end_date=2026-06-30"
         )
         assert r.status_code == status.HTTP_200_OK
         assert r.data["totals"]["total_minutes"] == 120
         assert r.data["group_by"] == "resource"
+        # Billing fields are present for an admin.
+        assert "billable_amount" in r.data["totals"]
+
+    def test_report_member_allowed(self, session_client, tt):
+        # A plain workspace MEMBER may still see the billing report: billable
+        # amounts are revenue-side data members can already see via worklogs.
+        slug = tt["workspace"].slug
+        self._seed(session_client, tt)
+        member = _ws_member(tt["workspace"], role=15)
+        session_client.force_authenticate(user=member)
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource")
+        assert r.status_code == status.HTTP_200_OK
+        assert "totals" in r.data
+
+    def test_report_guest_forbidden(self, session_client, tt):
+        # A GUEST (client) must NOT reach the billing report at all — no names,
+        # emails, or dollar amounts leak, even in the error path.
+        slug = tt["workspace"].slug
+        self._seed(session_client, tt)
+        guest = _ws_member(tt["workspace"], role=5)
+        session_client.force_authenticate(user=guest)
+        for group_by in ("resource", "project", "client"):
+            r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by={group_by}")
+            assert r.status_code == status.HTTP_403_FORBIDDEN
+            body = str(r.data)
+            for leaked in ("billable_amount", "billable_minutes", "email", "display_name", "totals", "groups"):
+                assert leaked not in body
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestResourceCapacity:
+    """Resource capacity carries internal cost_rate/billable_rate and is
+    ADMIN-only. No non-admin UI consumes this endpoint."""
+
+    URL = "/api/workspaces/{slug}/resource-capacities/"
+
+    def _seed_capacity(self, tt):
+        ResourceCapacity.objects.create(
+            workspace=tt["workspace"],
+            user=tt["user"],
+            weekly_capacity=2400,
+            cost_rate="50.00",
+            billable_rate="150.00",
+            currency="USD",
+        )
+
+    def test_admin_sees_capacity_with_rates(self, session_client, tt):
+        self._seed_capacity(tt)
+        r = session_client.get(self.URL.format(slug=tt["workspace"].slug))
+        assert r.status_code == status.HTTP_200_OK
+        assert len(r.data) == 1
+        row = r.data[0]
+        assert "cost_rate" in row and "billable_rate" in row
+
+    def test_member_forbidden(self, session_client, tt):
+        self._seed_capacity(tt)
+        member = _ws_member(tt["workspace"], role=15)
+        session_client.force_authenticate(user=member)
+        r = session_client.get(self.URL.format(slug=tt["workspace"].slug))
+        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert "cost_rate" not in str(r.data)
+        assert "billable_rate" not in str(r.data)
+
+    def test_guest_forbidden(self, session_client, tt):
+        self._seed_capacity(tt)
+        guest = _ws_member(tt["workspace"], role=5)
+        session_client.force_authenticate(user=guest)
+        r = session_client.get(self.URL.format(slug=tt["workspace"].slug))
+        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert "cost_rate" not in str(r.data)
+        assert "billable_rate" not in str(r.data)
 
 
 @pytest.mark.contract
@@ -374,3 +469,88 @@ class TestAttachmentImport:
         )
         assert res.get("attachments_created", 0) == 0
         assert not FileAsset.objects.filter(external_source="jira").exists()
+
+    def _inline_att(self, aid="img-1", size=0):
+        # Jira under-reports inline-image size as 0 here on purpose: the streamed
+        # download, not att["size"], is what the cap must be enforced against.
+        return {
+            "id": aid,
+            "filename": "shot.png",
+            "mimeType": "image/png",
+            "size": size,
+            "content": f"https://acme.atlassian.net/rest/api/3/attachment/content/{aid}",
+            "author": {"emailAddress": "someone@acme.com"},
+        }
+
+    def test_inline_body_image_streamed_cached_and_reused(self, tt, monkeypatch):
+        """Inline body images go through the same streaming download as real
+        attachments, the FileAsset size comes from the stream (not att["size"]),
+        and the per-issue cache holds a file-like object that is re-seeked so a
+        second entity reusing the same image reads the full bytes again."""
+        from plane.db.models import FileAsset, IssueComment
+        from plane.settings.storage import S3Storage
+        from plane.utils import jira_importer
+        from plane.utils.jira_importer import _upload_body_image
+
+        body = b"inline-image-bytes"
+        self._patch_io(monkeypatch, body=body)  # streaming requests.get double
+        reads = []
+
+        def capturing_upload(self, f, key, content_type=None, extra_args={}):
+            reads.append(f.read())
+            return True
+
+        monkeypatch.setattr(S3Storage, "upload_file", capturing_upload)
+
+        att = self._inline_att()
+        cache = {}
+        asset_id = _upload_body_image(
+            att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
+            {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
+            ("e@x.com", "tok"), {}, cache,
+        )
+        assert asset_id is not None
+        fa = FileAsset.objects.get(id=asset_id)
+        assert fa.entity_type == FileAsset.EntityTypeContext.ISSUE_DESCRIPTION
+        assert fa.size == len(body)  # size derived from the stream
+        assert "img-1" in cache  # download cached (a file-like object) for reuse
+        assert reads[0] == body
+
+        # The same image reused in a comment must NOT re-download; the resolver
+        # would break if requests.get were hit again, so make that fatal.
+        def _no_more_downloads(*a, **k):
+            raise AssertionError("cached inline image should not be re-downloaded")
+
+        monkeypatch.setattr(jira_importer.requests, "get", _no_more_downloads)
+        comment = IssueComment.objects.create(
+            issue=tt["issue"], project=tt["project"], workspace=tt["workspace"],
+            comment_html="<p></p>", actor=tt["user"], created_by_id=tt["user"].id,
+        )
+        reused_id = _upload_body_image(
+            att, FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            {"comment_id": comment.id, "issue_id": tt["issue"].id},
+            tt["project"], tt["user"], ("e@x.com", "tok"), {}, cache,
+        )
+        assert reused_id is not None and reused_id != asset_id
+        # Re-seek worked: the second upload read the full body, not empty bytes.
+        assert reads[1] == body
+
+    def test_oversized_inline_body_image_skipped_via_stream_cap(self, tt, settings, monkeypatch):
+        """An inline image whose Jira-reported size is understated but whose real
+        body exceeds the cap is rejected DURING streaming (too_large), skipped
+        cleanly (returns None, no FileAsset, no crash), and never cached."""
+        from plane.db.models import FileAsset
+        from plane.utils.jira_importer import _upload_body_image
+
+        settings.FILE_SIZE_LIMIT = 4
+        self._patch_io(monkeypatch, body=b"far-more-than-four-bytes")
+        att = self._inline_att(aid="img-big", size=0)
+        cache = {}
+        result = _upload_body_image(
+            att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
+            {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
+            ("e@x.com", "tok"), {}, cache,
+        )
+        assert result is None
+        assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
+        assert cache == {}  # a too_large download is not cached for reuse

@@ -14,7 +14,6 @@ import html as _html
 import math
 import os
 import re
-from io import BytesIO
 from tempfile import SpooledTemporaryFile
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -379,35 +378,47 @@ def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_a
     if int(att.get("size") or 0) > settings.FILE_SIZE_LIMIT:
         return None
 
-    data = cache.get(att_id) if cache is not None else None
-    if data is None:
-        try:
-            resp = requests.get(content_url, auth=jira_auth, timeout=120)
-            resp.raise_for_status()
-        except requests.RequestException:
+    # Stream the download through the same size-capped, spill-to-disk path used
+    # for real attachments (`_download_attachment`) instead of buffering the
+    # whole body into memory. A mis-reported Jira `size` (e.g. 0 for a multi-GB
+    # body) can no longer drive an uncapped allocation on the import worker: the
+    # cap is enforced DURING streaming, aborting early with a "too_large"
+    # sentinel. The per-issue cache holds the resulting file-like object (a
+    # SpooledTemporaryFile) so an image referenced from both the description and
+    # a comment is fetched only once; every read seeks back to 0 first.
+    cached = cache.get(att_id) if cache is not None else None
+    if cached is not None:
+        fileobj, size = cached
+    else:
+        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT)
+        if fileobj == "too_large" or fileobj is None:
             return None
-        data = resp.content
         if cache is not None:
-            cache[att_id] = data
-    if len(data) > settings.FILE_SIZE_LIMIT:
-        return None
+            cache[att_id] = (fileobj, size)
 
     filename = sanitize_filename(att.get("filename") or "") or uuid4().hex
     mime = att.get("mimeType") or "application/octet-stream"
     asset_key = f"{project.workspace_id}/{uuid4().hex}-{filename}"
     try:
-        uploaded = S3Storage().upload_file(BytesIO(data), asset_key, content_type=mime)
+        fileobj.seek(0)
+        uploaded = S3Storage().upload_file(fileobj, asset_key, content_type=mime)
     except Exception:
         # A storage failure must degrade to a placeholder, never abort the import.
         return None
+    finally:
+        # A cached object is reused for the next entity in this issue, so only
+        # close it here when nothing is holding it for reuse; the cache dict
+        # (and its temp files) is dropped when the issue finishes importing.
+        if cache is None:
+            fileobj.close()
     if not uploaded:
         return None
 
     author = member_map.get(((att.get("author") or {}).get("emailAddress") or "").lower()) or initiator
     asset = FileAsset.objects.create(
-        attributes={"name": filename, "type": mime, "size": len(data)},
+        attributes={"name": filename, "type": mime, "size": size},
         asset=asset_key,
-        size=len(data),
+        size=size,
         workspace_id=project.workspace_id,
         project_id=project.id,
         entity_type=entity_type,

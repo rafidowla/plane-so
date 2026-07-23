@@ -27,7 +27,11 @@ class ResourceCapacityViewSet(BaseViewSet):
             .select_related("user")
         )
 
-    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    # Resource capacity rows carry internal cost_rate (what the company pays a
+    # resource) and billable_rate for every user in the workspace. That is
+    # ADMIN-only planning data; list access is restricted accordingly (upsert is
+    # already ADMIN-only below).
+    @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
     def list(self, request, slug):
         return Response(
             ResourceCapacitySerializer(self.get_queryset(), many=True).data,
