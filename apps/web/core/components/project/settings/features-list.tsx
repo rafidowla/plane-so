@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { Timer } from "lucide-react";
+import { Timer } from "lucide-react"; // FORK: time-tracking
 import { observer } from "mobx-react";
 // plane imports
 import { useTranslation } from "@plane/i18n";

@@ -531,6 +531,7 @@ ATTACHMENT_MIME_TYPES = [
     "text/markdown",
 ]
 
+# FORK: svg-xss-hardening
 # MIME types that must never be served with an inline Content-Disposition.
 # An SVG served inline from the app's own origin (the default self-hosted
 # USE_MINIO deployment, where presigned attachment URLs share the app host)

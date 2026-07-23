@@ -30,7 +30,11 @@ grep -rn "FORK:" apps packages --include=*.py --include=*.ts --include=*.tsx
 > `[data-theme="monday"]` block) or `apps/web/package.json` (the
 > `@fontsource-variable/figtree` dependency) — CSS and JSON can't carry a
 > `FORK:` comment. Check those two by hand during an upgrade; see the "Monday
-> theme" and "i18n" rows in the table below.
+> theme" and "i18n" rows in the table below. It also won't find markers in
+> `.env`/`.sh`/`.yml` files (`.env.example` ×2, `docker-compose.yml`,
+> `deployments/**`) — see the "Large attachments" row. Drop the `--include`
+> filters (or add `--include=*.env --include=*.sh --include=*.yml`) to catch
+> those too.
 
 Everything else we added lives in **new files** that upstream will never touch
 (so they can't conflict): `apps/api/plane/properties/**`,
@@ -47,6 +51,7 @@ most edits 1–12 lines. Keep this list handy during a merge:
 | **Time tracking / Jira**             | `apps/api/plane/app/{serializers,urls,views}/__init__.py`, `apps/api/plane/db/models/__init__.py`, `apps/api/plane/db/models/project.py`, `apps/api/plane/utils/email.py`, `apps/web/ce/components/analytics/tabs.tsx`, `apps/web/ce/components/issues/worklog/property/root.tsx`, `apps/web/core/components/project/settings/features-list.tsx` (+ the settings-nav files shared with custom properties)                                                                                      |
 | **Attachment preview**               | `apps/web/core/components/issues/attachment/{attachment-list-item,attachment-item-list}.tsx`, `apps/api/plane/app/views/issue/attachment.py`                                                                                                                                                                                                                                                                                                                                                   |
 | **Custom dashboards**                | `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py`, `apps/web/ce/store/root.store.ts`, `apps/web/app/routes/core.ts`, `packages/constants/src/workspace.ts`, `apps/web/ce/components/workspace/sidebar/helper.tsx` (see `docs/custom-dashboards-design.md` §6 for exact line counts)                                                                                                                                                                                                |
+| **Large attachments**                | `apps/api/plane/license/api/views/instance.py`, `.env.example`, `apps/api/.env.example`, `docker-compose.yml`, `deployments/aio/community/{start.sh,variables.env,README.md}`, `deployments/cli/community/{docker-compose.yml,variables.env}` — the `FILE_SIZE_LIMIT` 200MB default (upstream default 5MB); see [DEPLOYMENT-FILE-SIZE-LIMIT.md](./DEPLOYMENT-FILE-SIZE-LIMIT.md)                                                                                                               |
 | **Monday theme**                     | `packages/constants/src/themes.ts`, `apps/web/app/root.tsx` — plus `packages/tailwind-config/variables.css` (the `[data-theme="monday"]` block at EOF) and `apps/web/package.json` (the `@fontsource-variable/figtree` dependency), which carry the same feature's changes but can't hold a `FORK:` marker (CSS/JSON)                                                                                                                                                                          |
 | **i18n (JSON — no marker possible)** | `packages/i18n/src/locales/en/{common,project-settings}.json` — additive keys under `custom_properties`, `project_settings.features.*`, and `common.custom_dashboard`                                                                                                                                                                                                                                                                                                                          |
 
@@ -96,7 +101,7 @@ git merge --continue
 # 4. Reinstall deps (upstream may have changed package versions)
 pnpm install
 
-# 5. Apply DB migrations (ours are pinned to upstream's chain and won't clash)
+# 5. Apply DB migrations
 docker exec -i -e DJANGO_SETTINGS_MODULE=plane.settings.local <api-container> \
   python manage.py migrate
 
@@ -109,6 +114,20 @@ pnpm turbo run check:types --filter=web
 docker exec -i -e DJANGO_SETTINGS_MODULE=plane.settings.local <api-container> \
   python -m pytest plane/tests/contract/app/ --create-db -q
 ```
+
+> **Migration numbering — one real trap.** `plane.properties` and
+> `plane.dashboards` are separate Django apps, each pinned to upstream's
+> `db.0121_alter_estimate_type` (see their `0001_initial.py` dependencies) —
+> they cannot clash with a future upstream `db` migration.
+>
+> Time tracking / Jira are different: their migrations (`db/0122-0124`) live
+> **inside the shared `db` app's own numbered chain**, not a separate app. If
+> upstream adds its own `db/0122_*` (or later) after this fork branched, `migrate`
+> will report two migrations claiming the same number. Resolve with
+> `python manage.py makemigrations --merge` (Django will generate a merge
+> migration), or manually renumber ours past upstream's latest — check
+> `python manage.py showmigrations db` first to see where the fork's and
+> upstream's migrations actually landed relative to each other.
 
 ---
 
