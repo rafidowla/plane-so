@@ -446,8 +446,16 @@ class GenericAssetEndpoint(BaseAPIView):
 
             # Generate presigned URL for GET
             storage = S3Storage(request=request, is_server=True)
+            # FORK: svg-xss-hardening — mirror the denylist enforced in
+            # app/views/issue/attachment.py so this public-API sibling can't be
+            # used to serve an SVG asset inline (stored XSS on same-origin MinIO).
+            disposition = (
+                "attachment" if asset.attributes.get("type") in settings.INLINE_DISPOSITION_DENYLIST else "inline"
+            )
             presigned_url = storage.generate_presigned_url(
-                object_name=asset.asset.name, filename=asset.attributes.get("name")
+                object_name=asset.asset.name,
+                disposition=disposition,
+                filename=asset.attributes.get("name"),
             )
 
             return Response(

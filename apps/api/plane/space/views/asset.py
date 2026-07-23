@@ -61,8 +61,13 @@ class EntityAssetEndpoint(BaseAPIView):
 
         # Get the presigned URL
         storage = S3Storage(request=request)
+        # FORK: svg-xss-hardening — this endpoint is AllowAny (public deploy boards)
+        # and serves ISSUE_DESCRIPTION/COMMENT_DESCRIPTION assets, which the Jira
+        # importer can populate with an unchecked mimeType. Force a same-origin
+        # SVG to download instead of rendering as an active document.
+        disposition = "attachment" if asset.attributes.get("type") in settings.INLINE_DISPOSITION_DENYLIST else "inline"
         # Generate a presigned URL to share an S3 object
-        signed_url = storage.generate_presigned_url(object_name=asset.asset.name)
+        signed_url = storage.generate_presigned_url(object_name=asset.asset.name, disposition=disposition)
         # Redirect to the signed URL
         return HttpResponseRedirect(signed_url)
 

@@ -554,3 +554,33 @@ class TestAttachmentImport:
         assert result is None
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
         assert cache == {}  # a too_large download is not cached for reuse
+
+    def test_svg_body_image_rejected_before_download(self, tt, monkeypatch):
+        """Jira's reported mimeType is attacker-controlled (an imported source
+        project can claim anything). An SVG must be rejected outright rather
+        than stored as an ISSUE_DESCRIPTION/COMMENT_DESCRIPTION FileAsset — that
+        asset is served by the AllowAny public deploy-board endpoint, which
+        would otherwise render it inline as same-origin stored XSS."""
+        from plane.db.models import FileAsset
+        from plane.utils import jira_importer
+        from plane.utils.jira_importer import _upload_body_image
+
+        self._patch_io(monkeypatch, body=b"<svg onload=alert(1)>")
+
+        def _no_downloads(*a, **k):
+            raise AssertionError("denylisted mime type should be rejected before any download")
+
+        monkeypatch.setattr(jira_importer.requests, "get", _no_downloads)
+
+        att = self._inline_att(aid="img-svg")
+        att["mimeType"] = "image/svg+xml"
+        att["filename"] = "evil.svg"
+        cache = {}
+        result = _upload_body_image(
+            att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
+            {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
+            ("e@x.com", "tok"), {}, cache,
+        )
+        assert result is None
+        assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
+        assert cache == {}

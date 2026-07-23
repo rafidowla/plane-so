@@ -464,8 +464,12 @@ class StaticFileAssetEndpoint(BaseAPIView):
 
         # Get the presigned URL
         storage = S3Storage(request=request)
+        # FORK: svg-xss-hardening — defense-in-depth: this AllowAny endpoint is
+        # currently safe because avatar/cover/logo entity types can't accept SVG
+        # at upload, but that's an upload-side invariant this file doesn't own.
+        disposition = "attachment" if asset.attributes.get("type") in settings.INLINE_DISPOSITION_DENYLIST else "inline"
         # Generate a presigned URL to share an S3 object
-        signed_url = storage.generate_presigned_url(object_name=asset.asset.name)
+        signed_url = storage.generate_presigned_url(object_name=asset.asset.name, disposition=disposition)
         # Redirect to the signed URL
         return HttpResponseRedirect(signed_url)
 

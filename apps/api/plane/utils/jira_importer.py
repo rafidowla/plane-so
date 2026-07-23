@@ -377,6 +377,12 @@ def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_a
         return str(existing.id)
     if int(att.get("size") or 0) > settings.FILE_SIZE_LIMIT:
         return None
+    # FORK: svg-xss-hardening — Jira's reported mimeType is attacker-controlled
+    # (an imported source project can claim anything). Reject denylisted types
+    # here rather than trusting the download-side disposition guard alone: this
+    # asset is created directly, bypassing every upload-path MIME allowlist.
+    if (att.get("mimeType") or "") in settings.INLINE_DISPOSITION_DENYLIST:
+        return None
 
     # Stream the download through the same size-capped, spill-to-disk path used
     # for real attachments (`_download_attachment`) instead of buffering the

@@ -141,3 +141,62 @@ class TestGenericAssetCrossWorkspaceIDOR:
         assert response.status_code == status.HTTP_204_NO_CONTENT, f"Got {response.status_code}: {response.data!r}"
         asset.refresh_from_db()
         assert asset.is_uploaded is True
+
+
+@pytest.mark.contract
+class TestGenericAssetDisposition:
+    """Regression coverage for the SVG stored-XSS bypass in this endpoint.
+
+    ``GenericAssetEndpoint.get`` serves the same ``FileAsset`` model as
+    ``IssueAttachmentV2Endpoint`` (which already forces SVG to ``attachment``
+    disposition) but, unlike it, minted a bare presigned URL with no
+    disposition argument at all — defaulting to ``inline`` and reopening the
+    stored-XSS hole for any workspace member (including guests) via this
+    public-API sibling.
+    """
+
+    def detail_url(self, slug, asset_id):
+        return f"/api/v1/workspaces/{slug}/assets/{asset_id}/"
+
+    def _asset(self, workspace, user, *, name, content_type):
+        return FileAsset.objects.create(
+            attributes={"name": name, "type": content_type, "size": 1024},
+            asset=f"{workspace.id}/{name}",
+            size=1024,
+            workspace=workspace,
+            created_by=user,
+            entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
+            is_uploaded=True,
+            storage_metadata={"size": 1024},
+        )
+
+    @pytest.mark.django_db
+    def test_svg_asset_is_forced_to_attachment(self, api_key_client, workspace, create_user):
+        asset = self._asset(workspace, create_user, name="evil.svg", content_type="image/svg+xml")
+        url = self.detail_url(workspace.slug, asset.id)
+
+        with mock.patch("plane.api.views.asset.S3Storage") as mock_storage:
+            mock_storage.return_value.generate_presigned_url.return_value = "https://signed.example/evil.svg"
+            response = api_key_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK, f"Got {response.status_code}: {response.data!r}"
+        _, kwargs = mock_storage.return_value.generate_presigned_url.call_args
+        assert kwargs["disposition"] == "attachment", (
+            f"SVG must be forced to download, got disposition={kwargs['disposition']!r}"
+        )
+
+    @pytest.mark.django_db
+    def test_pdf_asset_stays_inline(self, api_key_client, workspace, create_user):
+        """Positive control: a non-denylisted type keeps previewing inline."""
+        asset = self._asset(workspace, create_user, name="doc.pdf", content_type="application/pdf")
+        url = self.detail_url(workspace.slug, asset.id)
+
+        with mock.patch("plane.api.views.asset.S3Storage") as mock_storage:
+            mock_storage.return_value.generate_presigned_url.return_value = "https://signed.example/doc.pdf"
+            response = api_key_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK, f"Got {response.status_code}: {response.data!r}"
+        _, kwargs = mock_storage.return_value.generate_presigned_url.call_args
+        assert kwargs["disposition"] == "inline", (
+            f"Non-denylisted type must stay inline, got disposition={kwargs['disposition']!r}"
+        )
