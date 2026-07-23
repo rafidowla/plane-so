@@ -86,7 +86,7 @@ def enabled(proj, monkeypatch):
     return proj
 
 
-def _make_issue(proj, name="I"):
+def _make_issue(proj, name="I", creator=None):
     from plane.db.models import Issue, State
 
     state, _ = State.objects.get_or_create(
@@ -96,7 +96,7 @@ def _make_issue(proj, name="I"):
         defaults={"group": "unstarted", "default": True},
     )
     issue = Issue(workspace=proj["workspace"], project=proj["project"], name=name, state=state)
-    issue.save(created_by_id=proj["user"].id)
+    issue.save(created_by_id=(creator or proj["user"]).id)
     return issue
 
 
@@ -195,21 +195,25 @@ class TestPropertiesFeatureToggle:
         assert r.status_code == status.HTTP_403_FORBIDDEN
 
 
+def _create_status(client, slug, pid, options=None):
+    body = {
+        "display_name": "Deal stage",
+        "property_type": "OPTION",
+        "options": options
+        or [
+            {"name": "Lead", "logo_props": {"in_use": "color", "color": {"background": "#579BFC"}}},
+            {"name": "Won", "is_default": True, "logo_props": {"in_use": "color", "color": {"background": "#00C875"}}},
+            {"name": "Lost", "logo_props": {"in_use": "color", "color": {"background": "#E2445C"}}},
+        ],
+    }
+    return client.post(_props_url(slug, pid), body, format="json")
+
+
 @pytest.mark.contract
 @pytest.mark.django_db
 class TestPropertiesCRUD:
     def _create_status(self, client, slug, pid, options=None):
-        body = {
-            "display_name": "Deal stage",
-            "property_type": "OPTION",
-            "options": options
-            or [
-                {"name": "Lead", "logo_props": {"in_use": "color", "color": {"background": "#579BFC"}}},
-                {"name": "Won", "is_default": True, "logo_props": {"in_use": "color", "color": {"background": "#00C875"}}},
-                {"name": "Lost", "logo_props": {"in_use": "color", "color": {"background": "#E2445C"}}},
-            ],
-        }
-        return client.post(_props_url(slug, pid), body, format="json")
+        return _create_status(client, slug, pid, options=options)
 
     def test_create_status_with_options(self, session_client, enabled):
         slug, pid = enabled["workspace"].slug, str(enabled["project"].id)
@@ -349,3 +353,91 @@ class TestPropertiesCRUD:
         session_client.force_authenticate(user=member)
         r = self._create_status(session_client, slug, pid)
         assert r.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestPropertyValuesGuestScoping:
+    """A restricted guest (``guest_view_all_features=False``, the project
+    default) must not read custom-property values for issues they didn't
+    create — the same visibility rule dashboards already enforce via
+    ``_project_permission_q``."""
+
+    def _set_value(self, session_client, slug, pid, issue, prop):
+        session_client.post(
+            _values_url(slug, pid, str(issue.id), prop["id"]),
+            {"values": [prop["options"][0]["id"]]},
+            format="json",
+        )
+
+    def test_restricted_guest_single_value_hidden_for_others_issue(self, session_client, enabled):
+        slug, pid = enabled["workspace"].slug, str(enabled["project"].id)
+        pr = _create_status(session_client, slug, pid).data
+        others_issue = _make_issue(enabled, "Not Mine")
+        self._set_value(session_client, slug, pid, others_issue, pr)
+
+        guest = _member(enabled["workspace"], enabled["project"], role=5)
+        session_client.force_authenticate(user=guest)
+        r = session_client.get(_values_url(slug, pid, str(others_issue.id), pr["id"]))
+        assert r.status_code == status.HTTP_200_OK
+        assert r.data["values"] == [], "restricted guest must not see another user's issue values"
+
+    def test_restricted_guest_sees_own_issue_values(self, session_client, enabled):
+        slug, pid = enabled["workspace"].slug, str(enabled["project"].id)
+        pr = _create_status(session_client, slug, pid).data
+        guest = _member(enabled["workspace"], enabled["project"], role=5)
+        own_issue = _make_issue(enabled, "Mine", creator=guest)
+        self._set_value(session_client, slug, pid, own_issue, pr)
+
+        session_client.force_authenticate(user=guest)
+        r = session_client.get(_values_url(slug, pid, str(own_issue.id), pr["id"]))
+        assert r.status_code == status.HTTP_200_OK
+        assert r.data["values"] == [str(pr["options"][0]["id"])], (
+            "restricted guest must still see values on their own issue"
+        )
+
+    def test_unrestricted_guest_sees_all_values(self, session_client, enabled):
+        """Positive control: guest_view_all_features=True keeps the old
+        behaviour — no regression for projects that opt into full visibility."""
+        enabled["project"].guest_view_all_features = True
+        enabled["project"].save(update_fields=["guest_view_all_features"])
+        slug, pid = enabled["workspace"].slug, str(enabled["project"].id)
+        pr = _create_status(session_client, slug, pid).data
+        others_issue = _make_issue(enabled, "Not Mine")
+        self._set_value(session_client, slug, pid, others_issue, pr)
+
+        guest = _member(enabled["workspace"], enabled["project"], role=5)
+        session_client.force_authenticate(user=guest)
+        r = session_client.get(_values_url(slug, pid, str(others_issue.id), pr["id"]))
+        assert r.data["values"] == [str(pr["options"][0]["id"])]
+
+    def test_member_role_sees_all_values(self, session_client, enabled):
+        """Positive control: a MEMBER (role 15), not a GUEST, is never
+        restricted regardless of guest_view_all_features."""
+        slug, pid = enabled["workspace"].slug, str(enabled["project"].id)
+        pr = _create_status(session_client, slug, pid).data
+        others_issue = _make_issue(enabled, "Not Mine")
+        self._set_value(session_client, slug, pid, others_issue, pr)
+
+        member = _member(enabled["workspace"], enabled["project"], role=15)
+        session_client.force_authenticate(user=member)
+        r = session_client.get(_values_url(slug, pid, str(others_issue.id), pr["id"]))
+        assert r.data["values"] == [str(pr["options"][0]["id"])]
+
+    def test_restricted_guest_bulk_values_filtered_to_own_issues(self, session_client, enabled):
+        slug, pid = enabled["workspace"].slug, str(enabled["project"].id)
+        pr = _create_status(session_client, slug, pid).data
+        guest = _member(enabled["workspace"], enabled["project"], role=5)
+        own_issue = _make_issue(enabled, "Mine", creator=guest)
+        others_issue = _make_issue(enabled, "Not Mine")
+        self._set_value(session_client, slug, pid, own_issue, pr)
+        self._set_value(session_client, slug, pid, others_issue, pr)
+
+        session_client.force_authenticate(user=guest)
+        ids = f"{own_issue.id},{others_issue.id}"
+        r = session_client.get(_bulk_url(slug, pid) + f"?work_item_ids={ids}")
+        assert r.status_code == status.HTTP_200_OK
+        assert str(own_issue.id) in r.data
+        assert str(others_issue.id) not in r.data, (
+            "restricted guest must not see bulk values for another user's issue"
+        )

@@ -50,6 +50,21 @@ def project_feature_enabled(slug, project_id):
     ).exists()
 
 
+def _restricted_guest(user, project_id):
+    """True if `user` is a project GUEST whose visibility is restricted to
+    issues they created (mirrors dashboards.widget_data._project_permission_q,
+    which enforces the same guest_view_all_features scoping for saved views).
+    A restricted guest must not read custom-property values for issues they
+    otherwise cannot see."""
+    return ProjectMember.objects.filter(
+        project_id=project_id,
+        member=user,
+        is_active=True,
+        role=ROLE.GUEST.value,
+        project__guest_view_all_features=False,
+    ).exists()
+
+
 class _PropertiesBaseView(BaseAPIView):
     """Shared flag guards for the custom-properties data endpoints."""
 
@@ -374,6 +389,10 @@ class IssuePropertyValuesEndpoint(_PropertiesBaseView):
         guard = self.require_instance()
         if guard:
             return guard
+        if _restricted_guest(request.user, project_id) and not Issue.objects.filter(
+            pk=work_item_id, project_id=project_id, created_by=request.user
+        ).exists():
+            return Response({"values": []}, status=status.HTTP_200_OK)
         option_ids = list(
             IssuePropertyValue.objects.filter(
                 project_id=project_id, issue_id=work_item_id, property_id=property_id
@@ -447,6 +466,15 @@ class BulkIssuePropertyValuesEndpoint(_PropertiesBaseView):
         ids = [x for x in raw.split(",") if x][:100]
         if not ids:
             return Response({}, status=status.HTTP_200_OK)
+        if _restricted_guest(request.user, project_id):
+            ids = [
+                str(x)
+                for x in Issue.objects.filter(
+                    pk__in=ids, project_id=project_id, created_by=request.user
+                ).values_list("id", flat=True)
+            ]
+            if not ids:
+                return Response({}, status=status.HTTP_200_OK)
         rows = (
             IssuePropertyValue.objects.filter(project_id=project_id, issue_id__in=ids)
             .exclude(value_option__isnull=True)
