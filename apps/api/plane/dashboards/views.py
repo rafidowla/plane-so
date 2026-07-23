@@ -15,12 +15,14 @@ from rest_framework.response import Response
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Workspace
+from plane.utils.cache import cache_response
 from plane.utils.filters import IssueFilterSet
 
 from plane.dashboards.models import WorkspaceDashboardWidget
 from plane.dashboards.serializers import WorkspaceDashboardWidgetSerializer
 from plane.dashboards.widget_data import (
     WIDGET_DATA_DISPATCH,
+    age_trend_data,
     view_list_data,
 )
 
@@ -101,8 +103,37 @@ class WorkspaceDashboardWidgetDataEndpoint(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # age_trend is the only cached widget type. Its response is a pure
+        # function of (widget config, the *requesting user's* visible issues,
+        # today's date), and the query is scoped by the caller's project
+        # membership via get_analytics_filters -> _base_issue_queryset (the
+        # base_filters always pin project__project_projectmember__member=user).
+        # Two users with different project memberships legitimately get
+        # different data from the same widget_id, so the cache MUST be keyed
+        # per user (user=True) -- a global key would leak one user's
+        # project-scoped counts to another. distribution_pie /
+        # project_breakdown_pie share this same membership sensitivity and are
+        # deliberately left uncached for now (see docs/custom-dashboards-design.md).
+        if widget.widget_type == WidgetType.AGE_TREND:
+            return self._age_trend_response(request, slug, widget)
+
         return Response(
             data_fn(widget, slug, request.user), status=status.HTTP_200_OK
+        )
+
+    @cache_response(timeout=300, user=True)
+    def _age_trend_response(self, request, slug, widget):
+        """Per-user-cached age_trend data (5 min TTL).
+
+        Only reached from ``get`` after the ``@allow_permission`` workspace-role
+        check and the widget lookup, so it is never an unguarded entry point.
+        ``cache_response(user=True)`` folds ``request.user.id`` into the cache
+        key alongside the full request path (which carries the widget_id), so
+        each (user, widget) pair gets its own entry and no cross-user leak is
+        possible.
+        """
+        return Response(
+            age_trend_data(widget, slug, request.user), status=status.HTTP_200_OK
         )
 
 

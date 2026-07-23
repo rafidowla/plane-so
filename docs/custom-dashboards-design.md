@@ -7,7 +7,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 > **Build status (as-built, 2026-07-23):** Phases 1–8 implemented across the
 > `plane.dashboards` backend app, the frontend data layer, UI components, and
-> routing. Backend contract suite: 20/20 green (`test_custom_dashboards_app.py`).
+> routing. Backend contract suite: 22/22 green (`test_custom_dashboards_app.py`,
+> incl. the `age_trend` per-user cache tests).
 > Divergence: **10 marked lines across 6 upstream files** (see
 > [§6](#6-fork-touch-inventory) — well inside the fork's divergence budget).
 > All new behavior lives in new files (`apps/api/plane/dashboards/**`,
@@ -140,6 +141,36 @@ level="WORKSPACE")`. Guests have no access (not listed in either set).
 each of which reuses the existing workspace-analytics aggregation helpers
 (`get_analytics_filters`, `build_analytics_chart`) rather than re-implementing
 project-visibility scoping or chart bucketing.
+
+### Caching (`age_trend` only)
+
+The `age_trend` `data/` response is cached with
+`@cache_response(timeout=300, user=True)` (5-minute TTL) on
+`WorkspaceDashboardWidgetDataEndpoint._age_trend_response`. This was the
+"escape hatch" originally left unimplemented for v1; it is now enabled because
+morning-rush recompute of the O(N) day-sweep is the one path cheap enough to
+cache safely without touching the membership-sensitive pies.
+
+**Why `user=True` and not `user=False`:** `age_trend_data` is **user-scoped**,
+not admin-pinned. It calls `_base_issue_queryset(slug, user, config.project_ids)`
+→ `get_analytics_filters(slug, user, ...)`, whose `base_filters` _always_
+include `project__project_projectmember__member=user` +
+`is_active=True`. `config.project_ids` is only an _additional_ `project_id__in`
+narrowing on top; when it is null/absent the query still returns "all projects
+**this user** is an active member of", never all workspace projects. So two
+users with different project memberships legitimately get different data from
+the same `widget_id`. `cache_response(user=True)` folds `request.user.id` into
+the key (`"<full_path>:<user_id>"`, where `full_path` already carries the
+`widget_id`), giving each `(user, widget)` pair its own entry — a `user=False`
+global key would serve one user's project-scoped counts to another user who
+can't see those projects. The decorator only writes on `status==200 and not
+settings.DEBUG`, so caching is inert under `DEBUG=True` (local/test) and active
+in production.
+
+`distribution_pie` / `project_breakdown_pie` share the exact same membership
+sensitivity and are **deliberately still uncached** — enabling them would be a
+safe follow-up (same `user=True` treatment) but is intentionally out of scope
+here rather than done unilaterally.
 
 `WorkspaceDashboardWidgetIssuesEndpoint` → `view_list_data()` reuses the saved
 `IssueView`'s precomputed `query` (ORM kwargs) and `rich_filters` (JSON,
@@ -280,13 +311,17 @@ can't break this app's dependency edge.
 ## 9. Test plan
 
 Backend contract suite: `apps/api/plane/tests/contract/app/
-test_custom_dashboards_app.py` — 20 tests covering CRUD permission boundaries
+test_custom_dashboards_app.py` — 22 tests covering CRUD permission boundaries
 (admin-only writes, member/guest read boundaries), the per-widget-type
 `config` validation rules in [§4](#4-per-widget-type-config-schema)
 (including the "issue_view must/must-not be set" and unknown-key rejection
 cases), the `data/` vs `issues/` endpoint split (400 on the wrong endpoint
-for a given widget_type), and the `view_deleted` soft-empty-state response
-when a `view_list` widget's saved View has been deleted.
+for a given widget_type), the `view_deleted` soft-empty-state response
+when a `view_list` widget's saved View has been deleted, and the `age_trend`
+per-user caching (both that a repeat same-user request is served from cache —
+the underlying compute runs once for two hits — and that the cache is keyed
+per user, so a second user is recomputed against their own project visibility
+rather than being served the first user's cached counts).
 
 See the repo's top-level test run (`docker exec ... pytest
 plane/tests/contract/app/ -q`) for current pass/fail counts across the whole

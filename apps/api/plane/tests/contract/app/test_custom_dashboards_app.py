@@ -14,6 +14,7 @@ test needs to exercise project-visibility scoping.
 
 import uuid
 from datetime import timedelta
+from unittest import mock
 
 import pytest
 from django.utils import timezone
@@ -617,3 +618,155 @@ class TestViewListData:
         ).data
         r = session_client.get(_widget_issues_url(slug, widget["id"]))
         assert r.status_code == status.HTTP_400_BAD_REQUEST
+
+
+# ---------------------------------------------------------------------------
+# 7. age_trend caching (per-user, membership-safe)
+# ---------------------------------------------------------------------------
+
+# The age_trend data endpoint is wrapped in @cache_response(timeout=300,
+# user=True). Two things must hold and are proven below:
+#   (a) the cache is actually hit -- a repeat request from the SAME user does
+#       not recompute age_trend_data; and
+#   (b) the cache key is per-user -- a DIFFERENT user with different project
+#       visibility is recomputed against their own issues and never served the
+#       first user's cached, project-scoped counts.
+#
+# cache_response only writes when `status == 200 and not settings.DEBUG`, and
+# both the test and local settings set DEBUG=True (so caching is inert there by
+# design). To exercise the production code path deterministically we flip
+# DEBUG=False and pin a private in-memory cache for the duration of each test,
+# independent of whatever Redis the container provides.
+
+_LOCMEM_CACHE = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "dash-age-trend-cache-test",
+    }
+}
+
+
+def _today_open_count(response):
+    """open_count for the last (today) bucket of an age_trend data response."""
+    data = response.data["data"]
+    return data[-1]["open_count"]
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestAgeTrendCaching:
+    def _enable_caching(self, settings):
+        """Flip the production caching preconditions for the duration of a test.
+
+        cache_response writes only when ``not settings.DEBUG``; test/local
+        settings run DEBUG=True (caching inert by design), so we flip it off and
+        pin a private in-memory cache. Setting these via pytest-django's
+        ``settings`` fixture fires ``setting_changed`` (resetting the cache
+        connection) and is auto-reverted after the test.
+        """
+        from django.core.cache import cache
+
+        settings.DEBUG = False
+        settings.CACHES = _LOCMEM_CACHE
+        cache.clear()
+
+    def _make_age_trend_widget(self, session_client, dash, project_ids=None):
+        config = {"lookback_days": 30}
+        if project_ids is not None:
+            config["project_ids"] = project_ids
+        slug = dash["workspace"].slug
+        return session_client.post(
+            _widgets_url(slug),
+            {"widget_type": WidgetType.AGE_TREND, "config": config},
+            format="json",
+        ).data
+
+    def test_same_user_second_request_served_from_cache(
+        self, session_client, dash, settings
+    ):
+        """Two identical requests from one user -> age_trend_data computed once."""
+        self._enable_caching(settings)
+        workspace, project, user = dash["workspace"], dash["project_a"], dash["user"]
+        for i in range(3):
+            _make_issue(workspace, project, user, name=f"Open-{i}")
+
+        slug = workspace.slug
+        widget = self._make_age_trend_widget(
+            session_client, dash, project_ids=[str(project.id)]
+        )
+        url = _widget_data_url(slug, widget["id"])
+
+        # Spy that still runs the real computation (wraps=), so responses stay valid.
+        from plane.dashboards.widget_data import age_trend_data as real_fn
+
+        with mock.patch(
+            "plane.dashboards.views.age_trend_data", wraps=real_fn
+        ) as spy:
+            r1 = session_client.get(url)
+            r2 = session_client.get(url)
+
+        assert r1.status_code == status.HTTP_200_OK
+        assert r2.status_code == status.HTTP_200_OK
+        # Second hit served from cache: the underlying query runs exactly once.
+        assert spy.call_count == 1
+        # And the cached payload is byte-for-byte what the first request returned.
+        assert r1.data == r2.data
+        assert _today_open_count(r1) == 3
+
+    def test_cache_key_is_per_user_no_cross_user_leak(
+        self, session_client, dash, settings
+    ):
+        """User B (different project visibility) is never served User A's cached,
+        project-scoped counts; and User A's own repeat is still a cache hit."""
+        self._enable_caching(settings)
+        workspace = dash["workspace"]
+        project_a, project_b = dash["project_a"], dash["project_b"]
+
+        # 3 open issues visible only to project_a members, 5 only to project_b.
+        for i in range(3):
+            _make_issue(workspace, project_a, dash["user"], name=f"A-{i}")
+        for i in range(5):
+            _make_issue(workspace, project_b, dash["user"], name=f"B-{i}")
+
+        # Two members, each in exactly one project (disjoint visibility).
+        user_a = _workspace_member(workspace, role=15)
+        _add_project_member(workspace, project_a, user_a, role=15)
+        user_b = _workspace_member(workspace, role=15)
+        _add_project_member(workspace, project_b, user_b, role=15)
+
+        slug = workspace.slug
+        # No project_ids in config -> each user sees "all projects I'm a member
+        # of", so A and B legitimately get different data from one widget_id.
+        widget = self._make_age_trend_widget(session_client, dash, project_ids=None)
+        url = _widget_data_url(slug, widget["id"])
+
+        from plane.dashboards.widget_data import age_trend_data as real_fn
+
+        with mock.patch(
+            "plane.dashboards.views.age_trend_data", wraps=real_fn
+        ) as spy:
+            # A populates the cache first.
+            session_client.force_authenticate(user=user_a)
+            r_a1 = session_client.get(url)
+            # B must be recomputed against B's own visibility, NOT served A's entry.
+            session_client.force_authenticate(user=user_b)
+            r_b = session_client.get(url)
+            # A again -> served from A's own cache entry (no recompute).
+            session_client.force_authenticate(user=user_a)
+            r_a2 = session_client.get(url)
+
+        assert r_a1.status_code == status.HTTP_200_OK
+        assert r_b.status_code == status.HTTP_200_OK
+        assert r_a2.status_code == status.HTTP_200_OK
+
+        # A sees only project_a's 3 issues; B sees only project_b's 5 -- the leak
+        # this test exists to catch would show B an open_count of 3.
+        assert _today_open_count(r_a1) == 3
+        assert _today_open_count(r_b) == 5
+        assert _today_open_count(r_a2) == 3
+        assert r_a2.data == r_a1.data
+
+        # Exactly two computations: one for A (reused on A's 2nd hit) and one for
+        # B. If the key were global (user=False), B would have reused A's entry
+        # and spy.call_count would be 1 while r_b showed A's count of 3.
+        assert spy.call_count == 2
