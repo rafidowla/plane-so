@@ -95,10 +95,7 @@ export class CustomDashboardsStore implements ICustomDashboardsStore {
    * `CustomPropertiesStore.createProperty`: call the API, then merge the
    * returned widget into local state (no full refetch of the list).
    */
-  createWidget = async (
-    workspaceSlug: string,
-    payload: TDashboardWidgetCreatePayload
-  ): Promise<TDashboardWidget> => {
+  createWidget = async (workspaceSlug: string, payload: TDashboardWidgetCreatePayload): Promise<TDashboardWidget> => {
     const res = await customDashboardsService.create(workspaceSlug, payload);
     runInAction(() => {
       const existing = this.widgetsMap[workspaceSlug] ?? [];
@@ -125,7 +122,7 @@ export class CustomDashboardsStore implements ICustomDashboardsStore {
       set(
         this.widgetsMap,
         [workspaceSlug],
-        existing.map((widget) => (widget.id === widgetId ? { ...widget, ...payload } : widget))
+        existing.map((widget) => (widget.id === widgetId ? Object.assign({}, widget, payload) : widget))
       );
     });
 
@@ -186,10 +183,7 @@ export class CustomDashboardsStore implements ICustomDashboardsStore {
  * logic (~line 280) for the original. Phase 6 calls this to get the value to
  * pass into `reorderWidget`.
  */
-export const getWidgetReorderSortOrder = (
-  orderedWidgets: TDashboardWidget[],
-  destinationIndex: number
-): number => {
+export const getWidgetReorderSortOrder = (orderedWidgets: TDashboardWidget[], destinationIndex: number): number => {
   const prevSortOrder = orderedWidgets[destinationIndex - 1]?.sort_order;
   const nextSortOrder = orderedWidgets[destinationIndex]?.sort_order;
 
