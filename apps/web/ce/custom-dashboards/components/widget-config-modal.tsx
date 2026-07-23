@@ -6,11 +6,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react";
+import Link from "next/link";
 import useSWR from "swr";
 // plane imports
 import { Button } from "@plane/propel/button";
+import { GlobeIcon, LockIcon, ViewsIcon } from "@plane/propel/icons";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { ICustomSearchSelectOption } from "@plane/types";
+import { EViewAccess } from "@plane/types";
 import { CustomSearchSelect, CustomSelect, EModalWidth, Input, ModalCore } from "@plane/ui";
 import { cn } from "@plane/utils";
 // components
@@ -64,7 +67,9 @@ export const WidgetConfigModal = observer(function WidgetConfigModal(props: Prop
   const { fetchAllGlobalViews, currentWorkspaceViews, getViewDetailsById } = useGlobalView();
 
   // Views are only needed for the view_list picker; fetched lazily when the modal opens.
-  useSWR(isOpen ? ["dashboard-global-views", workspaceSlug] : null, () => fetchAllGlobalViews(workspaceSlug));
+  const { isLoading: isLoadingViews } = useSWR(isOpen ? ["dashboard-global-views", workspaceSlug] : null, () =>
+    fetchAllGlobalViews(workspaceSlug)
+  );
 
   // form state
   const [widgetType, setWidgetType] = useState<TDashboardWidgetType | null>(null);
@@ -99,15 +104,44 @@ export const WidgetConfigModal = observer(function WidgetConfigModal(props: Prop
     }
   }, [isOpen, widget]);
 
+  // All views returned by useGlobalView are workspace-level (the API filters out project-scoped
+  // views), so there's no project/workspace grouping to show here — every option lives in one
+  // flat, workspace-wide list. Access (public/private) is the only per-view distinguisher worth
+  // surfacing, so it's shown as secondary text/icon instead.
   const viewOptions: ICustomSearchSelectOption[] = useMemo(
     () =>
       (currentWorkspaceViews ?? []).flatMap((viewId) => {
         const view = getViewDetailsById(viewId);
         if (!view) return [];
-        return [{ value: view.id, query: view.name.toLowerCase(), content: view.name }];
+        const isPrivate = view.access === EViewAccess.PRIVATE;
+        return [
+          {
+            value: view.id,
+            query: view.name.toLowerCase(),
+            tooltip: view.description || undefined,
+            content: (
+              <div className="flex w-full items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 truncate">
+                  <ViewsIcon className="h-3.5 w-3.5 flex-shrink-0 text-tertiary" />
+                  <span className="truncate">{view.name}</span>
+                </span>
+                <span className="flex flex-shrink-0 items-center gap-1 text-11 text-secondary">
+                  {isPrivate ? (
+                    <LockIcon className="h-3 w-3 flex-shrink-0" />
+                  ) : (
+                    <GlobeIcon className="h-3 w-3 flex-shrink-0" />
+                  )}
+                  {isPrivate ? "Private" : "Public"}
+                </span>
+              </div>
+            ),
+          },
+        ];
       }),
     [currentWorkspaceViews, getViewDetailsById]
   );
+
+  const isLoadingViewOptions = isLoadingViews && viewOptions.length === 0;
 
   const buildConfig = (type: TDashboardWidgetType): TDashboardWidgetConfig => {
     switch (type) {
@@ -273,14 +307,30 @@ export const WidgetConfigModal = observer(function WidgetConfigModal(props: Prop
               <>
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-medium text-secondary">Saved view (required)</span>
-                  <CustomSearchSelect
-                    value={issueViewId}
-                    onChange={(val: string) => setIssueViewId(val)}
-                    options={viewOptions}
-                    label={issueViewId ? (getViewDetailsById(issueViewId)?.name ?? "Select a view") : "Select a view"}
-                    buttonClassName="w-full justify-between border border-subtle"
-                    noResultsMessage="No saved views found."
-                  />
+                  {!isLoadingViewOptions && viewOptions.length === 0 ? (
+                    <div className="text-xs rounded border border-dashed border-subtle px-3 py-2 text-secondary">
+                      No saved views yet — create one from the{" "}
+                      <Link
+                        href={`/${workspaceSlug}/workspace-views`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent-primary hover:underline"
+                      >
+                        Views tab
+                      </Link>{" "}
+                      first.
+                    </div>
+                  ) : (
+                    <CustomSearchSelect
+                      value={issueViewId}
+                      onChange={(val: string) => setIssueViewId(val)}
+                      options={isLoadingViewOptions ? undefined : viewOptions}
+                      label={issueViewId ? (getViewDetailsById(issueViewId)?.name ?? "Select a view") : "Select a view"}
+                      buttonClassName="w-full justify-between border border-subtle"
+                      optionsClassName="w-full"
+                      noResultsMessage="No saved views found."
+                    />
+                  )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-medium text-secondary">Page size</span>
