@@ -381,7 +381,8 @@ def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_a
     # (an imported source project can claim anything). Reject denylisted types
     # here rather than trusting the download-side disposition guard alone: this
     # asset is created directly, bypassing every upload-path MIME allowlist.
-    if (att.get("mimeType") or "") in settings.INLINE_DISPOSITION_DENYLIST:
+    reported_mime_type = (att.get("mimeType") or "").split(";")[0].strip().lower()
+    if reported_mime_type in settings.SCRIPT_CAPABLE_MIME_TYPES:
         return None
 
     # Stream the download through the same size-capped, spill-to-disk path used

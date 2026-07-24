@@ -9,12 +9,8 @@ import { action, makeObservable, observable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
 
 import { issuePropertiesService } from "@/plane-web/custom-properties/issue-properties.service";
-import type {
-  TIssueProperty,
-  TIssuePropertyOption,
-  TProjectPropertiesFeature,
-} from "@/plane-web/custom-properties";
-import type { RootStore } from "@/plane-web/store/root.store";
+import type { TIssueProperty, TIssuePropertyOption, TProjectPropertiesFeature } from "@/plane-web/custom-properties";
+import type { RootStore } from "@/store/root.store";
 
 // ---------------------------------------------------------------------------
 // Custom properties (definitions + options + per-project feature toggle)
@@ -285,6 +281,9 @@ export class PropertyValuesStore implements IPropertyValuesStore {
       const ids = Array.from(bucket.ids);
       for (let i = 0; i < ids.length; i += BULK_CAP) {
         try {
+          // Intentionally sequential: pages are capped and rate-limit-friendly;
+          // parallelizing would defeat that.
+          // oxlint-disable-next-line no-await-in-loop
           await this.fetchBulkValues(bucket.workspaceSlug, bucket.projectId, ids.slice(i, i + BULK_CAP));
         } catch {
           // A failed page must not abort the other pages/buckets. fetchBulkValues

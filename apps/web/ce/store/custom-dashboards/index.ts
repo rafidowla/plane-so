@@ -14,7 +14,7 @@ import type {
   TDashboardWidgetCreatePayload,
   TDashboardWidgetUpdatePayload,
 } from "@/plane-web/custom-dashboards";
-import type { RootStore } from "@/plane-web/store/root.store";
+import type { RootStore } from "@/store/root.store";
 
 // ---------------------------------------------------------------------------
 // Custom dashboards (widget list/config only — NOT chart/issue data, see below)

@@ -7,11 +7,12 @@
 import type { AnalyticsTab } from "@plane/types";
 import { Overview } from "@/components/analytics/overview";
 import { WorkItems } from "@/components/analytics/work-items";
-// FORK: time-tracking
-import { Clients } from "./clients/root";
-import { Imports } from "./imports/root";
-import { TimeReport } from "./time/root";
-import { Timesheets } from "./timesheets/root";
+// FORK: time-tracking — these implementations live in ce/ (fork-owned, upstream
+// never had them); only this tabs.tsx file itself moved to core/ in the merge.
+import { Clients } from "@/plane-web/components/analytics/clients/root";
+import { Imports } from "@/plane-web/components/analytics/imports/root";
+import { TimeReport } from "@/plane-web/components/analytics/time/root";
+import { Timesheets } from "@/plane-web/components/analytics/timesheets/root";
 
 export const getAnalyticsTabs = (t: (key: string, params?: Record<string, any>) => string): AnalyticsTab[] =>
   [
