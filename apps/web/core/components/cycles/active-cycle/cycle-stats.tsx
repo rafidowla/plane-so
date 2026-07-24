@@ -33,13 +33,12 @@ import userImage from "@/app/assets/user.png?url";
 import { SingleProgressStats } from "@/components/core/sidebar/single-progress-stats";
 import { StateDropdown } from "@/components/dropdowns/state/dropdown";
 import { SimpleEmptyState } from "@/components/empty-state/simple-empty-state-root";
+import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import useLocalStorage from "@/hooks/use-local-storage";
-// plane web components
-import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/issue-identifier";
 // store
 import type { ActiveCycleIssueDetails } from "@/store/issue/cycle";
 
@@ -50,6 +49,19 @@ export type ActiveCycleStatsProps = {
   cycleId?: string | null;
   handleFiltersUpdate: (conditions: TWorkItemFilterCondition[]) => void;
   cycleIssueDetails?: ActiveCycleIssueDetails | { nextPageResults: boolean };
+};
+
+const currentValue = (tabValue: string | null) => {
+  switch (tabValue) {
+    case "Priority-Issues":
+      return 0;
+    case "Assignees":
+      return 1;
+    case "Labels":
+      return 2;
+    default:
+      return 0;
+  }
 };
 
 export const ActiveCycleStats = observer(function ActiveCycleStats(props: ActiveCycleStatsProps) {
@@ -69,18 +81,6 @@ export const ActiveCycleStats = observer(function ActiveCycleStats(props: Active
   const assigneesResolvedPath = resolvedTheme === "light" ? lightAssigneeAsset : darkAssigneeAsset;
   const labelsResolvedPath = resolvedTheme === "light" ? lightLabelAsset : darkLabelAsset;
 
-  const currentValue = (tab: string | null) => {
-    switch (tab) {
-      case "Priority-Issues":
-        return 0;
-      case "Assignees":
-        return 1;
-      case "Labels":
-        return 2;
-      default:
-        return 0;
-    }
-  };
   const {
     issues: { fetchNextActiveCycleIssues },
   } = useIssues(EIssuesStoreType.CYCLE);
@@ -189,6 +189,9 @@ export const ActiveCycleStats = observer(function ActiveCycleStats(props: Active
                       if (!issue) return null;
 
                       return (
+                        // This row wraps other interactive controls (StateDropdown button, tooltips);
+                        // adding a redundant keyboard/role here would create nested interactive elements.
+                        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
                         <div
                           key={issue.id}
                           className="group flex cursor-pointer items-center justify-between gap-2 rounded-md p-1 hover:bg-surface-2"
@@ -298,6 +301,8 @@ export const ActiveCycleStats = observer(function ActiveCycleStats(props: Active
                   else
                     return (
                       <SingleProgressStats
+                        // No stable id exists for the "unassigned" bucket entry; index is the only differentiator.
+                        // eslint-disable-next-line react/no-array-index-key
                         key={`unassigned-${index}`}
                         title={
                           <div className="flex items-center gap-2">
@@ -333,6 +338,8 @@ export const ActiveCycleStats = observer(function ActiveCycleStats(props: Active
               cycle?.distribution?.labels && cycle.distribution.labels.length > 0 ? (
                 cycle.distribution.labels?.map((label, index) => (
                   <SingleProgressStats
+                    // Falls back to index only when label_id is missing (e.g. "no label" bucket), which has no stable id.
+                    // eslint-disable-next-line react/no-array-index-key
                     key={label.label_id ?? `no-label-${index}`}
                     title={
                       <div className="flex items-center gap-2 truncate">

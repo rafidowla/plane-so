@@ -24,7 +24,7 @@ import { EIssuesStoreType, EIssueLayoutTypes } from "@plane/types";
 import { Spinner } from "@plane/ui";
 import { renderFormattedPayloadDate, cn } from "@plane/utils";
 // constants
-import { MONTHS_LIST } from "@/constants/calendar";
+import { MONTHS_LIST } from "@plane/constants";
 // helpers
 // hooks
 import { useIssues } from "@/hooks/store/use-issues";
@@ -122,7 +122,7 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
         element,
       })
     );
-  }, [scrollableContainerRef?.current]);
+  }, []);
 
   if (!calendarPayload || !formattedDatePayload)
     return (
@@ -154,13 +154,13 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
               {layout === "month" && (
                 <div className="grid h-full w-full grid-cols-1 divide-y-[0.5px] divide-subtle-1">
                   {allWeeksOfActiveMonth &&
-                    Object.values(allWeeksOfActiveMonth).map((week: ICalendarWeek, weekIndex) => (
+                    Object.entries(allWeeksOfActiveMonth).map(([weekNumber, week]: [string, ICalendarWeek]) => (
                       <CalendarWeekDays
                         selectedDate={selectedDate}
                         setSelectedDate={setSelectedDate}
                         handleDragAndDrop={handleDragAndDrop}
                         issuesFilterStore={issuesFilterStore}
-                        key={weekIndex}
+                        key={weekNumber}
                         week={week}
                         issues={issues}
                         groupedIssueIds={groupedIssueIds}

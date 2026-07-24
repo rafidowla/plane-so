@@ -27,9 +27,9 @@ import { MultipleSelectGroup } from "@/components/core/multiple-select";
 // hooks
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 // plane web components
-import { IssueBulkOperationsRoot } from "@/plane-web/components/issues/bulk-operations";
+import { IssueBulkOperationsRoot } from "@/components/issues/bulk-operations";
 // plane web hooks
-import { useBulkOperationStatus } from "@/plane-web/hooks/use-bulk-operation-status";
+import { useBulkOperationStatus } from "@/hooks/use-bulk-operation-status";
 // utils
 import type { GroupDropLocation } from "../utils";
 import { getGroupByColumns, isWorkspaceLevel, isSubGrouped } from "../utils";
@@ -111,7 +111,7 @@ export const List = observer(function List(props: IList) {
 
   const getGroupIndex = (groupId: string | undefined) => groups.findIndex(({ id }) => id === groupId);
 
-  const is_list = group_by === null ? true : false;
+  const is_list = group_by === null;
 
   // create groupIds array and entities object for bulk ops
   const groupIds = groups.map((g) => g.id);

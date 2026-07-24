@@ -24,7 +24,7 @@ import emptyInvitation from "@/app/assets/empty-state/invitation.svg?url";
 // components
 import { EmptyState } from "@/components/common/empty-state";
 import { WorkspaceLogo } from "@/components/workspace/logo";
-import { USER_WORKSPACES_LIST } from "@/constants/fetch-keys";
+import { USER_WORKSPACES_LIST } from "@plane/constants";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserProfile } from "@/hooks/store/user";
@@ -87,7 +87,9 @@ function UserInvitationsPage() {
             setIsJoiningWorkspaces(false);
             fetchWorkspaces().then(() => {
               router.push(`/${redirectWorkspace?.slug}`);
+              return;
             });
+            return;
           })
           .catch(() => {
             setToast({
@@ -97,6 +99,7 @@ function UserInvitationsPage() {
             });
             setIsJoiningWorkspaces(false);
           });
+        return;
       })
       .catch((_err) => {
         setToast({
@@ -134,12 +137,20 @@ function UserInvitationsPage() {
                     const isSelected = invitationsRespond.includes(invitation.id);
 
                     return (
+                      // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- toggle row: no single native element fits (nested logo/text/icon), keyboard support added instead
                       <div
                         key={invitation.id}
+                        tabIndex={0}
                         className={`flex cursor-pointer items-center gap-2 rounded-sm border px-3.5 py-5 ${
                           isSelected ? "border-accent-strong" : "border-subtle hover:bg-layer-1"
                         }`}
                         onClick={() => handleInvitation(invitation, isSelected ? "withdraw" : "accepted")}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleInvitation(invitation, isSelected ? "withdraw" : "accepted");
+                          }
+                        }}
                       >
                         <div className="flex-shrink-0">
                           <WorkspaceLogo

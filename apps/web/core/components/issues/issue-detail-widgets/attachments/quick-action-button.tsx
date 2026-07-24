@@ -15,7 +15,7 @@ import type { TIssueServiceType } from "@plane/types";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // plane web hooks
-import { useFileSize } from "@/plane-web/hooks/use-file-size";
+import { useFileSize } from "@/hooks/use-file-size";
 // local imports
 import { useAttachmentOperations } from "./helper";
 
@@ -95,6 +95,9 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
   });
 
   return (
+    // This div only guards click propagation and wraps a real interactive <button>;
+    // it is not itself an interactive element, so no keyboard handler/role is added here.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       onClick={(e) => {
         // TODO: Remove extra div and move event propagation to button

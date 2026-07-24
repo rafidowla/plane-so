@@ -13,7 +13,7 @@ import { CheckIcon, CloseIcon } from "@plane/propel/icons";
 import { LogoSpinner } from "@/components/common/logo-spinner";
 import { EmptySpace, EmptySpaceItem } from "@/components/ui/empty-space";
 // constants
-import { WORKSPACE_INVITATION } from "@/constants/fetch-keys";
+import { WORKSPACE_INVITATION } from "@plane/constants";
 // helpers
 import { EPageTypes } from "@/helpers/authentication.helper";
 // hooks
@@ -58,6 +58,7 @@ function WorkspaceInvitationPage() {
         } else {
           router.push("/");
         }
+        return;
       })
       .catch((err: unknown) => console.error(err));
   };
@@ -71,6 +72,7 @@ function WorkspaceInvitationPage() {
       })
       .then(() => {
         router.push("/");
+        return;
       })
       .catch((err: unknown) => console.error(err));
   };

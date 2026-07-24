@@ -18,7 +18,7 @@ import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // FORK: attachment-preview
 import { AttachmentPreviewModalHost } from "@/plane-web/attachment-preview";
 // plane web hooks
-import { useFileSize } from "@/plane-web/hooks/use-file-size";
+import { useFileSize } from "@/hooks/use-file-size";
 // types
 import type { TAttachmentHelpers } from "../issue-detail-widgets/attachments/helper";
 // components
@@ -102,7 +102,7 @@ export const IssueAttachmentItemList = observer(function IssueAttachmentItemList
       });
       return;
     },
-    [createAttachment, maxFileSize, workspaceSlug, handleFetchPropertyActivities]
+    [createAttachment, maxFileSize, workspaceSlug, handleFetchPropertyActivities, t]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -114,9 +114,10 @@ export const IssueAttachmentItemList = observer(function IssueAttachmentItemList
 
   return (
     <>
-      <AttachmentPreviewModalHost issueId={issueId} issueServiceType={issueServiceType} />{/* FORK: attachment-preview */}
-      {uploadStatus?.map((uploadStatus) => (
-        <IssueAttachmentsUploadItem key={uploadStatus.id} uploadStatus={uploadStatus} />
+      <AttachmentPreviewModalHost issueId={issueId} issueServiceType={issueServiceType} />
+      {/* FORK: attachment-preview */}
+      {uploadStatus?.map((status) => (
+        <IssueAttachmentsUploadItem key={status.id} uploadStatus={status} />
       ))}
       {issueAttachments && (
         <>

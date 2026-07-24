@@ -28,11 +28,15 @@ import { LogoSpinner } from "@/components/common/logo-spinner";
 import { CustomErrorComponent } from "./error";
 import { AppProvider } from "./provider";
 // fonts
+// eslint-disable-next-line import/no-unassigned-import -- side-effect import: registers font-face CSS
 import "@fontsource-variable/inter";
 import interVariableWoff2 from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 // FORK: monday-theme — Figtree, applied only under the Monday theme (see [data-theme="monday"] in variables.css).
+// eslint-disable-next-line import/no-unassigned-import -- side-effect import: registers font-face CSS
 import "@fontsource-variable/figtree";
+// eslint-disable-next-line import/no-unassigned-import -- side-effect import: registers font-face CSS
 import "@fontsource/material-symbols-rounded";
+// eslint-disable-next-line import/no-unassigned-import -- side-effect import: registers font-face CSS
 import "@fontsource/ibm-plex-mono";
 
 const APP_TITLE = "Plane | Simple, extensible, open-source project management tool.";

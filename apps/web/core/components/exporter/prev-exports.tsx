@@ -17,7 +17,7 @@ import { Table } from "@plane/ui";
 // components
 import { ImportExportSettingsLoader } from "@/components/ui/loader/settings/import-and-export";
 // constants
-import { EXPORT_SERVICES_LIST } from "@/constants/fetch-keys";
+import { EXPORT_SERVICES_LIST } from "@plane/constants";
 // services
 import { IntegrationService } from "@/services/integrations";
 // local imports
@@ -61,6 +61,9 @@ export const PrevExports = observer(function PrevExports(props: Props) {
     }, 3000);
 
     return () => clearInterval(interval);
+    // handleRefresh is recreated every render (not memoized); adding it here would restart
+    // the polling interval on every render instead of only when exporterServices changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exporterServices]);
 
   return (

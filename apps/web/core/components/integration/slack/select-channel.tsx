@@ -13,7 +13,7 @@ import type { IWorkspaceIntegration, ISlackIntegration } from "@plane/types";
 // ui
 import { Loader } from "@plane/ui";
 // fetch-keys
-import { SLACK_CHANNEL_INFO } from "@/constants/fetch-keys";
+import { SLACK_CHANNEL_INFO } from "@plane/constants";
 // hooks
 import { useInstance } from "@/hooks/store/use-instance";
 import useIntegrationPopup from "@/hooks/use-integration-popup";
@@ -72,6 +72,7 @@ export const SelectChannel = observer(function SelectChannel({ integration }: Pr
     }).then(() => {
       setSlackChannelAvailabilityToggle(false);
       setSlackChannel(null);
+      return;
     });
     appInstallationService
       .removeSlackChannel(workspaceSlug, projectId, integration.id, slackChannel?.id)
@@ -91,7 +92,8 @@ export const SelectChannel = observer(function SelectChannel({ integration }: Pr
           role="switch"
           aria-checked
           onClick={() => {
-            slackChannelAvailabilityToggle ? handleDelete() : handleAuth();
+            if (slackChannelAvailabilityToggle) handleDelete();
+            else handleAuth();
           }}
         >
           <span

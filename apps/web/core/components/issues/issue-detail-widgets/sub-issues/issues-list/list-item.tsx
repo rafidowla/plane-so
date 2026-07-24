@@ -22,8 +22,8 @@ import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
 import useIssuePeekOverviewRedirection from "@/hooks/use-issue-peek-overview-redirection";
 import { usePlatformOS } from "@/hooks/use-platform-os";
-// plane web components
-import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/issue-identifier";
+// components
+import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
 // local components
 import { SubIssuesListItemProperties } from "./properties";
 import { SubIssuesListRoot } from "./root";
@@ -88,7 +88,7 @@ export const SubIssuesListItem = observer(function SubIssuesListItem(props: Prop
   const displayProperties = subIssueFilters?.displayProperties ?? {};
 
   //
-  const handleIssuePeekOverview = (issue: TIssue) => handleRedirection(workspaceSlug, issue, isMobile);
+  const handleIssuePeekOverview = (targetIssue: TIssue) => handleRedirection(workspaceSlug, targetIssue, isMobile);
 
   if (!issue) return <></>;
 
@@ -125,6 +125,7 @@ export const SubIssuesListItem = observer(function SubIssuesListItem(props: Prop
                       <Loader width={14} strokeWidth={2} className="animate-spin" />
                     </div>
                   ) : (
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- expand/collapse chevron nested inside the row's own ControlLink; click only stops propagation
                     <div
                       className="flex h-full w-full cursor-pointer items-center justify-center text-placeholder hover:text-tertiary"
                       onClick={async (e) => {
@@ -170,6 +171,7 @@ export const SubIssuesListItem = observer(function SubIssuesListItem(props: Prop
               </Tooltip>
             </div>
 
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- wraps interactive property controls nested inside the row's own ControlLink; click only stops propagation */}
             <div
               className="flex-shrink-0 text-13"
               onClick={(e) => {

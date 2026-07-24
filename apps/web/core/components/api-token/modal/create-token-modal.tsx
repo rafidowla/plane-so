@@ -13,7 +13,7 @@ import type { IApiToken } from "@plane/types";
 import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 import { renderFormattedDate, csvDownload } from "@plane/utils";
 // constants
-import { API_TOKENS_LIST } from "@/constants/fetch-keys";
+import { API_TOKENS_LIST } from "@plane/constants";
 // local imports
 import { CreateApiTokenForm } from "./form";
 import { GeneratedTokenDetails } from "./generated-token-details";
@@ -69,6 +69,7 @@ export function CreateApiTokenModal(props: Props) {
           },
           false
         );
+        return;
       })
       .catch((err) => {
         setToast({

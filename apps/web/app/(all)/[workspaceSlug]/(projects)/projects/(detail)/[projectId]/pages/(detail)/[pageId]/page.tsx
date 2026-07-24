@@ -27,7 +27,7 @@ import { useEditorAsset } from "@/hooks/store/use-editor-asset";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useAppRouter } from "@/hooks/use-app-router";
 // plane web hooks
-import { EPageStoreType, usePage, usePageStore } from "@/plane-web/hooks/store";
+import { EPageStoreType, usePage, usePageStore } from "@/hooks/store";
 // plane web services
 import { WorkspaceService } from "@/services/workspace.service";
 // services
@@ -79,20 +79,20 @@ function PageDetailsPage({ params }: Route.ComponentProps) {
   const pageRootHandlers: TPageRootHandlers = useMemo(
     () => ({
       create: createPage,
-      fetchAllVersions: async (pageId) =>
-        await projectPageVersionService.fetchAllVersions(workspaceSlug, projectId, pageId),
+      fetchAllVersions: async (targetPageId) =>
+        await projectPageVersionService.fetchAllVersions(workspaceSlug, projectId, targetPageId),
       fetchDescriptionBinary: async () => {
         if (!id) return;
         return await projectPageService.fetchDescriptionBinary(workspaceSlug, projectId, id);
       },
       fetchEntity: fetchEntityCallback,
-      fetchVersionDetails: async (pageId, versionId) =>
-        await projectPageVersionService.fetchVersionById(workspaceSlug, projectId, pageId, versionId),
-      restoreVersion: async (pageId, versionId) =>
-        await projectPageVersionService.restoreVersion(workspaceSlug, projectId, pageId, versionId),
-      getRedirectionLink: (pageId) => {
-        if (pageId) {
-          return `/${workspaceSlug}/projects/${projectId}/pages/${pageId}`;
+      fetchVersionDetails: async (targetPageId, versionId) =>
+        await projectPageVersionService.fetchVersionById(workspaceSlug, projectId, targetPageId, versionId),
+      restoreVersion: async (targetPageId, versionId) =>
+        await projectPageVersionService.restoreVersion(workspaceSlug, projectId, targetPageId, versionId),
+      getRedirectionLink: (targetPageId) => {
+        if (targetPageId) {
+          return `/${workspaceSlug}/projects/${projectId}/pages/${targetPageId}`;
         } else {
           return `/${workspaceSlug}/projects/${projectId}/pages`;
         }

@@ -64,7 +64,7 @@ export function InstanceSetupForm() {
   const lastNameParam = searchParams?.get("last_name") || undefined;
   const companyParam = searchParams?.get("company") || undefined;
   const emailParam = searchParams?.get("email") || undefined;
-  const isTelemetryEnabledParam = (searchParams?.get("is_telemetry_enabled") === "True" ? true : false) || true;
+  const isTelemetryEnabledParam = searchParams?.get("is_telemetry_enabled") === "True" || true;
   const errorCode = searchParams?.get("error_code") || undefined;
   const errorMessage = searchParams?.get("error_message") || undefined;
   // state
@@ -121,14 +121,14 @@ export function InstanceSetupForm() {
 
   const isButtonDisabled = useMemo(
     () =>
-      !isSubmitting &&
-      formData.first_name &&
-      formData.email &&
-      formData.password &&
-      getPasswordStrength(formData.password) === E_PASSWORD_STRENGTH.STRENGTH_VALID &&
-      formData.password === formData.confirm_password
-        ? false
-        : true,
+      !(
+        !isSubmitting &&
+        formData.first_name &&
+        formData.email &&
+        formData.password &&
+        getPasswordStrength(formData.password) === E_PASSWORD_STRENGTH.STRENGTH_VALID &&
+        formData.password === formData.confirm_password
+      ),
     [formData.confirm_password, formData.email, formData.first_name, formData.password, isSubmitting]
   );
 
@@ -180,7 +180,6 @@ export function InstanceSetupForm() {
                     }
                   }}
                   autoComplete="off"
-                  autoFocus
                   maxLength={50}
                 />
               </div>
@@ -221,7 +220,7 @@ export function InstanceSetupForm() {
                 placeholder="name@company.com"
                 value={formData.email}
                 onChange={(e) => handleFormChange("email", e.target.value)}
-                hasError={errorData.type && errorData.type === EErrorCodes.INVALID_EMAIL ? true : false}
+                hasError={!!(errorData.type && errorData.type === EErrorCodes.INVALID_EMAIL)}
                 autoComplete="off"
               />
               {errorData.type && errorData.type === EErrorCodes.INVALID_EMAIL && errorData.message && (
@@ -265,7 +264,7 @@ export function InstanceSetupForm() {
                   placeholder="New password"
                   value={formData.password}
                   onChange={(e) => handleFormChange("password", e.target.value)}
-                  hasError={errorData.type && errorData.type === EErrorCodes.INVALID_PASSWORD ? true : false}
+                  hasError={!!(errorData.type && errorData.type === EErrorCodes.INVALID_PASSWORD)}
                   onFocus={() => setIsPasswordInputFocused(true)}
                   onBlur={() => setIsPasswordInputFocused(false)}
                   autoComplete="new-password"
@@ -273,7 +272,7 @@ export function InstanceSetupForm() {
                 {showPassword.password ? (
                   <button
                     type="button"
-                    tabIndex={-1}
+                    aria-label="Hide password"
                     className="absolute top-3.5 right-3 flex items-center justify-center text-placeholder"
                     onClick={() => handleShowPassword("password")}
                   >
@@ -282,7 +281,7 @@ export function InstanceSetupForm() {
                 ) : (
                   <button
                     type="button"
-                    tabIndex={-1}
+                    aria-label="Show password"
                     className="absolute top-3.5 right-3 flex items-center justify-center text-placeholder"
                     onClick={() => handleShowPassword("password")}
                   >
@@ -317,7 +316,7 @@ export function InstanceSetupForm() {
                 {showPassword.retypePassword ? (
                   <button
                     type="button"
-                    tabIndex={-1}
+                    aria-label="Hide password"
                     className="absolute top-3.5 right-3 flex items-center justify-center text-placeholder"
                     onClick={() => handleShowPassword("retypePassword")}
                   >
@@ -326,7 +325,7 @@ export function InstanceSetupForm() {
                 ) : (
                   <button
                     type="button"
-                    tabIndex={-1}
+                    aria-label="Show password"
                     className="absolute top-3.5 right-3 flex items-center justify-center text-placeholder"
                     onClick={() => handleShowPassword("retypePassword")}
                   >
@@ -354,7 +353,6 @@ export function InstanceSetupForm() {
               <label className="cursor-pointer text-13 font-medium text-tertiary" htmlFor="is_telemetry_enabled">
                 Allow Plane to anonymously collect usage events.{" "}
                 <a
-                  tabIndex={-1}
                   href="https://developers.plane.so/self-hosting/telemetry"
                   target="_blank"
                   rel="noopener noreferrer"

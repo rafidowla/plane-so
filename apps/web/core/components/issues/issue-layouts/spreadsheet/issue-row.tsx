@@ -23,7 +23,7 @@ import { cn, generateWorkItemLink } from "@plane/utils";
 // components
 import { MultipleSelectEntityAction } from "@/components/core/multiple-select";
 import RenderIfVisible from "@/components/core/render-if-visible-HOC";
-// helper
+import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
@@ -31,8 +31,6 @@ import { useProject } from "@/hooks/store/use-project";
 import useIssuePeekOverviewRedirection from "@/hooks/use-issue-peek-overview-redirection";
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
 import { usePlatformOS } from "@/hooks/use-platform-os";
-// plane web components
-import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/issue-identifier";
 // local components
 import type { TRenderQuickActions } from "../list/list-view-types";
 import { isIssueNew } from "../utils";
@@ -217,6 +215,7 @@ const IssueRowDetails = observer(function IssueRowDetails(props: IssueRowDetails
   useOutsideClickDetector(menuActionRef, () => setIsMenuActive(false));
 
   const customActionButton = (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- passed as a custom trigger into a Popover/dropdown quick-actions menu, not a standalone interactive element
     <div
       ref={menuActionRef}
       className={`flex h-full w-full cursor-pointer items-center rounded-sm p-1 text-placeholder hover:bg-layer-1 ${
@@ -372,6 +371,7 @@ const IssueRowDetails = observer(function IssueRowDetails(props: IssueRowDetails
                     </Tooltip>
                   </div>
                 </div>
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- wraps quick-actions trigger; click only stops propagation to the parent row */}
                 <div
                   className={`opacity-0 transition-opacity group-hover:opacity-100 ${isMenuActive ? "!opacity-100" : ""}`}
                   onClick={(e) => e.stopPropagation()}
@@ -400,7 +400,8 @@ const IssueRowDetails = observer(function IssueRowDetails(props: IssueRowDetails
           isEstimateEnabled={isEstimateEnabled}
         />
       ))}
-      <CustomPropertyValueCells issue={issueDetail} disabled={disableUserActions} />{/* FORK: custom-properties */}
+      <CustomPropertyValueCells issue={issueDetail} disabled={disableUserActions} />
+      {/* FORK: custom-properties */}
     </>
   );
 });

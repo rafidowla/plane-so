@@ -1,0 +1,20 @@
+# Local override to avoid host-port clashes with other running containers.
+# Other projects already publish 5432 (postgres), 6379 (redis), 9000 (minio),
+# and a node process holds 8000. db/redis are reached over the internal
+# docker network by service name, so their host publishing is dropped entirely.
+# api -> 8001, minio API -> 9002 (frontend env updated to match).
+services:
+  plane-db:
+    ports: !reset []
+  plane-redis:
+    ports: !reset []
+  plane-minio:
+    ports: !override
+      - "9002:9000"
+      - "9090:9090"
+  api:
+    # FORK: custom-properties — instance-level kill switch, off by default upstream.
+    environment:
+      - CUSTOM_PROPERTIES_ENABLED=1
+    ports: !override
+      - "8001:8000"

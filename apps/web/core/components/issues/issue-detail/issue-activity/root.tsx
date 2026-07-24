@@ -21,12 +21,13 @@ import { CommentCreate } from "@/components/comments/comment-create";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
-// plane web components
-import { ActivityFilterRoot } from "@/plane-web/components/issues/worklog/activity/filter-root";
+// FORK: time-tracking
 import { IssueActivityWorklogCreateButton } from "@/plane-web/components/issues/worklog/activity/worklog-create-button";
+// local imports
 import { IssueActivityCommentRoot } from "./activity-comment-root";
 import { useWorkItemCommentOperations } from "./helper";
 import { ActivitySortRoot } from "./sort-root";
+import { ActivityFilterRoot } from "./filter-root";
 
 type TIssueActivity = {
   workspaceSlug: string;
@@ -53,21 +54,14 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
     defaultActivityFilters
   );
   const { setValue: setSortOrder, storedValue: sortOrder } = useLocalStorage("activity_sort_order", E_SORT_ORDER.ASC);
-  // store hooks
+
+  const { getProjectById } = useProject();
+  const { getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
+  const { data: currentUser } = useUser();
   const {
     issue: { getIssueById },
   } = useIssueDetail();
 
-  const { getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
-  const { getProjectById } = useProject();
-  const { data: currentUser } = useUser();
-  // derived values
-  const issue = issueId ? getIssueById(issueId) : undefined;
-  const currentUserProjectRole = getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId);
-  const isAdmin = currentUserProjectRole === EUserPermissions.ADMIN;
-  const isGuest = currentUserProjectRole === EUserPermissions.GUEST;
-  const isAssigned = issue?.assignee_ids && currentUser?.id ? issue?.assignee_ids.includes(currentUser?.id) : false;
-  const isWorklogButtonEnabled = !isIntakeIssue && !isGuest && (isAdmin || isAssigned);
   // toggle filter
   const toggleFilter = (filter: TActivityFilters) => {
     if (!selectedFilters) return;
@@ -90,6 +84,14 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
   const activityOperations = useWorkItemCommentOperations(workspaceSlug, projectId, issueId);
 
   const project = getProjectById(projectId);
+  // FORK: time-tracking — gate the manual worklog-create button the same way
+  // upstream used to: admins and the assignee, never a guest or an intake issue.
+  const issue = issueId ? getIssueById(issueId) : undefined;
+  const currentUserProjectRole = getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId);
+  const isAdmin = currentUserProjectRole === EUserPermissions.ADMIN;
+  const isGuest = currentUserProjectRole === EUserPermissions.GUEST;
+  const isAssigned = issue?.assignee_ids && currentUser?.id ? issue?.assignee_ids.includes(currentUser?.id) : false;
+  const isWorklogButtonEnabled = !isIntakeIssue && !isGuest && (isAdmin || isAssigned);
   const renderCommentCreationBox = useMemo(
     () => (
       <CommentCreate
@@ -110,6 +112,7 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
       <div className="flex items-center justify-between">
         <div className="text-h5-medium text-primary">{t("common.activity")}</div>
         <div className="flex items-center gap-2">
+          {/* FORK: time-tracking */}
           {isWorklogButtonEnabled && (
             <IssueActivityWorklogCreateButton
               workspaceSlug={workspaceSlug}

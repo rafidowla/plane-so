@@ -17,7 +17,7 @@ import type { TGroupedIssues, TIssue, TIssueMap, TPaginationData, ICalendarDate 
 import { cn, renderFormattedPayloadDate } from "@plane/utils";
 import { highlightIssueOnDrop } from "@/components/issues/issue-layouts/utils";
 // helpers
-import { MONTHS_LIST } from "@/constants/calendar";
+import { MONTHS_LIST } from "@plane/constants";
 // helpers
 // types
 import type { ICycleIssuesFilter } from "@/store/issue/cycle";
@@ -129,7 +129,8 @@ export const CalendarDayTile = observer(function CalendarDayTile(props: Props) {
         },
       })
     );
-  }, [dayTileRef?.current, formattedDatePayload]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `issues`/`handleDragAndDrop` intentionally omitted: re-running would tear down and re-attach the drop target on every issue map update; the closure reads their current values at drop time
+  }, [formattedDatePayload]);
 
   if (!formattedDatePayload) return null;
   const issueIds = groupedIssueIds?.[formattedDatePayload];
@@ -196,6 +197,7 @@ export const CalendarDayTile = observer(function CalendarDayTile(props: Props) {
         </div>
 
         {/* Mobile view content */}
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- mobile-only date-selection tile, mirrors surrounding non-interactive calendar markup */}
         <div
           onClick={() => setSelectedDate(date.date)}
           className={cn(

@@ -18,7 +18,7 @@ import { cn } from "@plane/utils";
 import { useEditorConfig } from "@/hooks/editor";
 import { useParseEditorContent } from "@/hooks/use-parse-editor-content";
 // plane web hooks
-import { useEditorFlagging } from "@/plane-web/hooks/use-editor-flagging";
+import { useEditorFlagging } from "@/hooks/use-editor-flagging";
 import { StickyEditorToolbar } from "./toolbar";
 
 interface StickyEditorWrapperProps extends Omit<
@@ -40,6 +40,10 @@ interface StickyEditorWrapperProps extends Omit<
   parentClassName?: string;
   handleColorChange: (data: Partial<TSticky>) => Promise<void>;
   handleDelete: () => void;
+}
+
+function isMutableRefObject<T>(maybeRef: React.ForwardedRef<T>): maybeRef is React.MutableRefObject<T | null> {
+  return !!maybeRef && typeof maybeRef === "object" && "current" in maybeRef;
 }
 
 export const StickyEditor = React.forwardRef(function StickyEditor(
@@ -74,9 +78,6 @@ export const StickyEditor = React.forwardRef(function StickyEditor(
   });
   // editor config
   const { getEditorFileHandlers } = useEditorConfig();
-  function isMutableRefObject<T>(ref: React.ForwardedRef<T>): ref is React.MutableRefObject<T | null> {
-    return !!ref && typeof ref === "object" && "current" in ref;
-  }
   // derived values
   const editorRef = isMutableRefObject<EditorRefApi>(ref) ? ref.current : null;
 

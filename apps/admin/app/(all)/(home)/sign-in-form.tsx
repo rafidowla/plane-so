@@ -95,7 +95,7 @@ export function InstanceSignInForm() {
   }, [errorCode, errorMessage]);
 
   const isButtonDisabled = useMemo(
-    () => (!isSubmitting && formData.email && formData.password ? false : true),
+    () => !(!isSubmitting && formData.email && formData.password),
     [formData.email, formData.password, isSubmitting]
   );
 
@@ -127,9 +127,7 @@ export function InstanceSignInForm() {
             {errorData.type && errorData?.message ? (
               <Banner type="error" message={errorData?.message} />
             ) : (
-              <>
-                {errorInfo && <AuthBanner bannerData={errorInfo} handleBannerData={(value) => setErrorInfo(value)} />}
-              </>
+              <>{errorInfo && <AuthBanner bannerData={errorInfo} handleBannerData={setErrorInfo} />}</>
             )}
             <input type="hidden" name="csrfmiddlewaretoken" value={csrfToken} />
 
@@ -147,7 +145,6 @@ export function InstanceSignInForm() {
                 value={formData.email}
                 onChange={(e) => handleFormChange("email", e.target.value)}
                 autoComplete="off"
-                autoFocus
               />
             </div>
 
@@ -170,6 +167,7 @@ export function InstanceSignInForm() {
                 {showPassword ? (
                   <button
                     type="button"
+                    aria-label="Hide password"
                     className="absolute top-3.5 right-3 flex items-center justify-center text-placeholder"
                     onClick={() => setShowPassword(false)}
                   >
@@ -178,6 +176,7 @@ export function InstanceSignInForm() {
                 ) : (
                   <button
                     type="button"
+                    aria-label="Show password"
                     className="absolute top-3.5 right-3 flex items-center justify-center text-placeholder"
                     onClick={() => setShowPassword(true)}
                   >

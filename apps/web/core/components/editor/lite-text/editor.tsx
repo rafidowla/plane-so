@@ -21,7 +21,7 @@ import { useEditorConfig, useEditorMention } from "@/hooks/editor";
 import { useMember } from "@/hooks/store/use-member";
 import { useParseEditorContent } from "@/hooks/use-parse-editor-content";
 // plane web hooks
-import { useEditorFlagging } from "@/plane-web/hooks/use-editor-flagging";
+import { useEditorFlagging } from "@/hooks/use-editor-flagging";
 // plane web service
 import { WorkspaceService } from "@/services/workspace.service";
 import { LiteToolbar } from "./lite-toolbar";
@@ -55,6 +55,10 @@ type LiteTextEditorWrapperProps = MakeOptional<
         duplicateFile: TFileHandler["duplicate"];
       }
   );
+
+function isMutableRefObject<T>(maybeRef: React.ForwardedRef<T>): maybeRef is React.MutableRefObject<T | null> {
+  return !!maybeRef && typeof maybeRef === "object" && "current" in maybeRef;
+}
 
 export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
   props: LiteTextEditorWrapperProps,
@@ -111,9 +115,6 @@ export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
   });
   // editor config
   const { getEditorFileHandlers } = useEditorConfig();
-  function isMutableRefObject<T>(ref: React.ForwardedRef<T>): ref is React.MutableRefObject<T | null> {
-    return !!ref && typeof ref === "object" && "current" in ref;
-  }
   // derived values
   const isEmpty = isCommentEmpty(props.initialValue);
 

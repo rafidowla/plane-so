@@ -14,7 +14,7 @@ import type { IApiToken } from "@plane/types";
 // ui
 import { AlertModalCore } from "@plane/ui";
 // fetch-keys
-import { API_TOKENS_LIST } from "@/constants/fetch-keys";
+import { API_TOKENS_LIST } from "@plane/constants";
 
 type Props = {
   isOpen: boolean;
@@ -56,6 +56,7 @@ export function DeleteApiTokenModal(props: Props) {
 
         handleClose();
         setDeleteLoading(false);
+        return;
       })
       .catch((err) => {
         setToast({

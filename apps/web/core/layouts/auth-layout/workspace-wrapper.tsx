@@ -31,7 +31,7 @@ import {
   WORKSPACE_STATES,
   WORKSPACE_SIDEBAR_PREFERENCES,
   WORKSPACE_PROJECT_NAVIGATION_PREFERENCES,
-} from "@/constants/fetch-keys";
+} from "@plane/constants";
 // hooks
 import { useFavorite } from "@/hooks/store/use-favorite";
 import { useMember } from "@/hooks/store/use-member";
@@ -159,9 +159,12 @@ export const WorkspaceAuthWrapper = observer(function WorkspaceAuthWrapper(props
             </div>
             <div className="relative flex items-center gap-2">
               <div className="text-13 font-medium">{currentUser?.email}</div>
+              {/* oxlint-disable-next-line jsx_a11y/click-events-have-key-events */}
               <div
                 className="relative flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm hover:bg-layer-1"
                 onClick={handleSignOut}
+                // oxlint-disable-next-line jsx_a11y/prefer-tag-over-role
+                role="button"
               >
                 <Tooltip tooltipContent={"Sign out"} position="top" className="ml-2" isMobile={isMobile}>
                   <LogOut size={14} />

@@ -22,8 +22,8 @@ import { useProjectState } from "@/hooks/store/use-project-state";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import useIssuePeekOverviewRedirection from "@/hooks/use-issue-peek-overview-redirection";
 import { usePlatformOS } from "@/hooks/use-platform-os";
-// plane web components
-import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/issue-identifier";
+// components
+import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
 // local components
 import { WorkItemPreviewCard } from "../../preview-card";
 import type { TRenderQuickActions } from "../list/list-view-types";
@@ -58,11 +58,13 @@ export const CalendarIssueBlock = observer(
     const projectIdentifier = getProjectIdentifierById(issue?.project_id);
 
     // handlers
-    const handleIssuePeekOverview = (issue: TIssue) => handleRedirection(workspaceSlug.toString(), issue, isMobile);
+    const handleIssuePeekOverview = (targetIssue: TIssue) =>
+      handleRedirection(workspaceSlug.toString(), targetIssue, isMobile);
 
     useOutsideClickDetector(menuActionRef, () => setIsMenuActive(false));
 
     const customActionButton = (
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- passed as a custom trigger into a Popover-managed quick-actions menu, not a standalone interactive element
       <div
         ref={menuActionRef}
         className={`w-full cursor-pointer rounded-sm p-1 text-placeholder hover:bg-layer-1 ${
@@ -136,6 +138,7 @@ export const CalendarIssueBlock = observer(
                     )}
                     <div className="truncate text-13 font-medium md:text-11 md:font-regular">{issue.name}</div>
                   </div>
+                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- wraps quick-actions trigger; click only stops propagation to the parent link */}
                   <div
                     className={cn("size-5 flex-shrink-0", {
                       "hidden group-hover/calendar-block:block": !isMobile,

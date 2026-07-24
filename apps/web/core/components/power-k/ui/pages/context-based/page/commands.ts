@@ -16,7 +16,7 @@ import { copyTextToClipboard } from "@plane/utils";
 // components
 import type { TPowerKCommandConfig } from "@/components/power-k/core/types";
 // plane web imports
-import { EPageStoreType, usePageStore } from "@/plane-web/hooks/store";
+import { EPageStoreType, usePageStore } from "@/hooks/store";
 
 export const usePowerKPageContextBasedActions = (): TPowerKCommandConfig[] => {
   // navigation
@@ -66,6 +66,7 @@ export const usePowerKPageContextBasedActions = (): TPowerKCommandConfig[] => {
           type: TOAST_TYPE.SUCCESS,
           title: t("power_k.contextual_actions.page.copy_url_toast_success"),
         });
+        return;
       })
       .catch(() => {
         setToast({

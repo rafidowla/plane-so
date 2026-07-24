@@ -35,14 +35,13 @@ import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
-// plane web components
 // components
-import { WorkItemAdditionalSidebarProperties } from "@/plane-web/components/issues/issue-details/additional-properties";
-import { IssueParentSelectRoot } from "@/plane-web/components/issues/issue-details/parent-select-root";
-import { DateAlert } from "@/plane-web/components/issues/issue-details/sidebar/date-alert";
-import { TransferHopInfo } from "@/plane-web/components/issues/issue-details/sidebar/transfer-hop-info";
-import { IssueWorklogProperty } from "@/plane-web/components/issues/worklog/property";
+import { IssueParentSelectRoot } from "@/components/issues/parent-select-root";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
+// FORK: custom-properties
+import { WorkItemAdditionalSidebarProperties } from "@/plane-web/components/issues/issue-details/additional-properties";
+// FORK: time-tracking
+import { IssueWorklogProperty } from "@/plane-web/components/issues/worklog/property";
 import { IssueCycleSelect } from "./cycle-select";
 import { IssueLabel } from "./label";
 import { IssueModuleSelect } from "./module-select";
@@ -184,7 +183,6 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                   hideIcon
                   clearIconClassName="h-3 w-3 hidden group-hover:inline text-primary"
                 />
-                {issue.target_date && <DateAlert date={issue.target_date} workItem={issue} projectId={projectId} />}
               </div>
             </SidebarPropertyListItem>
 
@@ -223,11 +221,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
             )}
 
             {projectDetails?.cycle_view && (
-              <SidebarPropertyListItem
-                icon={CycleIcon}
-                label={t("common.cycle")}
-                appendElement={<TransferHopInfo workItem={issue} />}
-              >
+              <SidebarPropertyListItem icon={CycleIcon} label={t("common.cycle")} appendElement={null}>
                 <IssueCycleSelect
                   className="h-7.5 w-full grow"
                   workspaceSlug={workspaceSlug}
@@ -259,6 +253,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
               />
             </SidebarPropertyListItem>
 
+            {/* FORK: time-tracking */}
             <IssueWorklogProperty
               workspaceSlug={workspaceSlug}
               projectId={projectId}
@@ -266,6 +261,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
               disabled={!isEditable}
             />
 
+            {/* FORK: custom-properties */}
             <WorkItemAdditionalSidebarProperties
               workItemId={issue.id}
               workItemTypeId={issue.type_id}
