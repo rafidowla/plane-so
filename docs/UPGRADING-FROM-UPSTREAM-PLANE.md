@@ -42,18 +42,40 @@ Everything else we added lives in **new files** that upstream will never touch
 `apps/api/plane/app/views/time_tracking/**`, `apps/web/ce/components/analytics/**`,
 plus new route/test/doc files.
 
-**Conflicts can only happen in the marked files below.** There are ~30 of them,
+> **The `ce/` folder itself is not permanent — upstream can delete it out from
+> under us with zero warning.** This actually happened on 2026-07-23: two
+> upstream refactors deleted their entire `apps/web/ce/` tree (the historical
+> Community-Edition swap-in folder our features are built on) and the
+> `@/plane-web/*` tsconfig alias, consolidating everything into
+> `apps/web/core/**`. Where upstream had only _moved_ a file we'd modified,
+> git's rename-tracking carried our diff over fine. Where upstream _deleted_ a
+> render slot outright (not just the file — the import + JSX call at the
+> call site too), our feature's UI hookup vanished **silently, with no merge
+> conflict reported**, because our side had never touched those exact lines.
+> The tsconfig alias and every affected call site had to be manually restored
+> and re-marked `FORK:` (see `apps/web/core/store/root.store.ts`,
+> `apps/web/core/components/issues/issue-detail/sidebar.tsx`,
+> `peek-overview/properties.tsx`, `issue-modal/form.tsx`,
+> `issue-layouts/properties/all-properties.tsx`,
+> `issue-detail/issue-activity/{activity-comment-root,root}.tsx`).
+> **The takeaway for every future upgrade: after resolving Git's own
+> conflicts, also diff the merged tree against the pre-merge commit for each
+> file in the table below** (`git diff <pre-merge-sha> -- <file>`) to catch
+> this "no conflict, but silently broken" class — don't trust silence.
+
+**Conflicts can only happen in the marked files below** (plus the
+no-conflict-but-broken class described above). There are ~35 of them,
 most edits 1–12 lines. Keep this list handy during a merge:
 
-| Area                                 | Marked files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Custom properties**                | `packages/types/src/settings.ts`, `packages/constants/src/settings/project.ts`, `apps/web/core/components/settings/project/sidebar/item-icon.tsx`, `apps/web/app/routes/core.ts`, `apps/web/ce/store/root.store.ts`, `apps/web/core/components/issues/issue-layouts/spreadsheet/{spreadsheet-header,issue-row}.tsx`, the 4 CE stub files under `apps/web/ce/components/issues/**`, `apps/web/ce/hooks/use-issue-properties.tsx`, `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py` |
-| **Time tracking / Jira**             | `apps/api/plane/app/{serializers,urls,views}/__init__.py`, `apps/api/plane/db/models/__init__.py`, `apps/api/plane/db/models/project.py`, `apps/api/plane/utils/email.py`, `apps/web/ce/components/analytics/tabs.tsx`, `apps/web/ce/components/issues/worklog/property/root.tsx`, `apps/web/core/components/project/settings/features-list.tsx` (+ the settings-nav files shared with custom properties)                                                                                      |
-| **Attachment preview**               | `apps/web/core/components/issues/attachment/{attachment-list-item,attachment-item-list}.tsx`, `apps/api/plane/app/views/issue/attachment.py`                                                                                                                                                                                                                                                                                                                                                   |
-| **Custom dashboards**                | `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py`, `apps/web/ce/store/root.store.ts`, `apps/web/app/routes/core.ts`, `packages/constants/src/workspace.ts`, `apps/web/ce/components/workspace/sidebar/helper.tsx` (see `docs/custom-dashboards-design.md` §6 for exact line counts)                                                                                                                                                                                                |
-| **Large attachments**                | `apps/api/plane/license/api/views/instance.py`, `.env.example`, `apps/api/.env.example`, `docker-compose.yml`, `deployments/aio/community/{start.sh,variables.env,README.md}`, `deployments/cli/community/{docker-compose.yml,variables.env}` — the `FILE_SIZE_LIMIT` 200MB default (upstream default 5MB); see [DEPLOYMENT-FILE-SIZE-LIMIT.md](./DEPLOYMENT-FILE-SIZE-LIMIT.md)                                                                                                               |
-| **Monday theme**                     | `packages/constants/src/themes.ts`, `apps/web/app/root.tsx` — plus `packages/tailwind-config/variables.css` (the `[data-theme="monday"]` block at EOF) and `apps/web/package.json` (the `@fontsource-variable/figtree` dependency), which carry the same feature's changes but can't hold a `FORK:` marker (CSS/JSON)                                                                                                                                                                          |
-| **i18n (JSON — no marker possible)** | `packages/i18n/src/locales/en/{common,project-settings}.json` — additive keys under `custom_properties`, `project_settings.features.*`, and `common.custom_dashboard`                                                                                                                                                                                                                                                                                                                          |
+| Area                                 | Marked files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Custom properties**                | `packages/types/src/settings.ts`, `packages/constants/src/settings/project.ts`, `apps/web/core/components/settings/project/sidebar/item-icon.tsx`, `apps/web/app/routes/core.ts`, `apps/web/core/store/root.store.ts` (moved from `ce/store/root.store.ts` — the ce/ subclass was collapsed into `CoreRootStore`, our 3 store fields now live directly in it), `apps/web/core/components/issues/issue-layouts/spreadsheet/{spreadsheet-header,issue-row}.tsx`, the 4 CE stub files under `apps/web/ce/components/issues/**`, `apps/web/ce/hooks/use-issue-properties.tsx`, `apps/web/core/components/issues/issue-detail/sidebar.tsx`, `peek-overview/properties.tsx`, `issue-modal/form.tsx`, `issue-layouts/properties/all-properties.tsx` (these 4 re-wire the render slot that upstream's ce/ deletion silently dropped — see the warning above), `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py` |
+| **Time tracking / Jira**             | `apps/api/plane/app/{serializers,urls,views}/__init__.py`, `apps/api/plane/db/models/__init__.py`, `apps/api/plane/db/models/project.py`, `apps/api/plane/utils/email.py`, `apps/web/core/components/analytics/tabs.tsx` (moved from `ce/components/analytics/tabs.tsx` — its 4 sibling imports now go through `@/plane-web/*` since those folders stayed in ce/), `apps/web/ce/components/issues/worklog/property/{root,index}.tsx`, `apps/web/ce/components/issues/worklog/activity/{root,worklog-create-button}.tsx`, `apps/web/core/components/issues/issue-detail/sidebar.tsx`, `peek-overview/properties.tsx`, `issue-activity/{activity-comment-root,root}.tsx` (re-wired render slots), `apps/web/core/components/project/settings/features-list.tsx` (+ the settings-nav files shared with custom properties)                                                                                              |
+| **Attachment preview**               | `apps/web/core/components/issues/attachment/{attachment-list-item,attachment-item-list}.tsx`, `apps/api/plane/app/views/issue/attachment.py`, `apps/api/plane/api/views/asset.py`, `apps/api/plane/app/views/asset/v2.py`, `apps/api/plane/space/views/asset.py` (all three now use upstream's own `SCRIPT_CAPABLE_MIME_TYPES` denylist — see the SVG-XSS note below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Custom dashboards**                | `apps/api/plane/settings/common.py`, `apps/api/plane/urls.py`, `apps/web/core/store/root.store.ts` (see custom-properties row above), `apps/web/app/routes/core.ts`, `packages/constants/src/workspace.ts`, `apps/web/core/components/workspace/sidebar/helper.tsx` (moved from `ce/components/workspace/sidebar/helper.tsx` via rename-tracking — survived cleanly) (see `docs/custom-dashboards-design.md` §6 for exact line counts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Large attachments**                | `apps/api/plane/license/api/views/instance.py`, `.env.example`, `apps/api/.env.example`, `docker-compose.yml`, `deployments/aio/community/{start.sh,variables.env,README.md}`, `deployments/cli/community/{docker-compose.yml,variables.env}` — the `FILE_SIZE_LIMIT` 200MB default (upstream default 5MB); see [DEPLOYMENT-FILE-SIZE-LIMIT.md](./DEPLOYMENT-FILE-SIZE-LIMIT.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Monday theme**                     | `packages/constants/src/themes.ts`, `apps/web/app/root.tsx` — plus `packages/tailwind-config/variables.css` (the `[data-theme="monday"]` block at EOF) and `apps/web/package.json` (the `@fontsource-variable/figtree` dependency), which carry the same feature's changes but can't hold a `FORK:` marker (CSS/JSON)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **i18n (JSON — no marker possible)** | `packages/i18n/src/locales/en/{common,project-settings}.json` — additive keys under `custom_properties`, `project_settings.features.*`, and `common.custom_dashboard`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 > The JSON locale files can't carry a `FORK:` comment. They only conflict if
 > upstream adds a key with the exact same name, which Git shows as a normal
@@ -63,7 +85,8 @@ most edits 1–12 lines. Keep this list handy during a merge:
 
 ## Procedure
 
-Do this on the **`preview`** branch first, then fast-forward the Monday branch.
+Do this on the **`preview`** branch — there is only one branch, it carries
+every fork feature including the Monday theme.
 
 ```bash
 # 0. One-time: make sure upstream is a remote
@@ -81,7 +104,8 @@ git merge origin/preview
 ```
 
 **If Git reports conflicts:** they will only be in the marked files above.
-For each one:
+For each one (and see the ce/-deletion warning above for the silent,
+no-conflict-reported class that needs a manual diff check instead):
 
 ```bash
 git diff --name-only --diff-filter=U        # list conflicted files
@@ -142,24 +166,37 @@ Open a work item and confirm our additions still render:
 3. **Attachment preview** — click an image/PDF attachment → it opens in the
    in-app viewer.
 4. **Jira import** — Analytics → Imports runs a preview.
-5. **Monday theme** (Monday branch only) — the theme is selectable and applies.
+5. **Monday theme** — selectable from the theme picker like any other theme,
+   and applies correctly.
 6. **Flag-off safety** — turn a project's custom-properties feature off; the
    spreadsheet/cards look exactly like stock Plane.
 
 ---
 
+> **SVG/script stored-XSS — likely to recur.** On 2026-07-23 upstream shipped
+> its own fix for the exact same inline-attachment stored-XSS class this fork
+> had already patched independently, in the exact same 3 endpoints
+> (`GenericAssetEndpoint`, `StaticFileAssetEndpoint`, `EntityAssetEndpoint`).
+> Upstream's version (`settings.SCRIPT_CAPABLE_MIME_TYPES`) was adopted since
+> it's broader (SVG + JS + HTML + XML, not just SVG) and normalizes the MIME
+> type before checking (strips params, lowercases) — closing a bypass our
+> own fix didn't. If this shows up again as a conflict, prefer upstream's
+> version and just double-check `apps/api/plane/app/views/issue/attachment.py`
+> (upstream doesn't own this endpoint, so it never gets fixed for free) is
+> using the same constant with the same normalization.
+
 ## Finishing up
+
+There is only one branch now — `preview` carries every fork feature,
+including the Monday theme (a normal, user-selectable entry in the theme
+picker, not a build-time flag). Nothing to fast-forward into a second branch.
 
 ```bash
 # Merge the verified upgrade back into preview
 git checkout preview && git merge upgrade/<date>
 
-# Bring the same update into the Monday branch
-git checkout feat/monday-custom-properties && git merge preview
-
-# Push both
+# Push
 git push fork preview
-git push fork feat/monday-custom-properties
 ```
 
 ## When upstream changes the _same_ code we did
