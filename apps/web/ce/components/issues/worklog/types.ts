@@ -97,10 +97,15 @@ export type TTimeReportGroup = {
   entry_count: number;
   expected_minutes?: number | null;
   utilization_pct?: number | null;
+  issue_id?: string | null;
+  sequence_id?: number | null;
+  project_id?: string | null;
+  project_identifier?: string | null;
+  project_name?: string | null;
 };
 
 export type TTimeReport = {
-  group_by: "resource" | "project" | "client";
+  group_by: "resource" | "project" | "client" | "issue";
   groups: TTimeReportGroup[];
   totals: {
     total_minutes: number;
@@ -108,6 +113,8 @@ export type TTimeReport = {
     billable_amount: number;
     entry_count: number;
   };
+  truncated?: boolean;
+  limit?: number | null;
 };
 
 export type TJiraImportConfig = {

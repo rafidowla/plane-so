@@ -221,6 +221,11 @@ class TestReport:
         session_client.post(_wl_url(slug, pid, iid), {"duration": 90, "logged_date": "2026-06-22"}, format="json")
         session_client.post(_wl_url(slug, pid, iid), {"duration": 30, "logged_date": "2026-06-23"}, format="json")
 
+    def _second_issue(self, tt, name="Issue 2"):
+        issue = Issue(workspace=tt["workspace"], project=tt["project"], name=name, state=tt["state"])
+        issue.save(created_by_id=tt["user"].id)
+        return issue
+
     def test_report_group_by_resource(self, session_client, tt):
         # ADMIN (create_user) gets the full report — regression guard against
         # over-tightening the legitimate admin/PM use case.
@@ -253,12 +258,95 @@ class TestReport:
         self._seed(session_client, tt)
         guest = _ws_member(tt["workspace"], role=5)
         session_client.force_authenticate(user=guest)
-        for group_by in ("resource", "project", "client"):
+        for group_by in ("resource", "project", "client", "issue"):
             r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by={group_by}")
             assert r.status_code == status.HTTP_403_FORBIDDEN
             body = str(r.data)
             for leaked in ("billable_amount", "billable_minutes", "email", "display_name", "totals", "groups"):
                 assert leaked not in body
+
+    def test_report_group_by_issue_splits_per_task(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        issue2 = self._second_issue(tt)
+        session_client.post(_wl_url(slug, pid, iid), {"duration": 90, "logged_date": "2026-06-22"}, format="json")
+        session_client.post(
+            _wl_url(slug, pid, str(issue2.id)), {"duration": 45, "logged_date": "2026-06-23"}, format="json"
+        )
+
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=issue")
+        assert r.status_code == status.HTTP_200_OK
+        assert r.data["group_by"] == "issue"
+        groups = {g["issue_id"]: g for g in r.data["groups"]}
+        assert len(groups) == 2
+
+        tt["issue"].refresh_from_db()
+        issue2.refresh_from_db()
+        g1, g2 = groups[str(tt["issue"].id)], groups[str(issue2.id)]
+        assert g1["total_minutes"] == 90
+        assert g1["name"] == f"TTP-{tt['issue'].sequence_id} Issue 1"
+        assert g1["project_identifier"] == "TTP"
+        assert g2["total_minutes"] == 45
+        assert g2["name"] == f"TTP-{issue2.sequence_id} Issue 2"
+
+        assert r.data["totals"]["total_minutes"] == 135
+        assert r.data["truncated"] is False
+        assert r.data["limit"] == 200
+
+    def test_report_user_ids_filter(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        other = _member(tt["workspace"], tt["project"], role=15)
+        session_client.post(_wl_url(slug, pid, iid), {"duration": 90, "logged_date": "2026-06-22"}, format="json")
+        session_client.force_authenticate(user=other)
+        session_client.post(_wl_url(slug, pid, iid), {"duration": 60, "logged_date": "2026-06-22"}, format="json")
+        session_client.force_authenticate(user=tt["user"])
+
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource&user_ids={tt['user'].id}")
+        assert r.status_code == status.HTTP_200_OK
+        assert r.data["totals"]["total_minutes"] == 90
+        assert len(r.data["groups"]) == 1
+        assert r.data["groups"][0]["key"] == str(tt["user"].id)
+
+    def test_report_group_by_issue_respects_user_filter(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        issue2 = self._second_issue(tt)
+        other = _member(tt["workspace"], tt["project"], role=15)
+
+        session_client.post(_wl_url(slug, pid, iid), {"duration": 90, "logged_date": "2026-06-22"}, format="json")
+        session_client.force_authenticate(user=other)
+        session_client.post(
+            _wl_url(slug, pid, str(issue2.id)), {"duration": 45, "logged_date": "2026-06-23"}, format="json"
+        )
+        session_client.force_authenticate(user=tt["user"])
+
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=issue&user_ids={tt['user'].id}")
+        assert r.status_code == status.HTTP_200_OK
+        assert len(r.data["groups"]) == 1
+        assert r.data["groups"][0]["issue_id"] == str(tt["issue"].id)
+        assert r.data["totals"]["total_minutes"] == 90
+
+    def test_report_invalid_group_by(self, session_client, tt):
+        slug = tt["workspace"].slug
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=bogus")
+        assert r.status_code == status.HTTP_400_BAD_REQUEST
+        for key in ("resource", "project", "client", "issue"):
+            assert key in r.data["error"]
+
+    def test_report_issue_grouping_scoped_to_visible_projects(self, session_client, tt):
+        # A workspace MEMBER who is not a member of the test project must not
+        # see its issue titles via group_by=issue, but the workspace-level
+        # resource grouping (which they already can see) must be unaffected.
+        slug = tt["workspace"].slug
+        self._seed(session_client, tt)
+        outsider = _ws_member(tt["workspace"], role=15)
+        session_client.force_authenticate(user=outsider)
+
+        r_issue = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=issue")
+        assert r_issue.status_code == status.HTTP_200_OK
+        assert r_issue.data["groups"] == []
+
+        r_resource = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource")
+        assert r_resource.status_code == status.HTTP_200_OK
+        assert r_resource.data["totals"]["total_minutes"] == 120
 
 
 @pytest.mark.contract

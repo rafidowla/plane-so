@@ -22,15 +22,15 @@ See [Licensing notes](#licensing-notes) below.
 
 ## Feature overview
 
-| Area          | What you get                                                                           |
-| ------------- | -------------------------------------------------------------------------------------- |
-| Time tracking | Per-ticket start/stop timer + manual entry; admins/PMs can log on behalf of a resource |
-| Billing       | `is_billable` + a snapshotted billable rate per entry (resource rate → client default) |
-| Clients       | A `Client` entity between Workspace and Project; per-client default rate/currency      |
-| Timesheets    | Weekly submit → approve/reject; approved entries are locked (read-only)                |
-| Reporting     | Totals & billable amounts by **resource / project / client**, utilization, CSV export  |
-| Jira import   | CLI command **and** an in-app self-service wizard (issues, comments, worklogs)         |
-| Provisioning  | First-boot command that claims the instance admin and completes setup unattended       |
+| Area          | What you get                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Time tracking | Per-ticket start/stop timer + manual entry; admins/PMs can log on behalf of a resource                                    |
+| Billing       | `is_billable` + a snapshotted billable rate per entry (resource rate → client default)                                    |
+| Clients       | A `Client` entity between Workspace and Project; per-client default rate/currency                                         |
+| Timesheets    | Weekly submit → approve/reject; approved entries are locked (read-only)                                                   |
+| Reporting     | Totals & billable amounts by **resource / project / client / task**, member filter, date presets, utilization, CSV export |
+| Jira import   | CLI command **and** an in-app self-service wizard (issues, comments, worklogs)                                            |
+| Provisioning  | First-boot command that claims the instance admin and completes setup unattended                                          |
 
 Everything is gated by the per-project flag `is_time_tracking_enabled` (the ticket
 widget only appears when it is on).
@@ -103,9 +103,27 @@ Per-resource weekly capacity and rates are stored in `ResourceCapacity`
 
 **Analytics → Time**:
 
-- Group by **resource**, **project**, or **client**.
+- Group by **resource**, **project**, **client**, or **task** (per-work-item
+  breakdown).
 - Columns: total hours, billable vs non-billable, **billable amount**, entry count,
-  and (for resources) **utilization %** vs weekly capacity.
+  and (for resources) **utilization %** vs weekly capacity; the **task** grouping
+  adds a **Project** column and links each row to its work item.
+- **Member filter**: narrow the report to one or more people (`user_ids`, already
+  supported server-side); the CSV export respects the same filter.
+- **Date-range presets** (Today, Yesterday, This week, Last week, This month, Last
+  month, Last 7/15/30 days, or a custom range via the two date inputs) — computed
+  in the browser's **local time** and honoring the user's **Start of the week**
+  profile setting, not UTC.
+- In **By resource**, expand a row's chevron for an inline per-task breakdown for
+  just that person over the same range (auto-expanded when exactly one member is
+  selected and exactly one resource row is returned).
+- The **task** grouping is capped at 200 rows for the on-screen/JSON view (a
+  truncation notice appears; the grand total is still computed over the full,
+  unsliced range) — **Export CSV** is never capped.
+- The **task** grouping is scoped to the caller's own project memberships unless
+  they're a workspace admin — work-item titles are project content, unlike the
+  resource/project/client names the other groupings expose to every workspace
+  member.
 - Date-range filter and **Export CSV** (server-rendered, respects all filters).
 
 ---
@@ -252,20 +270,20 @@ variables:
 
 All endpoints are session-authenticated and project/workspace-scoped.
 
-| Method           | Path                                                                | Notes                                                |
-| ---------------- | ------------------------------------------------------------------- | ---------------------------------------------------- |
-| GET/POST         | `/api/workspaces/<slug>/clients/`                                   | client CRUD (admin to mutate)                        |
-| GET/PATCH/DELETE | `/api/workspaces/<slug>/clients/<id>/`                              |                                                      |
-| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklogs/`      | worklog CRUD; POST `logged_by` for on-behalf (admin) |
-| GET/POST/DELETE  | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklog-timer/` | current / start / stop                               |
-| GET              | `/api/workspaces/<slug>/timesheets/`                                | list (own; admins see all)                           |
-| POST             | `/api/workspaces/<slug>/timesheets/submit/`                         | submit a period                                      |
-| POST             | `/api/workspaces/<slug>/timesheets/<id>/review/`                    | approve/reject (admin)                               |
-| GET/POST         | `/api/workspaces/<slug>/resource-capacities/`                       | per-resource capacity/rates                          |
-| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client`, `format=csv`   |
-| POST             | `/api/workspaces/<slug>/projects/<pid>/jira-import/preview/`        | synchronous dry-run                                  |
-| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/jira-import/`                | list jobs / start import                             |
-| GET              | `/api/workspaces/<slug>/projects/<pid>/jira-import/<id>/`           | job status                                           |
+| Method           | Path                                                                | Notes                                                                 |
+| ---------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| GET/POST         | `/api/workspaces/<slug>/clients/`                                   | client CRUD (admin to mutate)                                         |
+| GET/PATCH/DELETE | `/api/workspaces/<slug>/clients/<id>/`                              |                                                                       |
+| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklogs/`      | worklog CRUD; POST `logged_by` for on-behalf (admin)                  |
+| GET/POST/DELETE  | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklog-timer/` | current / start / stop                                                |
+| GET              | `/api/workspaces/<slug>/timesheets/`                                | list (own; admins see all)                                            |
+| POST             | `/api/workspaces/<slug>/timesheets/submit/`                         | submit a period                                                       |
+| POST             | `/api/workspaces/<slug>/timesheets/<id>/review/`                    | approve/reject (admin)                                                |
+| GET/POST         | `/api/workspaces/<slug>/resource-capacities/`                       | per-resource capacity/rates                                           |
+| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client\|issue`, `user_ids`, `format=csv` |
+| POST             | `/api/workspaces/<slug>/projects/<pid>/jira-import/preview/`        | synchronous dry-run                                                   |
+| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/jira-import/`                | list jobs / start import                                              |
+| GET              | `/api/workspaces/<slug>/projects/<pid>/jira-import/<id>/`           | job status                                                            |
 
 ---
 

@@ -26,15 +26,41 @@ from rest_framework.response import Response
 # Module imports
 from plane.app.views.base import BaseAPIView
 from plane.app.permissions import ROLE, allow_permission
-from plane.db.models import IssueWorklog, ResourceCapacity
+from plane.app.views.time_tracking.timesheet import is_workspace_admin
+from plane.db.models import IssueWorklog, ProjectMember, ResourceCapacity
 
 
-# group_by -> (value fields, key field, name field)
+def _issue_extras(r):
+    """Compose a disambiguated work-item label + the extra id/link fields the
+    frontend needs. issue__name alone collides across (and within) projects."""
+    ident, seq = r.get("project__identifier"), r.get("issue__sequence_id")
+    name = f"{ident}-{seq} {r.get('issue__name') or ''}".strip() if ident and seq else (r.get("issue__name") or "Untitled")
+    return {
+        "name": name,
+        "issue_id": str(r["issue"]) if r["issue"] else None,
+        "sequence_id": seq,
+        "project_id": str(r["project"]) if r["project"] else None,
+        "project_identifier": ident,
+        "project_name": r.get("project__name"),
+    }
+
+
+# group_by -> (value fields, key field, name field, [optional extras builder])
 GROUP_BY_MAP = {
     "resource": (["logged_by", "logged_by__display_name", "logged_by__email"], "logged_by", "logged_by__display_name"),
     "project": (["project", "project__name", "project__identifier"], "project", "project__name"),
     "client": (["project__client", "project__client__name"], "project__client", "project__client__name"),
+    "issue": (
+        ["issue", "issue__name", "issue__sequence_id", "project", "project__identifier", "project__name"],
+        "issue",
+        "issue__name",
+        _issue_extras,
+    ),
 }
+
+# Hard cap on the number of issue-grouped rows returned for the JSON response.
+# CSV export (an explicit, deliberate action) is never capped.
+MAX_ISSUE_GROUPS = 200
 
 # Billable amount = sum(duration_minutes * billable_rate / 60) over billable entries.
 AMOUNT_EXPR = ExpressionWrapper(
@@ -44,11 +70,17 @@ AMOUNT_EXPR = ExpressionWrapper(
 
 
 class TimeReportEndpoint(BaseAPIView):
-    """Aggregated time report grouped by resource, project, or client.
+    """Aggregated time report grouped by resource, project, client, or issue.
 
-    Query params: group_by (resource|project|client), start_date, end_date,
-    project_ids (csv), client_id, user_ids (csv), billable (true|false),
-    format (csv to download).
+    Query params: group_by (resource|project|client|issue), start_date,
+    end_date, project_ids (csv), client_id, user_ids (csv),
+    billable (true|false), format (csv to download).
+
+    group_by=issue is capped at MAX_ISSUE_GROUPS rows for JSON (the response
+    carries "truncated"/"limit" so a caller can tell); CSV export is uncapped.
+    It's also scoped to the caller's visible projects unless they're a
+    workspace admin, since work-item titles are project content, unlike the
+    workspace-level resource/project/client metadata the other groupings use.
     """
 
     def _filtered_worklogs(self, slug, request):
@@ -74,8 +106,9 @@ class TimeReportEndpoint(BaseAPIView):
             qs = qs.filter(is_billable=(billable == "true"))
         return qs, start_date, end_date
 
-    def _aggregate(self, qs, group_by):
-        values, key_field, name_field = GROUP_BY_MAP[group_by]
+    def _aggregate(self, qs, group_by, limit=None):
+        values, key_field, name_field, *rest = GROUP_BY_MAP[group_by]
+        extras_fn = rest[0] if rest else None
         rows = (
             qs.values(*values)
             .annotate(
@@ -90,20 +123,28 @@ class TimeReportEndpoint(BaseAPIView):
             )
             .order_by("-total_minutes")
         )
+        # Rows are already ordered by -total_minutes, so a limit keeps the most
+        # time-significant groups rather than an arbitrary prefix.
+        truncated = False
+        if limit:
+            rows = list(rows[: limit + 1])
+            truncated = len(rows) > limit
+            rows = rows[:limit]
         groups = []
         for r in rows:
-            groups.append(
-                {
-                    "key": str(r[key_field]) if r[key_field] is not None else None,
-                    "name": r.get(name_field) or "Unassigned",
-                    "total_minutes": r["total_minutes"],
-                    "billable_minutes": r["billable_minutes"],
-                    "non_billable_minutes": r["total_minutes"] - r["billable_minutes"],
-                    "billable_amount": float(r["billable_amount"] or 0),
-                    "entry_count": r["entry_count"],
-                }
-            )
-        return groups
+            group = {
+                "key": str(r[key_field]) if r[key_field] is not None else None,
+                "name": r.get(name_field) or "Unassigned",
+                "total_minutes": r["total_minutes"],
+                "billable_minutes": r["billable_minutes"],
+                "non_billable_minutes": r["total_minutes"] - r["billable_minutes"],
+                "billable_amount": float(r["billable_amount"] or 0),
+                "entry_count": r["entry_count"],
+            }
+            if extras_fn:
+                group.update(extras_fn(r))
+            groups.append(group)
+        return groups, truncated
 
     def _add_utilization(self, slug, groups, start_date, end_date):
         """For resource grouping, add expected minutes + utilization %."""
@@ -139,33 +180,76 @@ class TimeReportEndpoint(BaseAPIView):
         group_by = request.GET.get("group_by", "resource")
         if group_by not in GROUP_BY_MAP:
             return Response(
-                {"error": "group_by must be one of resource, project, client."},
+                {"error": f"group_by must be one of {', '.join(GROUP_BY_MAP)}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         qs, start_date, end_date = self._filtered_worklogs(slug, request)
-        groups = self._aggregate(qs, group_by)
+
+        # Work item titles are project content, gated everywhere else in Plane by
+        # ProjectMember — unlike resource/project/client names, which are
+        # workspace-level metadata every workspace MEMBER already sees (see the
+        # comment above). A workspace MEMBER who isn't a member of project X must
+        # not learn project X's task titles via group_by=issue. Scoped to `issue`
+        # only so no other grouping's behavior/tests move.
+        if group_by == "issue" and not is_workspace_admin(slug, request.user):
+            visible_project_ids = ProjectMember.objects.filter(
+                workspace__slug=slug,
+                member=request.user,
+                is_active=True,
+                role__in=[ROLE.ADMIN.value, ROLE.MEMBER.value],
+            ).values_list("project_id", flat=True)
+            qs = qs.filter(project_id__in=visible_project_ids)
+
+        is_csv = request.GET.get("format") == "csv"
+        limit = MAX_ISSUE_GROUPS if (group_by == "issue" and not is_csv) else None
+        groups, truncated = self._aggregate(qs, group_by, limit=limit)
         if group_by == "resource":
             groups = self._add_utilization(slug, groups, start_date, end_date)
 
+        # Computed from the unsliced queryset, not by summing `groups` — summing
+        # `groups` would silently under-report the grand total the moment any
+        # grouping (issue) can be truncated.
+        agg = qs.aggregate(
+            total_minutes=Coalesce(Sum("duration"), 0),
+            billable_minutes=Coalesce(Sum("duration", filter=Q(is_billable=True)), 0),
+            billable_amount=Coalesce(
+                Sum(AMOUNT_EXPR, filter=Q(is_billable=True)),
+                0,
+                output_field=DecimalField(max_digits=16, decimal_places=2),
+            ),
+            entry_count=Count("id"),
+        )
         totals = {
-            "total_minutes": sum(g["total_minutes"] for g in groups),
-            "billable_minutes": sum(g["billable_minutes"] for g in groups),
-            "billable_amount": round(sum(g["billable_amount"] for g in groups), 2),
-            "entry_count": sum(g["entry_count"] for g in groups),
+            "total_minutes": agg["total_minutes"],
+            "billable_minutes": agg["billable_minutes"],
+            "billable_amount": round(float(agg["billable_amount"] or 0), 2),
+            "entry_count": agg["entry_count"],
         }
 
-        if request.GET.get("format") == "csv":
+        if is_csv:
             return self._csv_response(group_by, groups)
 
-        return Response({"group_by": group_by, "groups": groups, "totals": totals}, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "group_by": group_by,
+                "groups": groups,
+                "totals": totals,
+                "truncated": truncated,
+                "limit": limit,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def _csv_response(self, group_by, groups):
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = f'attachment; filename="time-report-by-{group_by}.csv"'
         writer = csv.writer(response)
-        header = [group_by.capitalize(), "Total (h)", "Billable (h)", "Non-billable (h)", "Billable amount", "Entries"]
+        label = "Work item" if group_by == "issue" else group_by.capitalize()
+        header = [label, "Total (h)", "Billable (h)", "Non-billable (h)", "Billable amount", "Entries"]
         if group_by == "resource":
             header += ["Expected (h)", "Utilization %"]
+        if group_by == "issue":
+            header.insert(1, "Project")
         writer.writerow(header)
         for g in groups:
             row = [
@@ -181,5 +265,7 @@ class TimeReportEndpoint(BaseAPIView):
                     round(g["expected_minutes"] / 60, 2) if g.get("expected_minutes") else "",
                     g.get("utilization_pct") if g.get("utilization_pct") is not None else "",
                 ]
+            if group_by == "issue":
+                row.insert(1, g.get("project_name") or "")
             writer.writerow(row)
         return response
