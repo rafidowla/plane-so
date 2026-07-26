@@ -221,4 +221,6 @@ re-checked on each deploy:
 - `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` /
   `EMAIL_FROM` — SMTP, for notification + invitation emails (or set them in
   God Mode → Email)
-- `CUSTOM_PROPERTIES_ENABLED=1` — the custom-properties instance kill switch
+- `CUSTOM_PROPERTIES_ENABLED` — the custom-properties instance kill switch.
+  On by default as of 2026-07-26 (no env var needed for a new deployment);
+  only set this to `0` if you want to opt an instance out

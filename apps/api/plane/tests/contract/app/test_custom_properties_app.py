@@ -5,8 +5,8 @@
 """Contract tests for the fork's custom-properties feature (plane.properties).
 
 Pattern mirrors test_time_tracking_app.py. The instance kill switch is an env
-var read live by plane.properties.flags.is_instance_enabled, so tests flip it
-with monkeypatch.setenv/delenv.
+var read live by plane.properties.flags.is_instance_enabled (on by default),
+so tests flip it with monkeypatch.setenv("CUSTOM_PROPERTIES_ENABLED", "0"/"1").
 """
 
 import uuid
@@ -154,7 +154,8 @@ class TestPropertiesFeatureToggle:
         slug, pid = proj["workspace"].slug, str(proj["project"].id)
         r = session_client.get(_feature_url(slug, pid))
         assert r.status_code == status.HTTP_200_OK
-        # No row + instance off ⇒ disabled.
+        # Instance is on by default, but no ProjectPropertiesFeature row exists
+        # yet (project admin hasn't opted in) ⇒ still disabled.
         assert r.data["is_enabled"] is False
 
     def test_admin_toggles_when_instance_on(self, session_client, proj, monkeypatch):
@@ -169,7 +170,7 @@ class TestPropertiesFeatureToggle:
         assert session_client.get(_feature_url(slug, pid)).data["is_enabled"] is True
 
     def test_patch_forbidden_when_instance_off(self, session_client, proj, monkeypatch):
-        monkeypatch.delenv("CUSTOM_PROPERTIES_ENABLED", raising=False)
+        monkeypatch.setenv("CUSTOM_PROPERTIES_ENABLED", "0")
         slug, pid = proj["workspace"].slug, str(proj["project"].id)
         r = session_client.patch(_feature_url(slug, pid), {"is_enabled": True}, format="json")
         assert r.status_code == status.HTTP_403_FORBIDDEN
@@ -180,8 +181,8 @@ class TestPropertiesFeatureToggle:
         monkeypatch.setenv("CUSTOM_PROPERTIES_ENABLED", "1")
         slug, pid = proj["workspace"].slug, str(proj["project"].id)
         session_client.patch(_feature_url(slug, pid), {"is_enabled": True}, format="json")
-        # ...then the operator turns the instance off: GET reports disabled.
-        monkeypatch.delenv("CUSTOM_PROPERTIES_ENABLED", raising=False)
+        # ...then the operator explicitly turns the instance off: GET reports disabled.
+        monkeypatch.setenv("CUSTOM_PROPERTIES_ENABLED", "0")
         r = session_client.get(_feature_url(slug, pid))
         assert r.data["is_enabled"] is False
         assert r.data["instance_enabled"] is False
@@ -337,8 +338,8 @@ class TestPropertiesCRUD:
         assert str(issues[2].id) not in r.data  # no values -> absent
 
     def test_disabled_project_list_empty_writes_403(self, session_client, proj, monkeypatch):
-        # instance off (no env) -> list empty 200, create 403
-        monkeypatch.delenv("CUSTOM_PROPERTIES_ENABLED", raising=False)
+        # instance explicitly off -> list empty 200, create 403
+        monkeypatch.setenv("CUSTOM_PROPERTIES_ENABLED", "0")
         slug, pid = proj["workspace"].slug, str(proj["project"].id)
         lst = session_client.get(_props_url(slug, pid))
         assert lst.status_code == 200 and lst.data == []

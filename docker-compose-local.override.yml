@@ -13,8 +13,5 @@ services:
       - "9002:9000"
       - "9090:9090"
   api:
-    # FORK: custom-properties — instance-level kill switch, off by default upstream.
-    environment:
-      - CUSTOM_PROPERTIES_ENABLED=1
     ports: !override
       - "8001:8000"

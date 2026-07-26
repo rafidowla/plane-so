@@ -617,15 +617,18 @@ toggle instead), all `db` migrations.
 
 ## 8. Feature flag
 
-Two layers, both defaulting to **off**, no upstream schema touched:
+Two layers, no upstream schema touched:
 
-1. **Instance kill switch (env)**: `CUSTOM_PROPERTIES_ENABLED` (default `"0"`),
-   read inside `plane/properties/` code only (`os.environ`), so
-   `settings/common.py` needs no extra line beyond A5. When off: every
-   `plane.properties` endpoint returns `403 {"error": "custom properties disabled"}`,
-   the feature endpoint reports `{"is_enabled": false, "instance_enabled": false}`,
+1. **Instance kill switch (env)**: `CUSTOM_PROPERTIES_ENABLED` (default `"1"`
+   — **on** by default as of 2026-07-26, so a new deployment needs no env var
+   at all; set it to `"0"` to opt the instance out), read inside
+   `plane/properties/` code only (`os.environ`), so `settings/common.py`
+   needs no extra line beyond A5. When off: every `plane.properties`
+   endpoint returns `403 {"error": "custom properties disabled"}`, the
+   feature endpoint reports `{"is_enabled": false, "instance_enabled": false}`,
    and the serializer hook (if built) no-ops.
-2. **Per-project toggle**: `ProjectPropertiesFeature.is_enabled`
+2. **Per-project toggle** (still **off** by default, unaffected by the above):
+   `ProjectPropertiesFeature.is_enabled`
    (fork-owned table, §3.2), surfaced at
    `GET/PATCH /api/workspaces/<slug>/projects/<project_id>/properties-feature/`
    (PATCH = project admin). No row ⇒ disabled. The frontend store treats
@@ -811,8 +814,9 @@ This is the planned end-of-life for the fork feature, not a failure mode:
 
 ### 10.5 Rollback (feature misbehaves post-merge)
 
-1. Instance kill switch: unset `CUSTOM_PROPERTIES_ENABLED` → all endpoints 403,
-   UI renders stock. No deploy rollback needed.
+1. Instance kill switch: set `CUSTOM_PROPERTIES_ENABLED=0` (the flag is now on
+   by default, so unsetting it does nothing — it must be explicitly set to
+   `"0"`) → all endpoints 403, UI renders stock. No deploy rollback needed.
 2. Full removal: revert the group A/B lines (one grep-guided commit),
    `manage.py migrate properties zero`, remove the app dir. No upstream table
    was ever altered.

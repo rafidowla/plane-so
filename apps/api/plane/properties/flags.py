@@ -5,8 +5,9 @@
 """Instance-level kill switch for the custom-properties feature.
 
 The feature is double-gated (docs/custom-properties-design.md §8):
-1. this instance env switch (operator-controlled, off by default), and
-2. a per-project toggle (ProjectPropertiesFeature.is_enabled).
+1. this instance env switch (on by default; operator can opt out), and
+2. a per-project toggle (ProjectPropertiesFeature.is_enabled), which a
+   project admin still has to turn on for their own project.
 
 Reading the env var here keeps settings/common.py free of an extra line.
 """
@@ -15,9 +16,13 @@ import os
 
 
 def is_instance_enabled():
-    """True only when the operator has opted the whole instance in.
+    """True unless the operator has explicitly opted the whole instance out.
 
-    Off unless CUSTOM_PROPERTIES_ENABLED is set to "1". When off, every
-    plane.properties endpoint refuses and the serializer hook (if built) no-ops.
+    On by default (new deployments need no env var). Set
+    CUSTOM_PROPERTIES_ENABLED=0 (or any value other than "1") to disable —
+    every plane.properties endpoint then refuses and the serializer hook (if
+    built) no-ops. Same idiom as SKIP_ENV_VAR in settings/common.py: default
+    "1", strict equality, so a typo in the override disables rather than
+    silently staying on.
     """
-    return os.environ.get("CUSTOM_PROPERTIES_ENABLED", "0") == "1"
+    return os.environ.get("CUSTOM_PROPERTIES_ENABLED", "1") == "1"
