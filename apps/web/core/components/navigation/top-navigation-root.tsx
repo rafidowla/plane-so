@@ -17,6 +17,7 @@ import { Tooltip } from "@plane/propel/tooltip";
 import { AppSidebarItem } from "@/components/sidebar/sidebar-item";
 import { InboxIcon } from "@plane/propel/icons";
 import useSWR from "swr";
+import { useInstance } from "@/hooks/store/use-instance";
 import { useWorkspaceNotifications } from "@/hooks/store/notifications";
 // local imports
 import { StarUsOnGitHubLink } from "@/app/(all)/[workspaceSlug]/(projects)/star-us-link";
@@ -27,6 +28,7 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
   const pathname = usePathname();
 
   // store hooks
+  const { config: instanceConfig } = useInstance();
   const { unreadNotificationsCount, getUnreadNotificationsCount } = useWorkspaceNotifications();
   const { preferences } = useAppRailPreferences();
 
@@ -78,7 +80,8 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
           />
         </Tooltip>
         <HelpMenuRoot />
-        <StarUsOnGitHubLink />
+        {/* FORK: self-hosted-chrome — self-hosted deployments don't need a link back to the public repo. */}
+        {!instanceConfig?.is_self_managed && <StarUsOnGitHubLink />}
         <div className="flex size-8 items-center justify-center rounded-md hover:bg-layer-1-hover">
           <UserMenuRoot />
         </div>

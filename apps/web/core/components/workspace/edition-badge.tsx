@@ -10,6 +10,7 @@ import { observer } from "mobx-react";
 import { useTranslation } from "@plane/i18n";
 import { Tooltip } from "@plane/propel/tooltip";
 // hooks
+import { useInstance } from "@/hooks/store/use-instance";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 import packageJson from "package.json";
 // local components
@@ -23,19 +24,28 @@ export const WorkspaceEditionBadge = observer(function WorkspaceEditionBadge() {
   const { t } = useTranslation();
   // platform
   const { isMobile } = usePlatformOS();
+  // instance
+  const { config: instanceConfig } = useInstance();
+  // FORK: self-hosted-chrome — self-hosted deployments have no cloud upgrade path to sell, so
+  // the click no longer opens the paid-plan modal until a dedicated self-hosted community
+  // feature exists. Left un-disabled on purpose (native `disabled` kills pointer events, which
+  // would also silence the tooltip below — the only place the running version is shown).
+  const isSelfManaged = instanceConfig?.is_self_managed;
 
   return (
     <>
-      <PaidPlanUpgradeModal
-        isOpen={isPaidPlanPurchaseModalOpen}
-        handleClose={() => setIsPaidPlanPurchaseModalOpen(false)}
-      />
+      {!isSelfManaged && (
+        <PaidPlanUpgradeModal
+          isOpen={isPaidPlanPurchaseModalOpen}
+          handleClose={() => setIsPaidPlanPurchaseModalOpen(false)}
+        />
+      )}
       <Tooltip tooltipContent={`Version: v${packageJson.version}`} isMobile={isMobile}>
         <Button
           variant="tertiary"
           size="lg"
-          onClick={() => setIsPaidPlanPurchaseModalOpen(true)}
-          aria-haspopup="dialog"
+          onClick={isSelfManaged ? undefined : () => setIsPaidPlanPurchaseModalOpen(true)}
+          aria-haspopup={isSelfManaged ? undefined : "dialog"}
           aria-label={t("aria_labels.projects_sidebar.edition_badge")}
         >
           Community

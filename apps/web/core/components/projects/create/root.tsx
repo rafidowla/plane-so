@@ -94,13 +94,22 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
 
     return createProject(workspaceSlug.toString(), formData)
       .then(async (res) => {
-        if (uploadedAssetUrl) {
-          await updateCoverImageStatus(res.id, uploadedAssetUrl);
-          await updateProject(workspaceSlug.toString(), res.id, { cover_image_url: uploadedAssetUrl });
-        } else if (coverImage && coverImage.startsWith("http")) {
-          await updateCoverImageStatus(res.id, coverImage);
-          await updateProject(workspaceSlug.toString(), res.id, { cover_image_url: coverImage });
+        // The project already exists at this point, so a failure syncing the
+        // cover image must not surface as a project-creation error (it would
+        // show "something went wrong" for a project that was, in fact,
+        // created) — log it and continue.
+        try {
+          if (uploadedAssetUrl) {
+            await updateCoverImageStatus(res.id, uploadedAssetUrl);
+            await updateProject(workspaceSlug.toString(), res.id, { cover_image_url: uploadedAssetUrl });
+          } else if (coverImage && coverImage.startsWith("http")) {
+            await updateCoverImageStatus(res.id, coverImage);
+            await updateProject(workspaceSlug.toString(), res.id, { cover_image_url: coverImage });
+          }
+        } catch (error) {
+          console.error("Error syncing cover image for the new project:", error);
         }
+
         setToast({
           type: TOAST_TYPE.SUCCESS,
           title: t("success"),
