@@ -106,7 +106,9 @@ export class TimeTrackingService extends APIService {
   }
 
   timeReportCsvUrl(workspaceSlug: string, params: Record<string, string>): string {
-    const qs = new URLSearchParams({ ...params, format: "csv" }).toString();
+    // "export", not "format" — DRF reserves "format" for content-negotiation and
+    // 404s the whole request before this endpoint's own CSV branch ever runs.
+    const qs = new URLSearchParams({ ...params, export: "csv" }).toString();
     return `${API_BASE_URL}/api/workspaces/${workspaceSlug}/time-report/?${qs}`;
   }
 

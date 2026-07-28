@@ -74,7 +74,7 @@ class TimeReportEndpoint(BaseAPIView):
 
     Query params: group_by (resource|project|client|issue), start_date,
     end_date, project_ids (csv), client_id, user_ids (csv),
-    billable (true|false), format (csv to download).
+    billable (true|false), export (csv to download).
 
     group_by=issue is capped at MAX_ISSUE_GROUPS rows for JSON (the response
     carries "truncated"/"limit" so a caller can tell); CSV export is uncapped.
@@ -200,7 +200,11 @@ class TimeReportEndpoint(BaseAPIView):
             ).values_list("project_id", flat=True)
             qs = qs.filter(project_id__in=visible_project_ids)
 
-        is_csv = request.GET.get("format") == "csv"
+        # Not "format" — that's DRF's reserved content-negotiation query param
+        # (DefaultContentNegotiation.select_renderer reads it before this view's
+        # get() even runs); since only JSONRenderer is registered, "?format=csv"
+        # raises Http404 deep inside DRF before this line is ever reached.
+        is_csv = request.GET.get("export") == "csv"
         limit = MAX_ISSUE_GROUPS if (group_by == "issue" and not is_csv) else None
         groups, truncated = self._aggregate(qs, group_by, limit=limit)
         if group_by == "resource":

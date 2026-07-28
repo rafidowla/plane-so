@@ -280,7 +280,7 @@ All endpoints are session-authenticated and project/workspace-scoped.
 | POST             | `/api/workspaces/<slug>/timesheets/submit/`                         | submit a period                                                       |
 | POST             | `/api/workspaces/<slug>/timesheets/<id>/review/`                    | approve/reject (admin)                                                |
 | GET/POST         | `/api/workspaces/<slug>/resource-capacities/`                       | per-resource capacity/rates                                           |
-| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client\|issue`, `user_ids`, `format=csv` |
+| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client\|issue`, `user_ids`, `export=csv` |
 | POST             | `/api/workspaces/<slug>/projects/<pid>/jira-import/preview/`        | synchronous dry-run                                                   |
 | GET/POST         | `/api/workspaces/<slug>/projects/<pid>/jira-import/`                | list jobs / start import                                              |
 | GET              | `/api/workspaces/<slug>/projects/<pid>/jira-import/<id>/`           | job status                                                            |

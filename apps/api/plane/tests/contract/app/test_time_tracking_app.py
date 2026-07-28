@@ -331,6 +331,20 @@ class TestReport:
         for key in ("resource", "project", "client", "issue"):
             assert key in r.data["error"]
 
+    def test_report_csv_export(self, session_client, tt):
+        # Regression guard: "format" is DRF's reserved content-negotiation query
+        # param — "?format=csv" 404s before this view's own get() ever runs, since
+        # only JSONRenderer is registered. The CSV branch must be keyed off a
+        # differently-named param ("export").
+        slug, pid, iid = _ids(tt)
+        self._seed(session_client, tt)
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource&export=csv")
+        assert r.status_code == status.HTTP_200_OK
+        assert r["Content-Type"] == "text/csv"
+        body = r.content.decode()
+        assert "Resource" in body
+        assert tt["user"].display_name in body
+
     def test_report_issue_grouping_scoped_to_visible_projects(self, session_client, tt):
         # A workspace MEMBER who is not a member of the test project must not
         # see its issue titles via group_by=issue, but the workspace-level
