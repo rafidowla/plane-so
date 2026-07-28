@@ -22,6 +22,7 @@ from plane.license.utils.instance_value import get_email_configuration
 from plane.settings.redis import redis_instance
 from plane.utils.email import generate_plain_text_from_html
 from plane.utils.exception_logger import log_exception
+from plane.utils.host import base_host
 
 
 def remove_unwanted_characters(input_text):
@@ -161,11 +162,21 @@ def send_email_notification(issue_id, notification_data, receiver_id, email_noti
         if acquire_lock(lock_id=lock_id):
             # get the redis instance
             ri = redis_instance()
-            base_api = ri.get(str(issue_id)).decode() if ri.get(str(issue_id)) else None
+            redis_base_api = ri.get(str(issue_id))
 
-            # Skip if base api is not present
-            if not base_api:
-                return
+            # The origin is cached (10 min TTL) from the request that triggered the
+            # activity, purely to build links in the email body — it's not tied to
+            # that request in any way a stable deployment URL couldn't stand in for.
+            # A backlog longer than the TTL (worker restart, queue delay, etc.) used
+            # to silently drop the email forever instead of just losing the per-request
+            # origin nuance; fall back to the configured app URL instead.
+            if redis_base_api:
+                base_api = redis_base_api.decode()
+            else:
+                base_api = base_host(request=None, is_app=True)
+                logging.getLogger("plane.worker").info(
+                    f"Origin cache miss for issue {issue_id}, falling back to configured app URL"
+                )
 
             data = create_payload(notification_data=notification_data)
 
