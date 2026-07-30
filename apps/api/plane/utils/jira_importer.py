@@ -188,10 +188,40 @@ def build_maps(project):
         if st.default:
             default_state = st
     member_map = {}
+    # Display-name fallback for when Jira doesn't return an emailAddress (Jira
+    # Cloud hides it from the REST API unless the requester is an org admin or
+    # the target user opted into public visibility — the common case, not the
+    # exception). Same matching keys the CSV importer already uses
+    # (jira_csv_importer._build_maps): exact, case-insensitive display_name or
+    # "first_name last_name".
+    member_by_name = {}
     for wm in WorkspaceMember.objects.filter(workspace=project.workspace, is_active=True).select_related("member"):
-        if wm.member.email:
-            member_map[wm.member.email.lower()] = wm.member
-    return state_map, default_state, member_map
+        m = wm.member
+        if m.email:
+            member_map[m.email.lower()] = m
+        for k in {(m.display_name or "").lower(), f"{m.first_name} {m.last_name}".strip().lower()}:
+            if k:
+                member_by_name[k] = m
+    return state_map, default_state, member_map, member_by_name
+
+
+def resolve_member(member_map, member_by_name, jira_user):
+    """Resolve a Jira user object (assignee/reporter/author) to a Plane member.
+
+    Email first (most precise, avoids collisions between similarly-named
+    people) — but Jira frequently omits it, so fall back to an exact
+    display-name match rather than leaving the field unmapped. Returns None
+    if neither matches so callers can still distinguish "no match" from "a
+    match that happens to be the initiator."
+    """
+    jira_user = jira_user or {}
+    email = (jira_user.get("emailAddress") or "").lower()
+    if email and email in member_map:
+        return member_map[email]
+    display_name = (jira_user.get("displayName") or "").strip().lower()
+    if display_name and display_name in member_by_name:
+        return member_by_name[display_name]
+    return None
 
 
 def resolve_rate(project, user_id):
@@ -242,7 +272,7 @@ def _download_attachment(content_url, jira_auth, max_bytes):
         return None, 0
 
 
-def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map):
+def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name):
     """Download each Jira attachment and store it as a Plane FileAsset.
 
     Bytes are streamed from Jira's authenticated `content` URL straight into the
@@ -289,8 +319,7 @@ def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, 
             counts["failed"] += 1
             continue
 
-        author_email = ((att.get("author") or {}).get("emailAddress") or "").lower()
-        author = member_map.get(author_email) or initiator
+        author = resolve_member(member_map, member_by_name, att.get("author")) or initiator
         FileAsset.objects.create(
             attributes={"name": filename, "type": mime, "size": size},
             asset=asset_key,
@@ -363,7 +392,7 @@ def _attachment_link_html(att, asset):
     return f'<p><a href="{_html.escape(str(url), quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a></p>'
 
 
-def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_auth, member_map, cache):
+def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_auth, member_map, member_by_name, cache):
     """Download a Jira image attachment and store it as an ISSUE_DESCRIPTION /
     COMMENT_DESCRIPTION FileAsset. Returns the new asset id (str) or None.
     Idempotent per (entity_type, attachment id) so re-imports don't duplicate."""
@@ -421,7 +450,7 @@ def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_a
     if not uploaded:
         return None
 
-    author = member_map.get(((att.get("author") or {}).get("emailAddress") or "").lower()) or initiator
+    author = resolve_member(member_map, member_by_name, att.get("author")) or initiator
     asset = FileAsset.objects.create(
         attributes={"name": filename, "type": mime, "size": size},
         asset=asset_key,
@@ -493,7 +522,7 @@ def run_import(
     unmapped_states, unmapped_users = set(), set()
     preview = []
 
-    state_map, default_state, member_map = build_maps(project)
+    state_map, default_state, member_map, member_by_name = build_maps(project)
 
     for idx, ji in enumerate(issues):
         key = ji.get("key")
@@ -514,10 +543,9 @@ def run_import(
         priority = PRIORITY_MAP.get(pr, "none")
 
         assignee = f.get("assignee") or {}
-        a_email = (assignee.get("emailAddress") or "").lower()
-        assignee_user = member_map.get(a_email)
+        assignee_user = resolve_member(member_map, member_by_name, assignee)
         if assignee and not assignee_user:
-            unmapped_users.add(assignee.get("displayName") or a_email or "unknown")
+            unmapped_users.add(assignee.get("displayName") or assignee.get("emailAddress") or "unknown")
 
         labels = f.get("labels") or []
         rendered = ji.get("renderedFields") or {}
@@ -571,7 +599,9 @@ def run_import(
             # file rather than degrading to a placeholder.
             attachment_assets = {}
             if can_embed and jira_attachments:
-                c = migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map)
+                c = migrate_attachments(
+                    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name
+                )
                 for k in att_totals:
                     att_totals[k] += c[k]
                 attachment_assets = {
@@ -601,6 +631,7 @@ def run_import(
                         initiator,
                         jira_auth,
                         member_map,
+                        member_by_name,
                         dl_cache,
                     ),
                     attachment_assets,
@@ -621,7 +652,11 @@ def run_import(
                 IssueLabel.objects.create(issue=issue, label=label, project=project, created_by_id=initiator.id)
             rendered_comments = (rendered.get("comment") or {}).get("comments", [])
             for ci, jc in enumerate(jira_comments):
-                actor = member_map.get(((jc.get("author") or {}).get("emailAddress") or "").lower()) or initiator
+                jc_author = jc.get("author") or {}
+                matched_actor = resolve_member(member_map, member_by_name, jc_author)
+                actor = matched_actor or initiator
+                if jc_author and not matched_actor:
+                    unmapped_users.add(jc_author.get("displayName") or jc_author.get("emailAddress") or "unknown")
                 comment = IssueComment(
                     issue=issue,
                     project=project,
@@ -649,6 +684,7 @@ def run_import(
                             initiator,
                             jira_auth,
                             member_map,
+                            member_by_name,
                             dl_cache,
                         ),
                         attachment_assets,
@@ -661,7 +697,11 @@ def run_import(
                 seconds = int(jw.get("timeSpentSeconds") or 0)
                 if seconds <= 0:
                     continue
-                author = member_map.get(((jw.get("author") or {}).get("emailAddress") or "").lower()) or initiator
+                jw_author = jw.get("author") or {}
+                matched_author = resolve_member(member_map, member_by_name, jw_author)
+                author = matched_author or initiator
+                if jw_author and not matched_author:
+                    unmapped_users.add(jw_author.get("displayName") or jw_author.get("emailAddress") or "unknown")
                 started = parse_datetime(jw.get("started")) if jw.get("started") else None
                 rate, currency = resolve_rate(project, author.id)
                 IssueWorklog(

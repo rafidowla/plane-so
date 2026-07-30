@@ -13,6 +13,8 @@ from rest_framework import status
 from plane.db.models import (
     Client,
     Issue,
+    IssueAssignee,
+    IssueComment,
     IssueWorklog,
     Project,
     ProjectIdentifier,
@@ -464,6 +466,71 @@ class TestJiraImport:
         assert r2.data["result"]["created"] == 0
         assert r2.data["result"]["skipped"] == 2
 
+    def _issue(self, key, assignee=None, comment_author=None, worklog_author=None):
+        issue = {
+            "key": key,
+            "fields": {
+                "summary": f"Issue {key}",
+                "status": {"name": "Todo"},
+                "priority": {"name": "Medium"},
+                "assignee": assignee,
+                "comment": {"comments": []},
+                "worklog": {"worklogs": []},
+            },
+        }
+        if comment_author is not None:
+            issue["fields"]["comment"]["comments"] = [
+                {"id": "9001", "author": comment_author, "body": {"type": "doc", "content": []}}
+            ]
+        if worklog_author is not None:
+            issue["fields"]["worklog"]["worklogs"] = [
+                {"author": worklog_author, "timeSpentSeconds": 3600, "started": "2026-06-20T09:00:00.000+0000"}
+            ]
+        return issue
+
+    def test_assignee_matched_by_display_name_when_email_missing(self, tt):
+        # Regression guard for the client-reported "many work items unassigned"
+        # bug: Jira Cloud commonly omits emailAddress from the API response for
+        # privacy reasons, so the old email-only matching left these unmapped
+        # even though the assignee is a real, active project member.
+        from plane.utils.jira_importer import run_import
+
+        full_name = f"{tt['user'].first_name} {tt['user'].last_name}"
+        issue = self._issue("NM-1", assignee={"displayName": full_name})
+        res = run_import(project=tt["project"], initiator=tt["user"], issues=[issue], dry_run=False)
+        assert res["unmapped_users"] == []
+        created = Issue.objects.get(project=tt["project"], external_source="jira", external_id="NM-1")
+        assert IssueAssignee.objects.filter(issue=created, assignee=tt["user"]).exists()
+
+    def test_assignee_unmapped_when_neither_email_nor_name_matches(self, tt):
+        from plane.utils.jira_importer import run_import
+
+        issue = self._issue("NM-2", assignee={"displayName": "Nobody Here", "emailAddress": "nobody@example.com"})
+        res = run_import(project=tt["project"], initiator=tt["user"], issues=[issue], dry_run=False)
+        assert res["unmapped_users"] == ["Nobody Here"]
+        created = Issue.objects.get(project=tt["project"], external_source="jira", external_id="NM-2")
+        assert not IssueAssignee.objects.filter(issue=created).exists()
+
+    def test_comment_and_worklog_author_fallback_is_now_surfaced_as_unmapped(self, tt):
+        # Comments/worklogs from an author we can't map still have to be
+        # attributed to *someone* (created_by_id can't be null), so they fall
+        # back to the initiator — but that fallback used to be completely
+        # silent. It's now counted in unmapped_users so an admin can tell how
+        # many entries were silently reattributed to them.
+        from plane.utils.jira_importer import run_import
+
+        stranger = {"displayName": "Stranger Danger", "emailAddress": "stranger@example.com"}
+        issue = self._issue("NM-3", comment_author=stranger, worklog_author=stranger)
+        res = run_import(
+            project=tt["project"], initiator=tt["user"], issues=[issue], dry_run=False, with_worklogs=True
+        )
+        assert res["unmapped_users"] == ["Stranger Danger"]
+        created = Issue.objects.get(project=tt["project"], external_source="jira", external_id="NM-3")
+        comment = IssueComment.objects.get(issue=created)
+        assert comment.actor == tt["user"]
+        worklog = IssueWorklog.objects.get(issue=created)
+        assert worklog.logged_by == tt["user"]
+
 
 @pytest.mark.contract
 @pytest.mark.django_db
@@ -609,7 +676,7 @@ class TestAttachmentImport:
         asset_id = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, cache,
+            ("e@x.com", "tok"), {}, {}, cache,
         )
         assert asset_id is not None
         fa = FileAsset.objects.get(id=asset_id)
@@ -631,7 +698,7 @@ class TestAttachmentImport:
         reused_id = _upload_body_image(
             att, FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
             {"comment_id": comment.id, "issue_id": tt["issue"].id},
-            tt["project"], tt["user"], ("e@x.com", "tok"), {}, cache,
+            tt["project"], tt["user"], ("e@x.com", "tok"), {}, {}, cache,
         )
         assert reused_id is not None and reused_id != asset_id
         # Re-seek worked: the second upload read the full body, not empty bytes.
@@ -651,7 +718,7 @@ class TestAttachmentImport:
         result = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, cache,
+            ("e@x.com", "tok"), {}, {}, cache,
         )
         assert result is None
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
@@ -681,7 +748,7 @@ class TestAttachmentImport:
         result = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, cache,
+            ("e@x.com", "tok"), {}, {}, cache,
         )
         assert result is None
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0

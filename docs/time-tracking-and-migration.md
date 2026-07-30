@@ -137,7 +137,15 @@ Mapping:
 
 - Jira **status → Plane state** (fuzzy match by name; unmapped → the project's
   default state, and reported as a warning).
-- Jira **user → member** by email (unmapped assignees fall back to the initiator).
+- Jira **user → member**: matched by **email** first, falling back to an exact
+  (case-insensitive) match on the member's **display name** or **full name**
+  when Jira doesn't return an email — which is the common case, not the
+  exception: Jira Cloud hides `emailAddress` from the REST API unless the
+  requester is an org admin or the user opted into public visibility.
+  Unmapped **assignees** are left unassigned (reported as a warning); unmapped
+  **comment/worklog authors** fall back to attributing the entry to the
+  initiator (also reported as a warning, so an admin can tell how many
+  entries were reattributed instead of it being silent).
 - **Priority** and **labels** (labels are created if missing).
 
 There are **two ways** to import: over the **Jira REST API** (richest fidelity)
