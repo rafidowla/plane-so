@@ -5,6 +5,7 @@
 # Python imports
 import csv
 import math
+import uuid
 from datetime import datetime
 
 # Django imports
@@ -105,6 +106,43 @@ class TimeReportEndpoint(BaseAPIView):
     task) breakdown table after the summary table (see _resource_task_breakdown).
     """
 
+    def _validate_query_params(self, request):
+        """Return an error string if a query param is malformed, else None.
+
+        Before this check existed, a bad value here (an invalid date, a
+        non-UUID id) reached the ORM's .filter() call directly and raised a
+        bare django.core.exceptions.ValidationError. DRF's exception_handler
+        only translates Http404/PermissionDenied — anything else falls
+        through and Django returns an unhandled 500, not a clean 400.
+        """
+        for field in ("start_date", "end_date"):
+            value = request.GET.get(field)
+            if value:
+                try:
+                    datetime.strptime(value, "%Y-%m-%d")
+                except ValueError:
+                    return f"{field} must be a valid date in YYYY-MM-DD format."
+
+        for field in ("project_ids", "user_ids"):
+            value = request.GET.get(field)
+            if value:
+                for token in (t.strip() for t in value.split(",")):
+                    if not token:
+                        continue
+                    try:
+                        uuid.UUID(token)
+                    except (ValueError, AttributeError, TypeError):
+                        return f"{field} must be a comma-separated list of valid UUIDs."
+
+        client_id = request.GET.get("client_id")
+        if client_id:
+            try:
+                uuid.UUID(client_id)
+            except (ValueError, AttributeError, TypeError):
+                return "client_id must be a valid UUID."
+
+        return None
+
     def _filtered_worklogs(self, slug, request):
         qs = IssueWorklog.objects.filter(workspace__slug=slug)
         start_date = request.GET.get("start_date")
@@ -119,11 +157,11 @@ class TimeReportEndpoint(BaseAPIView):
         if end_date:
             qs = qs.filter(logged_date__lte=end_date)
         if project_ids:
-            qs = qs.filter(project_id__in=[p for p in project_ids.split(",") if p])
+            qs = qs.filter(project_id__in=[p.strip() for p in project_ids.split(",") if p.strip()])
         if client_id:
             qs = qs.filter(project__client_id=client_id)
         if user_ids:
-            qs = qs.filter(logged_by_id__in=[u for u in user_ids.split(",") if u])
+            qs = qs.filter(logged_by_id__in=[u.strip() for u in user_ids.split(",") if u.strip()])
         if billable in ("true", "false"):
             qs = qs.filter(is_billable=(billable == "true"))
         return qs, start_date, end_date
@@ -258,6 +296,9 @@ class TimeReportEndpoint(BaseAPIView):
                 {"error": f"group_by must be one of {', '.join(GROUP_BY_MAP)}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        param_error = self._validate_query_params(request)
+        if param_error:
+            return Response({"error": param_error}, status=status.HTTP_400_BAD_REQUEST)
         qs, start_date, end_date = self._filtered_worklogs(slug, request)
         is_admin = is_workspace_admin(slug, request.user)
 

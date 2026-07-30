@@ -334,6 +334,34 @@ class TestReport:
         for key in ("resource", "project", "client", "issue"):
             assert key in r.data["error"]
 
+    def test_report_malformed_query_params_return_400_not_500(self, session_client, tt):
+        # Regression guard: these used to reach the ORM's .filter() directly and
+        # raise a bare django.core.exceptions.ValidationError, which DRF's
+        # exception_handler doesn't translate — an unhandled 500 instead of a
+        # clean 400.
+        slug = tt["workspace"].slug
+        cases = [
+            "start_date=not-a-date",
+            "end_date=2026-13-45",  # matches YYYY-MM-DD shape but not a real date
+            "user_ids=not-a-uuid",
+            "project_ids=not-a-uuid,also-bad",
+            "client_id=not-a-uuid",
+        ]
+        for qs in cases:
+            r = session_client.get(f"/api/workspaces/{slug}/time-report/?{qs}")
+            assert r.status_code == status.HTTP_400_BAD_REQUEST, f"{qs} -> {r.status_code}"
+            assert "error" in r.data
+
+    def test_report_whitespace_only_id_token_ignored(self, session_client, tt):
+        # A bare space between commas used to survive the old `if u` filter
+        # (only empty strings were dropped, not whitespace) and hit the same
+        # invalid-UUID crash. Stripped tokens must be dropped like empty ones.
+        slug, pid, iid = _ids(tt)
+        self._seed(session_client, tt)
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource&user_ids=%20,{tt['user'].id}")
+        assert r.status_code == status.HTTP_200_OK
+        assert r.data["totals"]["total_minutes"] == 120
+
     def test_report_csv_export(self, session_client, tt):
         # Regression guard: "format" is DRF's reserved content-negotiation query
         # param — "?format=csv" 404s before this view's own get() ever runs, since
@@ -625,6 +653,32 @@ class TestJiraImport:
         assert res["unmapped_users"] == [full_name]
         created = Issue.objects.get(project=tt["project"], external_source="jira", external_id="NM-4")
         assert not IssueAssignee.objects.filter(issue=created, assignee=outsider).exists()
+
+    def test_assignee_name_match_ambiguous_when_two_members_share_a_name(self, tt):
+        # Two project members can share a display name (two "John Smith"s
+        # isn't exotic) — silently picking whichever one the map-building
+        # loop saw last would misattribute that person's Jira history (and
+        # worklogs, which feed the billing report) to a real but wrong
+        # person, with nothing surfaced. A colliding name must resolve to
+        # neither member and show up as unmapped instead of guessing.
+        from plane.utils.jira_importer import run_import
+
+        shared_name = "John Smith"
+        first, last = shared_name.split(" ")
+        john1 = User.objects.create(email="john1@plane.so", username="john1", first_name=first, last_name=last)
+        john2 = User.objects.create(email="john2@plane.so", username="john2", first_name=first, last_name=last)
+        for u in (john1, john2):
+            u.set_password("x")
+            u.save()
+            ProjectMember.objects.create(
+                project=tt["project"], workspace=tt["workspace"], member=u, role=15, is_active=True
+            )
+
+        issue = self._issue("NM-5", assignee={"displayName": shared_name})
+        res = run_import(project=tt["project"], initiator=tt["user"], issues=[issue], dry_run=False)
+        assert res["unmapped_users"] == [shared_name]
+        created = Issue.objects.get(project=tt["project"], external_source="jira", external_id="NM-5")
+        assert not IssueAssignee.objects.filter(issue=created, assignee__in=[john1, john2]).exists()
 
     def test_comment_and_worklog_author_fallback_is_now_surfaced_as_unmapped(self, tt):
         # Comments/worklogs from an author we can't map still have to be

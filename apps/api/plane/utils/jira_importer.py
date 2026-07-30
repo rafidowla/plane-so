@@ -207,12 +207,26 @@ def build_maps(project):
     # so a workspace-wide name match would let a project admin attribute
     # fabricated comments/worklogs to any workspace member, including ones
     # who have nothing to do with this project.
+    # Two project members can share a display name (two "John Smith"s isn't
+    # exotic) — silently keeping whichever one the loop happened to see last
+    # would misattribute that person's Jira history (and worklogs, which feed
+    # the billing report) to a real but wrong person, with nothing surfaced
+    # anywhere. Track any name that resolves to more than one distinct member
+    # and drop it from the map entirely rather than guessing — resolve_member
+    # then treats it as no match, same as any other unmapped name.
     member_by_name = {}
+    ambiguous_names = set()
     for pm in ProjectMember.objects.filter(project=project, is_active=True).select_related("member"):
         m = pm.member
         for k in {(m.display_name or "").lower(), f"{m.first_name} {m.last_name}".strip().lower()}:
-            if k:
+            if not k:
+                continue
+            if k in member_by_name and member_by_name[k].id != m.id:
+                ambiguous_names.add(k)
+            else:
                 member_by_name[k] = m
+    for k in ambiguous_names:
+        member_by_name.pop(k, None)
     return state_map, default_state, member_map, member_by_name
 
 
