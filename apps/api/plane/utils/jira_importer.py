@@ -188,17 +188,28 @@ def build_maps(project):
         if st.default:
             default_state = st
     member_map = {}
+    for wm in WorkspaceMember.objects.filter(workspace=project.workspace, is_active=True).select_related("member"):
+        if wm.member.email:
+            member_map[wm.member.email.lower()] = wm.member
+
     # Display-name fallback for when Jira doesn't return an emailAddress (Jira
     # Cloud hides it from the REST API unless the requester is an org admin or
     # the target user opted into public visibility — the common case, not the
     # exception). Same matching keys the CSV importer already uses
     # (jira_csv_importer._build_maps): exact, case-insensitive display_name or
     # "first_name last_name".
+    #
+    # Deliberately scoped to this PROJECT's members, not the whole workspace
+    # (unlike the email map above, which is a precise match and predates this
+    # fallback). Display names are far easier for the project admin running
+    # the import to already know or guess than someone else's email, and an
+    # import only requires project-admin trust, not workspace-owner trust —
+    # so a workspace-wide name match would let a project admin attribute
+    # fabricated comments/worklogs to any workspace member, including ones
+    # who have nothing to do with this project.
     member_by_name = {}
-    for wm in WorkspaceMember.objects.filter(workspace=project.workspace, is_active=True).select_related("member"):
-        m = wm.member
-        if m.email:
-            member_map[m.email.lower()] = m
+    for pm in ProjectMember.objects.filter(project=project, is_active=True).select_related("member"):
+        m = pm.member
         for k in {(m.display_name or "").lower(), f"{m.first_name} {m.last_name}".strip().lower()}:
             if k:
                 member_by_name[k] = m

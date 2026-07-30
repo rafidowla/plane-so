@@ -607,6 +607,25 @@ class TestJiraImport:
         created = Issue.objects.get(project=tt["project"], external_source="jira", external_id="NM-2")
         assert not IssueAssignee.objects.filter(issue=created).exists()
 
+    def test_assignee_name_match_scoped_to_project_not_whole_workspace(self, tt):
+        # Security guard: the display-name fallback only requires project-
+        # admin trust to trigger (that's the whole jira-import permission),
+        # not workspace-owner trust. If it matched against ANY workspace
+        # member, a project admin could attribute fabricated Jira content to
+        # a real person who has nothing to do with this project just by
+        # knowing their display name. It must only match this project's own
+        # members — a workspace member who isn't on the project must stay
+        # unmapped even with an exact display-name hit.
+        from plane.utils.jira_importer import run_import
+
+        outsider = _ws_member(tt["workspace"], role=15)
+        full_name = f"{outsider.first_name} {outsider.last_name}"
+        issue = self._issue("NM-4", assignee={"displayName": full_name})
+        res = run_import(project=tt["project"], initiator=tt["user"], issues=[issue], dry_run=False)
+        assert res["unmapped_users"] == [full_name]
+        created = Issue.objects.get(project=tt["project"], external_source="jira", external_id="NM-4")
+        assert not IssueAssignee.objects.filter(issue=created, assignee=outsider).exists()
+
     def test_comment_and_worklog_author_fallback_is_now_surfaced_as_unmapped(self, tt):
         # Comments/worklogs from an author we can't map still have to be
         # attributed to *someone* (created_by_id can't be null), so they fall

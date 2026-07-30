@@ -141,11 +141,17 @@ Mapping:
 
 - Jira **status → Plane state** (fuzzy match by name; unmapped → the project's
   default state, and reported as a warning).
-- Jira **user → member**: matched by **email** first, falling back to an exact
-  (case-insensitive) match on the member's **display name** or **full name**
-  when Jira doesn't return an email — which is the common case, not the
-  exception: Jira Cloud hides `emailAddress` from the REST API unless the
-  requester is an org admin or the user opted into public visibility.
+- Jira **user → member**: matched by **email** first (against any active
+  workspace member), falling back to an exact (case-insensitive) match on
+  **display name** or **full name** — scoped to this **project's own
+  members only** — when Jira doesn't return an email, which is the common
+  case, not the exception: Jira Cloud hides `emailAddress` from the REST API
+  unless the requester is an org admin or the user opted into public
+  visibility. The name fallback is deliberately project-scoped rather than
+  workspace-wide: running an import only requires project-admin trust, so a
+  workspace-wide name match would let a project admin attribute fabricated
+  comments/worklogs to any workspace member just by knowing their display
+  name, not only people who actually belong to this project.
   Unmapped **assignees** are left unassigned (reported as a warning); unmapped
   **comment/worklog authors** fall back to attributing the entry to the
   initiator (also reported as a warning, so an admin can tell how many
