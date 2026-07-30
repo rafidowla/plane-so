@@ -5,6 +5,7 @@
 """Contract tests for the time-tracking, clients, timesheets, reporting and
 self-service Jira import endpoints added by this fork."""
 
+import csv
 import uuid
 
 import pytest
@@ -346,6 +347,45 @@ class TestReport:
         body = r.content.decode()
         assert "Resource" in body
         assert tt["user"].display_name in body
+
+    def test_report_csv_export_by_resource_includes_task_breakdown(self, session_client, tt):
+        # Client-reported gap: the "By resource" export only ever had the
+        # summary row per person, never the per-task detail the UI shows when
+        # a resource row is expanded. The CSV now appends a second table.
+        slug, pid, iid = _ids(tt)
+        issue2 = self._second_issue(tt)
+        session_client.post(_wl_url(slug, pid, iid), {"duration": 90, "logged_date": "2026-06-22"}, format="json")
+        session_client.post(
+            _wl_url(slug, pid, str(issue2.id)), {"duration": 45, "logged_date": "2026-06-23"}, format="json"
+        )
+
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource&export=csv")
+        assert r.status_code == status.HTTP_200_OK
+        rows = list(csv.reader(r.content.decode().splitlines()))
+
+        tt["issue"].refresh_from_db()
+        issue2.refresh_from_db()
+        expected_names = {
+            f"TTP-{tt['issue'].sequence_id} Issue 1",
+            f"TTP-{issue2.sequence_id} Issue 2",
+        }
+        # A blank separator row, then a second header, then the task rows.
+        blank_idx = rows.index([])
+        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Billable (h)", "Entries"]
+        task_rows = rows[blank_idx + 2 :]
+        assert {r[1] for r in task_rows} == expected_names
+        assert all(r[0] == tt["user"].display_name for r in task_rows)
+
+    def test_report_csv_export_by_task_has_no_second_table(self, session_client, tt):
+        # The extra breakdown table is specific to group_by=resource — the
+        # By-task export is already task-level, so it must not gain a
+        # redundant second section.
+        slug, pid, iid = _ids(tt)
+        self._seed(session_client, tt)
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=issue&export=csv")
+        assert r.status_code == status.HTTP_200_OK
+        rows = list(csv.reader(r.content.decode().splitlines()))
+        assert [] not in rows
 
     def test_report_issue_grouping_scoped_to_visible_projects(self, session_client, tt):
         # A workspace MEMBER who is not a member of the test project must not

@@ -125,6 +125,10 @@ Per-resource weekly capacity and rates are stored in `ResourceCapacity`
   resource/project/client names the other groupings expose to every workspace
   member.
 - Date-range filter and **Export CSV** (server-rendered, respects all filters).
+- The **By resource** CSV export additionally appends a second table — a flat
+  per-(resource, task) breakdown, so the export isn't limited to whichever
+  row you happened to expand on screen. **By task**'s own export stays a
+  single table (it's already task-level).
 
 ---
 

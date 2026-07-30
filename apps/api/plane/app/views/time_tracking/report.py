@@ -81,6 +81,9 @@ class TimeReportEndpoint(BaseAPIView):
     It's also scoped to the caller's visible projects unless they're a
     workspace admin, since work-item titles are project content, unlike the
     workspace-level resource/project/client metadata the other groupings use.
+
+    The group_by=resource CSV export additionally appends a per-(resource,
+    task) breakdown table after the summary table (see _resource_task_breakdown).
     """
 
     def _filtered_worklogs(self, slug, request):
@@ -145,6 +148,51 @@ class TimeReportEndpoint(BaseAPIView):
                 group.update(extras_fn(r))
             groups.append(group)
         return groups, truncated
+
+    def _resource_task_breakdown(self, qs):
+        """Per-(resource, task) rows for the "By resource" CSV export.
+
+        The UI's per-resource expand-row already shows this (task-breakdown.tsx,
+        scoped to one resource at a time via user_ids); this mirrors the same
+        data for every resource at once, flattened into one export so it isn't
+        limited to whichever row a user happened to expand on screen.
+        """
+        rows = (
+            qs.values(
+                "logged_by",
+                "logged_by__display_name",
+                "issue",
+                "issue__name",
+                "issue__sequence_id",
+                "project__identifier",
+                "project__name",
+            )
+            .annotate(
+                total_minutes=Coalesce(Sum("duration"), 0),
+                billable_minutes=Coalesce(Sum("duration", filter=Q(is_billable=True)), 0),
+                entry_count=Count("id"),
+            )
+            .order_by("logged_by__display_name", "-total_minutes")
+        )
+        breakdown = []
+        for r in rows:
+            ident, seq = r.get("project__identifier"), r.get("issue__sequence_id")
+            name = (
+                f"{ident}-{seq} {r.get('issue__name') or ''}".strip()
+                if ident and seq
+                else (r.get("issue__name") or "Untitled")
+            )
+            breakdown.append(
+                {
+                    "resource_name": r.get("logged_by__display_name") or "Unassigned",
+                    "task_name": name,
+                    "project_name": r.get("project__name") or "",
+                    "total_minutes": r["total_minutes"],
+                    "billable_minutes": r["billable_minutes"],
+                    "entry_count": r["entry_count"],
+                }
+            )
+        return breakdown
 
     def _add_utilization(self, slug, groups, start_date, end_date):
         """For resource grouping, add expected minutes + utilization %."""
@@ -231,7 +279,12 @@ class TimeReportEndpoint(BaseAPIView):
         }
 
         if is_csv:
-            return self._csv_response(group_by, groups)
+            # "By resource" is the only export that also gets a task-level
+            # breakdown appended — it's the one place the UI itself offers a
+            # per-task drill-down (the expand-row), just not per-resource-at-a-
+            # time like the on-screen version.
+            task_breakdown = self._resource_task_breakdown(qs) if group_by == "resource" else None
+            return self._csv_response(group_by, groups, task_breakdown=task_breakdown)
 
         return Response(
             {
@@ -244,7 +297,7 @@ class TimeReportEndpoint(BaseAPIView):
             status=status.HTTP_200_OK,
         )
 
-    def _csv_response(self, group_by, groups):
+    def _csv_response(self, group_by, groups, task_breakdown=None):
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = f'attachment; filename="time-report-by-{group_by}.csv"'
         writer = csv.writer(response)
@@ -272,4 +325,22 @@ class TimeReportEndpoint(BaseAPIView):
             if group_by == "issue":
                 row.insert(1, g.get("project_name") or "")
             writer.writerow(row)
+
+        # Flat, not nested — CSV has no real concept of a sub-table, so this is
+        # a second header + row block in the same file rather than one row per
+        # resource with a further-indented table under it.
+        if task_breakdown is not None:
+            writer.writerow([])
+            writer.writerow(["Resource", "Task", "Project", "Total (h)", "Billable (h)", "Entries"])
+            for t in task_breakdown:
+                writer.writerow(
+                    [
+                        t["resource_name"],
+                        t["task_name"],
+                        t["project_name"],
+                        round(t["total_minutes"] / 60, 2),
+                        round(t["billable_minutes"] / 60, 2),
+                        t["entry_count"],
+                    ]
+                )
         return response
