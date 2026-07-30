@@ -348,6 +348,40 @@ class TestReport:
         assert "Resource" in body
         assert tt["user"].display_name in body
 
+    def test_report_csv_export_neutralizes_formula_injection(self, session_client, tt):
+        # Security guard ("CSV injection"): a person's display name is
+        # self-editable and ends up as a CSV cell verbatim in the "By resource"
+        # export. Excel/Sheets evaluate any cell starting with =, +, -, or @ as
+        # a formula on open, so a display name of "=HYPERLINK(...)" must not
+        # get evaluated when an admin opens the exported report.
+        slug, pid, iid = _ids(tt)
+        payload = '=HYPERLINK("http://evil.example/","x")'
+        attacker = User.objects.create(
+            email="attacker@plane.so", username="attacker", first_name="A", last_name="B", display_name=payload
+        )
+        attacker.set_password("x")
+        attacker.save()
+        ProjectMember.objects.create(
+            project=tt["project"], workspace=tt["workspace"], member=attacker, role=15, is_active=True
+        )
+        # On-behalf logging (admin/PM function) rather than the attacker logging
+        # their own time — manual entry is PM/admin-only; members self-track via
+        # the timer. Attributing the entry to the attacker via logged_by is all
+        # that's needed to get their display name into the export.
+        r = session_client.post(
+            _wl_url(slug, pid, iid),
+            {"duration": 30, "logged_date": "2026-06-22", "logged_by": str(attacker.id)},
+            format="json",
+        )
+        assert r.status_code == status.HTTP_201_CREATED
+
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource&export=csv")
+        assert r.status_code == status.HTTP_200_OK
+        rows = list(csv.reader(r.content.decode().splitlines()))
+        cells = [cell for row in rows for cell in row]
+        assert payload not in cells  # raw formula must never appear as a cell verbatim
+        assert f"'{payload}" in cells  # neutralized with a leading apostrophe
+
     def test_report_csv_export_by_resource_includes_task_breakdown(self, session_client, tt):
         # Client-reported gap: the "By resource" export only ever had the
         # summary row per person, never the per-task detail the UI shows when

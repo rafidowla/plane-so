@@ -30,6 +30,25 @@ from plane.app.views.time_tracking.timesheet import is_workspace_admin
 from plane.db.models import IssueWorklog, ProjectMember, ResourceCapacity
 
 
+_FORMULA_LEAD_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value):
+    """Neutralize spreadsheet formula injection ("CSV injection").
+
+    Every string cell here ultimately comes from user-editable content (issue
+    titles, display names, project/client names) — Excel/Sheets evaluates any
+    cell starting with =, +, -, or @ as a formula on open, which can range from
+    a DDE/RCE payload in older Excel to a data-exfiltrating =HYPERLINK(). A
+    leading apostrophe is the standard mitigation: every major spreadsheet app
+    then renders the cell as literal text instead of evaluating it.
+    """
+    text = str(value) if value is not None else ""
+    if text.startswith(_FORMULA_LEAD_CHARS):
+        return "'" + text
+    return text
+
+
 def _issue_extras(r):
     """Compose a disambiguated work-item label + the extra id/link fields the
     frontend needs. issue__name alone collides across (and within) projects."""
@@ -322,7 +341,7 @@ class TimeReportEndpoint(BaseAPIView):
         writer.writerow(header)
         for g in groups:
             row = [
-                g["name"],
+                _csv_safe(g["name"]),
                 round(g["total_minutes"] / 60, 2),
                 round(g["billable_minutes"] / 60, 2),
                 round(g["non_billable_minutes"] / 60, 2),
@@ -335,7 +354,7 @@ class TimeReportEndpoint(BaseAPIView):
                     g.get("utilization_pct") if g.get("utilization_pct") is not None else "",
                 ]
             if group_by == "issue":
-                row.insert(1, g.get("project_name") or "")
+                row.insert(1, _csv_safe(g.get("project_name") or ""))
             writer.writerow(row)
 
         # Flat, not nested — CSV has no real concept of a sub-table, so this is
@@ -347,9 +366,9 @@ class TimeReportEndpoint(BaseAPIView):
             for t in task_breakdown:
                 writer.writerow(
                     [
-                        t["resource_name"],
-                        t["task_name"],
-                        t["project_name"],
+                        _csv_safe(t["resource_name"]),
+                        _csv_safe(t["task_name"]),
+                        _csv_safe(t["project_name"]),
                         round(t["total_minutes"] / 60, 2),
                         round(t["billable_minutes"] / 60, 2),
                         t["entry_count"],
