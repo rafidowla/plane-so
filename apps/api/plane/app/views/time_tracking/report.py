@@ -219,6 +219,14 @@ class TimeReportEndpoint(BaseAPIView):
                 g["utilization_pct"] = None
         return groups
 
+    def _visible_project_ids(self, slug, user):
+        return ProjectMember.objects.filter(
+            workspace__slug=slug,
+            member=user,
+            is_active=True,
+            role__in=[ROLE.ADMIN.value, ROLE.MEMBER.value],
+        ).values_list("project_id", flat=True)
+
     # Billing reports expose resource names, emails, and dollar amounts aggregated
     # across the entire workspace (including projects the requester may not belong
     # to). That is internal business data, not "totals a client should see", so
@@ -232,6 +240,7 @@ class TimeReportEndpoint(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         qs, start_date, end_date = self._filtered_worklogs(slug, request)
+        is_admin = is_workspace_admin(slug, request.user)
 
         # Work item titles are project content, gated everywhere else in Plane by
         # ProjectMember — unlike resource/project/client names, which are
@@ -239,14 +248,8 @@ class TimeReportEndpoint(BaseAPIView):
         # comment above). A workspace MEMBER who isn't a member of project X must
         # not learn project X's task titles via group_by=issue. Scoped to `issue`
         # only so no other grouping's behavior/tests move.
-        if group_by == "issue" and not is_workspace_admin(slug, request.user):
-            visible_project_ids = ProjectMember.objects.filter(
-                workspace__slug=slug,
-                member=request.user,
-                is_active=True,
-                role__in=[ROLE.ADMIN.value, ROLE.MEMBER.value],
-            ).values_list("project_id", flat=True)
-            qs = qs.filter(project_id__in=visible_project_ids)
+        if group_by == "issue" and not is_admin:
+            qs = qs.filter(project_id__in=self._visible_project_ids(slug, request.user))
 
         # Not "format" — that's DRF's reserved content-negotiation query param
         # (DefaultContentNegotiation.select_renderer reads it before this view's
@@ -282,8 +285,17 @@ class TimeReportEndpoint(BaseAPIView):
             # "By resource" is the only export that also gets a task-level
             # breakdown appended — it's the one place the UI itself offers a
             # per-task drill-down (the expand-row), just not per-resource-at-a-
-            # time like the on-screen version.
-            task_breakdown = self._resource_task_breakdown(qs) if group_by == "resource" else None
+            # time like the on-screen version. It carries the same work-item-
+            # title exposure as group_by=issue (task names, not just resource
+            # totals), so it needs the identical visible-project scoping — `qs`
+            # itself must stay unscoped here since the resource summary/
+            # utilization above is legitimately workspace-wide.
+            task_breakdown = None
+            if group_by == "resource":
+                breakdown_qs = qs
+                if not is_admin:
+                    breakdown_qs = breakdown_qs.filter(project_id__in=self._visible_project_ids(slug, request.user))
+                task_breakdown = self._resource_task_breakdown(breakdown_qs)
             return self._csv_response(group_by, groups, task_breakdown=task_breakdown)
 
         return Response(

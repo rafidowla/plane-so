@@ -376,6 +376,28 @@ class TestReport:
         assert {r[1] for r in task_rows} == expected_names
         assert all(r[0] == tt["user"].display_name for r in task_rows)
 
+    def test_report_csv_export_by_resource_task_breakdown_scoped_to_visible_projects(self, session_client, tt):
+        # Regression guard: the task-breakdown table carries the same work-item
+        # title exposure as group_by=issue, so a workspace MEMBER who isn't a
+        # project member must not see task titles from it in the CSV, even
+        # though the resource summary table (workspace-level metadata) above
+        # it is correctly unaffected.
+        slug = tt["workspace"].slug
+        self._seed(session_client, tt)
+        outsider = _ws_member(tt["workspace"], role=15)
+        session_client.force_authenticate(user=outsider)
+
+        r = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource&export=csv")
+        assert r.status_code == status.HTTP_200_OK
+        rows = list(csv.reader(r.content.decode().splitlines()))
+
+        # Resource summary is still workspace-wide (unaffected).
+        assert any(tt["user"].display_name in row for row in rows[:2])
+        # But the appended task-breakdown table is empty: header present, no rows.
+        blank_idx = rows.index([])
+        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Billable (h)", "Entries"]
+        assert rows[blank_idx + 2 :] == []
+
     def test_report_csv_export_by_task_has_no_second_table(self, session_client, tt):
         # The extra breakdown table is specific to group_by=resource — the
         # By-task export is already task-level, so it must not gain a
