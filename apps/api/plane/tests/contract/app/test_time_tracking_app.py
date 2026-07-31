@@ -307,7 +307,9 @@ class TestReport:
         issue2 = self._second_issue(tt, name="Issue 2")
         issue3 = self._second_issue(tt, name="Issue 3")
         for issue_id in (iid, str(issue2.id), str(issue3.id)):
-            session_client.post(_wl_url(slug, pid, issue_id), {"duration": 60, "logged_date": "2026-06-22"}, format="json")
+            session_client.post(
+                _wl_url(slug, pid, issue_id), {"duration": 60, "logged_date": "2026-06-22"}, format="json"
+            )
 
         # The tiebreaker orders by the DB's own notion of ascending "issue"
         # (the same field _aggregate sorts by) - not Python's str() ordering,
@@ -766,7 +768,8 @@ class TestAttachmentImport:
         from plane.utils import jira_importer
 
         # Attachment downloads are streamed, so the double has to behave like a
-        # `with requests.get(..., stream=True)` response, not a buffered one.
+        # `with pinned_fetch_following_redirects(..., stream=True)` response,
+        # not a buffered one.
         class FakeResp:
             content = body
             status_code = 200
@@ -778,13 +781,18 @@ class TestAttachmentImport:
                 for i in range(0, len(body), chunk_size):
                     yield body[i : i + chunk_size]
 
+            def close(self):
+                return None
+
             def __enter__(self):
                 return self
 
             def __exit__(self, *exc):
                 return False
 
-        monkeypatch.setattr(jira_importer.requests, "get", lambda *a, **k: FakeResp())
+        monkeypatch.setattr(
+            jira_importer, "pinned_fetch_following_redirects", lambda method, url, **kwargs: (FakeResp(), url)
+        )
         monkeypatch.setattr(S3Storage, "upload_file", lambda self, f, key, content_type=None, extra_args={}: True)
 
     def test_attachment_migrated_and_idempotent(self, tt, monkeypatch):
@@ -795,6 +803,7 @@ class TestAttachmentImport:
         res = run_import(
             project=tt["project"], initiator=tt["user"], issues=[self._issue()],
             dry_run=False, with_attachments=True, jira_auth=("e@x.com", "tok"),
+            jira_url="https://acme.atlassian.net",
         )
         assert res["attachments_created"] == 1
         issue = Issue.objects.get(project=tt["project"], external_source="jira", external_id="ENG-500")
@@ -808,9 +817,37 @@ class TestAttachmentImport:
         res2 = run_import(
             project=tt["project"], initiator=tt["user"], issues=[self._issue()],
             dry_run=False, with_attachments=True, jira_auth=("e@x.com", "tok"),
+            jira_url="https://acme.atlassian.net",
         )
         assert res2["attachments_created"] == 0
         assert FileAsset.objects.filter(external_source="jira", external_id="att-1").count() == 1
+
+    def test_attachment_on_other_host_rejected(self, tt, monkeypatch):
+        """A Jira response is attacker-influenceable data, not a trusted URL - a
+        `content` URL pointing anywhere other than the configured Jira instance
+        (e.g. an internal address) must be refused, not fetched (SSRF)."""
+        from plane.db.models import FileAsset
+        from plane.utils.jira_importer import run_import
+
+        self._patch_io(monkeypatch)
+
+        def _fail_if_called(*a, **k):
+            raise AssertionError("a content URL on an unexpected host must never be fetched")
+
+        from plane.utils import jira_importer
+
+        monkeypatch.setattr(jira_importer, "pinned_fetch_following_redirects", _fail_if_called)
+
+        issue = self._issue(key="ENG-503")
+        issue["fields"]["attachment"][0]["content"] = "http://169.254.169.254/latest/meta-data/"
+        res = run_import(
+            project=tt["project"], initiator=tt["user"], issues=[issue],
+            dry_run=False, with_attachments=True, jira_auth=("e@x.com", "tok"),
+            jira_url="https://acme.atlassian.net",
+        )
+        assert res["attachments_created"] == 0
+        assert res["attachments_failed"] == 1
+        assert not FileAsset.objects.filter(external_source="jira", external_id="att-1").exists()
 
     def test_oversized_attachment_skipped(self, tt, monkeypatch):
         from django.conf import settings
@@ -822,6 +859,7 @@ class TestAttachmentImport:
             project=tt["project"], initiator=tt["user"],
             issues=[self._issue(key="ENG-501", size=settings.FILE_SIZE_LIMIT + 1)],
             dry_run=False, with_attachments=True, jira_auth=("e@x.com", "tok"),
+            jira_url="https://acme.atlassian.net",
         )
         assert res["attachments_created"] == 0
         assert res["attachments_skipped_size"] == 1
@@ -876,7 +914,7 @@ class TestAttachmentImport:
         asset_id = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, {}, cache,
+            ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
         )
         assert asset_id is not None
         fa = FileAsset.objects.get(id=asset_id)
@@ -886,11 +924,11 @@ class TestAttachmentImport:
         assert reads[0] == body
 
         # The same image reused in a comment must NOT re-download; the resolver
-        # would break if requests.get were hit again, so make that fatal.
+        # would break if the fetch were hit again, so make that fatal.
         def _no_more_downloads(*a, **k):
             raise AssertionError("cached inline image should not be re-downloaded")
 
-        monkeypatch.setattr(jira_importer.requests, "get", _no_more_downloads)
+        monkeypatch.setattr(jira_importer, "pinned_fetch_following_redirects", _no_more_downloads)
         comment = IssueComment.objects.create(
             issue=tt["issue"], project=tt["project"], workspace=tt["workspace"],
             comment_html="<p></p>", actor=tt["user"], created_by_id=tt["user"].id,
@@ -898,7 +936,7 @@ class TestAttachmentImport:
         reused_id = _upload_body_image(
             att, FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
             {"comment_id": comment.id, "issue_id": tt["issue"].id},
-            tt["project"], tt["user"], ("e@x.com", "tok"), {}, {}, cache,
+            tt["project"], tt["user"], ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
         )
         assert reused_id is not None and reused_id != asset_id
         # Re-seek worked: the second upload read the full body, not empty bytes.
@@ -918,7 +956,7 @@ class TestAttachmentImport:
         result = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, {}, cache,
+            ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
         )
         assert result is None
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
@@ -939,7 +977,7 @@ class TestAttachmentImport:
         def _no_downloads(*a, **k):
             raise AssertionError("denylisted mime type should be rejected before any download")
 
-        monkeypatch.setattr(jira_importer.requests, "get", _no_downloads)
+        monkeypatch.setattr(jira_importer, "pinned_fetch_following_redirects", _no_downloads)
 
         att = self._inline_att(aid="img-svg")
         att["mimeType"] = "image/svg+xml"
@@ -948,8 +986,51 @@ class TestAttachmentImport:
         result = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, {}, cache,
+            ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
         )
         assert result is None
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
         assert cache == {}
+
+    def test_download_attachment_rejects_mismatched_or_missing_allowed_host(self, monkeypatch):
+        """_download_attachment is the last line of defense against a Jira
+        response pointing its `content` URL somewhere other than the
+        configured instance (SSRF) - it must refuse before ever calling the
+        SSRF-safe fetch, both when the host doesn't match and when no
+        allowed_host was configured at all (e.g. jira_url missing)."""
+        from plane.utils import jira_importer
+        from plane.utils.jira_importer import _download_attachment
+
+        def _fail_if_called(*a, **k):
+            raise AssertionError("host-mismatched/unconfigured content URL must never be fetched")
+
+        monkeypatch.setattr(jira_importer, "pinned_fetch_following_redirects", _fail_if_called)
+
+        fileobj, size = _download_attachment(
+            "http://internal.corp/secret", ("e@x.com", "tok"), 1024, "acme.atlassian.net"
+        )
+        assert (fileobj, size) == (None, 0)
+
+        fileobj, size = _download_attachment(
+            "https://acme.atlassian.net/rest/api/3/attachment/content/att-1", ("e@x.com", "tok"), 1024, None
+        )
+        assert (fileobj, size) == (None, 0)
+
+    def test_download_attachment_rejects_dns_rebind_to_private_ip(self, monkeypatch):
+        """Even a `content` URL whose host DOES match the configured Jira
+        instance must be refused if that hostname now resolves to a private/
+        internal address (DNS rebinding) - the host-string check alone isn't
+        the defense, the underlying pinned_fetch_following_redirects call is."""
+        from unittest.mock import patch
+
+        from plane.utils.jira_importer import _download_attachment
+
+        with patch("plane.utils.ip_address.socket.getaddrinfo") as mock_dns:
+            mock_dns.return_value = [(None, None, None, None, ("10.0.0.5", 0))]
+            fileobj, size = _download_attachment(
+                "https://acme.atlassian.net/rest/api/3/attachment/content/att-1",
+                ("e@x.com", "tok"),
+                1024,
+                "acme.atlassian.net",
+            )
+        assert (fileobj, size) == (None, 0)

@@ -178,6 +178,12 @@ the CSV path cannot migrate attachments on its own. For deployment (S3/MinIO
 wiring) and a first-run test checklist, see the
 [attachment migration runbook](jira-attachments-runbook.md).
 
+Every attachment/inline-image download is restricted to the configured Jira
+instance's own host and fetched through the same SSRF-safe, redirect-re-validating
+client used elsewhere in the codebase (`plane.utils.url_security`) — a Jira
+response can't be used to make the import worker fetch an arbitrary internal or
+attacker-controlled URL.
+
 ### Self-service UI
 
 **Analytics → Imports** (workspace admins): pick the target Plane project, enter

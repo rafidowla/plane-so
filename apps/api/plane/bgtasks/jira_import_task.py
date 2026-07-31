@@ -46,6 +46,7 @@ def run_jira_import_task(
             preview_limit=0,
             with_attachments=with_attachments,
             jira_auth=(jira_email, jira_token) if with_attachments else None,
+            jira_url=jira_url if with_attachments else None,
         )
         JiraImportJob.objects.filter(id=job_id).update(
             status=JiraImportStatus.COMPLETED,

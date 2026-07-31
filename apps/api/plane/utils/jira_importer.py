@@ -10,6 +10,7 @@ REST and writes them through the ORM (so worklogs land in the time-tracking
 tables). Idempotent via Issue.external_id.
 """
 
+import base64
 import html as _html
 import math
 import os
@@ -42,6 +43,7 @@ from plane.db.models import (
 )
 from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
+from plane.utils.url_security import pinned_fetch_following_redirects
 
 PRIORITY_MAP = {
     "highest": "urgent",
@@ -264,7 +266,18 @@ def is_project_admin(project, user):
     ).exists()
 
 
-def _download_attachment(content_url, jira_auth, max_bytes):
+def _basic_auth_header(jira_auth):
+    """Build a Basic-Auth header from the (email, token) tuple used elsewhere
+    as `requests`' `auth=`. pinned_fetch's own `auth` kwarg is reserved for
+    credentials embedded in the URL itself, so it can't be reused here."""
+    if not jira_auth:
+        return {}
+    email, token = jira_auth
+    creds = base64.b64encode(f"{email}:{token}".encode()).decode()
+    return {"Authorization": f"Basic {creds}"}
+
+
+def _download_attachment(content_url, jira_auth, max_bytes, allowed_host):
     """Stream a Jira attachment to a temp file (spilling to disk past 8 MB).
 
     Large files (e.g. screen recordings) must not be buffered whole in memory —
@@ -272,14 +285,31 @@ def _download_attachment(content_url, jira_auth, max_bytes):
     read timeout also scales with the file so a big download isn't cut off
     mid-transfer on a slow link.
 
+    `content_url` comes straight out of a Jira API response - a Jira instance
+    that's compromised, misconfigured, or simply malicious could point it
+    anywhere, including at internal-network addresses (SSRF). Restrict it to
+    the same host as the configured Jira instance (`allowed_host`), and fetch
+    through `pinned_fetch_following_redirects` so a same-host redirect can't
+    be re-pointed at an internal IP either.
+
     Returns (fileobj, size) on success, ("too_large", size) if it exceeds
-    max_bytes, or (None, 0) on a network/HTTP failure.
+    max_bytes, or (None, 0) on a blocked host, network, or HTTP failure.
     """
+    hostname = (urlparse(content_url).hostname or "").rstrip(".").lower()
+    if not allowed_host or hostname != allowed_host:
+        return None, 0
     # 60s to connect; read timeout is per-chunk, so a slow-but-alive transfer
     # keeps going. Tunable for very slow Jira instances.
     read_timeout = int(os.environ.get("JIRA_ATTACHMENT_READ_TIMEOUT", 300))
     try:
-        with requests.get(content_url, auth=jira_auth, timeout=(60, read_timeout), stream=True) as resp:
+        resp, _ = pinned_fetch_following_redirects(
+            "GET",
+            content_url,
+            headers=_basic_auth_header(jira_auth),
+            timeout=(60, read_timeout),
+            stream=True,
+        )
+        with resp:
             resp.raise_for_status()
             tmp = SpooledTemporaryFile(max_size=8 * 1024 * 1024)
             size = 0
@@ -293,11 +323,13 @@ def _download_attachment(content_url, jira_auth, max_bytes):
                 tmp.write(chunk)
             tmp.seek(0)
             return tmp, size
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return None, 0
 
 
-def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name):
+def migrate_attachments(
+    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name, allowed_host
+):
     """Download each Jira attachment and store it as a Plane FileAsset.
 
     Bytes are streamed from Jira's authenticated `content` URL straight into the
@@ -321,7 +353,7 @@ def migrate_attachments(issue, jira_attachments, project, initiator, jira_auth, 
         if int(att.get("size") or 0) > settings.FILE_SIZE_LIMIT:
             counts["skipped_size"] += 1
             continue
-        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT)
+        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT, allowed_host)
         if fileobj == "too_large":
             counts["skipped_size"] += 1
             continue
@@ -417,7 +449,9 @@ def _attachment_link_html(att, asset):
     return f'<p><a href="{_html.escape(str(url), quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a></p>'
 
 
-def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_auth, member_map, member_by_name, cache):
+def _upload_body_image(
+    att, entity_type, link_kwargs, project, initiator, jira_auth, member_map, member_by_name, cache, allowed_host
+):
     """Download a Jira image attachment and store it as an ISSUE_DESCRIPTION /
     COMMENT_DESCRIPTION FileAsset. Returns the new asset id (str) or None.
     Idempotent per (entity_type, attachment id) so re-imports don't duplicate."""
@@ -451,7 +485,7 @@ def _upload_body_image(att, entity_type, link_kwargs, project, initiator, jira_a
     if cached is not None:
         fileobj, size = cached
     else:
-        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT)
+        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT, allowed_host)
         if fileobj == "too_large" or fileobj is None:
             return None
         if cache is not None:
@@ -533,6 +567,7 @@ def run_import(
     preview_limit=25,
     with_attachments=False,
     jira_auth=None,
+    jira_url=None,
 ):
     """Process Jira issues into Plane. Returns a result dict.
 
@@ -540,12 +575,18 @@ def run_import(
     nothing is written; a per-issue `preview` (capped at preview_limit) and the
     same aggregate counts are returned. `progress(processed, total)` is called
     after each issue for background-job status updates.
+
+    `jira_url` (required whenever `with_attachments` is set) pins attachment/
+    inline-image downloads to that instance's own host - see
+    `_download_attachment` for why.
     """
     total = len(issues)
     created = skipped = comments_n = worklogs_n = attachments_n = 0
     att_totals = {"created": 0, "skipped_size": 0, "skipped_existing": 0, "failed": 0}
     unmapped_states, unmapped_users = set(), set()
     preview = []
+
+    allowed_host = (urlparse(normalize_jira_base(jira_url)).hostname or "").rstrip(".").lower() or None
 
     state_map, default_state, member_map, member_by_name = build_maps(project)
 
@@ -625,7 +666,7 @@ def run_import(
             attachment_assets = {}
             if can_embed and jira_attachments:
                 c = migrate_attachments(
-                    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name
+                    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name, allowed_host
                 )
                 for k in att_totals:
                     att_totals[k] += c[k]
@@ -658,6 +699,7 @@ def run_import(
                         member_map,
                         member_by_name,
                         dl_cache,
+                        allowed_host,
                     ),
                     attachment_assets,
                 )
@@ -711,6 +753,7 @@ def run_import(
                             member_map,
                             member_by_name,
                             dl_cache,
+                            allowed_host,
                         ),
                         attachment_assets,
                     )
