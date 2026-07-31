@@ -914,7 +914,7 @@ class TestAttachmentImport:
         asset_id = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
+            ("e@x.com", "tok"), {}, {}, cache, ("https", "acme.atlassian.net"),
         )
         assert asset_id is not None
         fa = FileAsset.objects.get(id=asset_id)
@@ -936,7 +936,7 @@ class TestAttachmentImport:
         reused_id = _upload_body_image(
             att, FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
             {"comment_id": comment.id, "issue_id": tt["issue"].id},
-            tt["project"], tt["user"], ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
+            tt["project"], tt["user"], ("e@x.com", "tok"), {}, {}, cache, ("https", "acme.atlassian.net"),
         )
         assert reused_id is not None and reused_id != asset_id
         # Re-seek worked: the second upload read the full body, not empty bytes.
@@ -956,7 +956,7 @@ class TestAttachmentImport:
         result = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
+            ("e@x.com", "tok"), {}, {}, cache, ("https", "acme.atlassian.net"),
         )
         assert result is None
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
@@ -1018,7 +1018,7 @@ class TestAttachmentImport:
         result = _upload_body_image(
             att, FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
             {"issue_id": tt["issue"].id}, tt["project"], tt["user"],
-            ("e@x.com", "tok"), {}, {}, cache, "acme.atlassian.net",
+            ("e@x.com", "tok"), {}, {}, cache, ("https", "acme.atlassian.net"),
         )
         assert result is None
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
@@ -1029,7 +1029,7 @@ class TestAttachmentImport:
         response pointing its `content` URL somewhere other than the
         configured instance (SSRF) - it must refuse before ever calling the
         SSRF-safe fetch, both when the host doesn't match and when no
-        allowed_host was configured at all (e.g. jira_url missing)."""
+        allowed_origin was configured at all (e.g. jira_url missing)."""
         from plane.utils import jira_importer
         from plane.utils.jira_importer import _download_attachment
 
@@ -1039,7 +1039,7 @@ class TestAttachmentImport:
         monkeypatch.setattr(jira_importer, "pinned_fetch_following_redirects", _fail_if_called)
 
         fileobj, size = _download_attachment(
-            "http://internal.corp/secret", ("e@x.com", "tok"), 1024, "acme.atlassian.net"
+            "http://internal.corp/secret", ("e@x.com", "tok"), 1024, ("https", "acme.atlassian.net")
         )
         assert (fileobj, size) == (None, 0)
 
@@ -1048,21 +1048,105 @@ class TestAttachmentImport:
         )
         assert (fileobj, size) == (None, 0)
 
-    def test_download_attachment_rejects_dns_rebind_to_private_ip(self, monkeypatch):
-        """Even a `content` URL whose host DOES match the configured Jira
-        instance must be refused if that hostname now resolves to a private/
-        internal address (DNS rebinding) - the host-string check alone isn't
-        the defense, the underlying pinned_fetch_following_redirects call is."""
+    def test_download_attachment_rejects_scheme_downgrade_on_matching_host(self, monkeypatch):
+        """A `content` URL on the RIGHT host but the WRONG scheme (http instead
+        of the configured https) must still be refused - the Basic-Auth header
+        would otherwise go out in cleartext to a host that merely looks right."""
+        from plane.utils import jira_importer
+        from plane.utils.jira_importer import _download_attachment
+
+        def _fail_if_called(*a, **k):
+            raise AssertionError("scheme-downgraded content URL must never be fetched")
+
+        monkeypatch.setattr(jira_importer, "pinned_fetch_following_redirects", _fail_if_called)
+
+        fileobj, size = _download_attachment(
+            "http://acme.atlassian.net/rest/api/3/attachment/content/att-1",
+            ("e@x.com", "tok"),
+            1024,
+            ("https", "acme.atlassian.net"),
+        )
+        assert (fileobj, size) == (None, 0)
+
+    def test_download_attachment_allows_configured_host_on_private_ip(self, monkeypatch):
+        """A self-hosted Jira instance living on the same internal network as
+        Plane (a private IP) is a legitimate, common deployment - the download
+        must succeed for the one exact, admin-configured host even when it
+        resolves privately. This host is admin-trusted config, not
+        attacker-controlled data, unlike everything else in _download_attachment
+        that IS attacker-influenceable (the content_url path/query, mimeType,
+        reported size, etc)."""
         from unittest.mock import patch
 
+        from plane.settings.storage import S3Storage
         from plane.utils.jira_importer import _download_attachment
+
+        body = b"on-prem-bytes"
+
+        class FakeResp:
+            status_code = 200
+
+            def raise_for_status(self):
+                return None
+
+            def iter_content(self, chunk_size=1024 * 1024):
+                yield body
+
+            def close(self):
+                return None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        monkeypatch.setattr(
+            "plane.utils.url_security.requests.Session.request", lambda self, *a, **k: FakeResp()
+        )
+        monkeypatch.setattr(S3Storage, "upload_file", lambda self, f, key, content_type=None, extra_args={}: True)
 
         with patch("plane.utils.ip_address.socket.getaddrinfo") as mock_dns:
             mock_dns.return_value = [(None, None, None, None, ("10.0.0.5", 0))]
             fileobj, size = _download_attachment(
-                "https://acme.atlassian.net/rest/api/3/attachment/content/att-1",
+                "https://jira.internal.corp/rest/api/3/attachment/content/att-1",
                 ("e@x.com", "tok"),
                 1024,
-                "acme.atlassian.net",
+                ("https", "jira.internal.corp"),
+            )
+        assert size == len(body)
+        assert fileobj is not None
+
+    def test_download_attachment_blocks_redirect_off_the_allowlisted_host(self, monkeypatch):
+        """The private-IP bypass only covers the one exact configured host - a
+        redirect from it to a DIFFERENT private-IP host must still be blocked,
+        so the on-prem allowance can't be used as a springboard to anywhere
+        else on the internal network."""
+        from unittest.mock import MagicMock, patch
+
+        from plane.utils.jira_importer import _download_attachment
+
+        # `url` here is already rewritten to the pinned IP literal (the whole
+        # point of pinning), so the two hops can't be told apart by hostname -
+        # distinguish by path instead, which pinning leaves untouched.
+        def _fake_request(self, method, url, **kwargs):
+            resp = MagicMock()
+            if url.endswith("/secret"):
+                resp.status_code = 200
+                resp.headers = {}
+            else:
+                resp.status_code = 302
+                resp.headers = {"Location": "https://other-internal-host/secret"}
+            return resp
+
+        monkeypatch.setattr("plane.utils.url_security.requests.Session.request", _fake_request)
+
+        with patch("plane.utils.ip_address.socket.getaddrinfo") as mock_dns:
+            mock_dns.return_value = [(None, None, None, None, ("10.0.0.5", 0))]
+            fileobj, size = _download_attachment(
+                "https://jira.internal.corp/rest/api/3/attachment/content/att-1",
+                ("e@x.com", "tok"),
+                1024,
+                ("https", "jira.internal.corp"),
             )
         assert (fileobj, size) == (None, 0)

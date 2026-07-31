@@ -294,6 +294,51 @@ class TestPinnedFetchRedirects:
                 "GET", "https://example.com/start", max_redirects=3
             )
 
+    @patch("plane.utils.url_security.requests.Session")
+    @patch("plane.utils.url_security.resolve_and_validate")
+    def test_strips_authorization_on_cross_host_redirect(self, mock_resolve, mock_session_cls):
+        """A caller-supplied Authorization/Cookie header is scoped to the host
+        that was actually requested. Redirects here are followed manually (not
+        by `requests` itself), so `requests`' own default of dropping auth
+        headers on a host change doesn't happen automatically - it must be
+        done explicitly, or credentials meant for host A leak to host B."""
+        mock_resolve.return_value = ["93.184.216.34"]
+        session = mock_session_cls.return_value
+        session.request.side_effect = [
+            _resp(302, headers={"Location": "https://other.com/page"}),
+            _resp(200),
+        ]
+
+        pinned_fetch_following_redirects(
+            "GET", "https://example.com/a",
+            headers={"Authorization": "Basic secret", "Cookie": "s=1", "Accept": "application/json"},
+        )
+
+        first_call_headers = session.request.call_args_list[0].kwargs["headers"]
+        second_call_headers = session.request.call_args_list[1].kwargs["headers"]
+        assert first_call_headers["Authorization"] == "Basic secret"
+        assert "Authorization" not in second_call_headers
+        assert "Cookie" not in second_call_headers
+        # Headers unrelated to auth are still forwarded.
+        assert second_call_headers["Accept"] == "application/json"
+
+    @patch("plane.utils.url_security.requests.Session")
+    @patch("plane.utils.url_security.resolve_and_validate")
+    def test_keeps_authorization_on_same_host_redirect(self, mock_resolve, mock_session_cls):
+        mock_resolve.return_value = ["93.184.216.34"]
+        session = mock_session_cls.return_value
+        session.request.side_effect = [
+            _resp(302, headers={"Location": "https://example.com/page2"}),
+            _resp(200),
+        ]
+
+        pinned_fetch_following_redirects(
+            "GET", "https://example.com/a", headers={"Authorization": "Basic secret"}
+        )
+
+        second_call_headers = session.request.call_args_list[1].kwargs["headers"]
+        assert second_call_headers["Authorization"] == "Basic secret"
+
 
 # ---------------------------------------------------------------------------
 # PinnedIPAdapter — TLS server_hostname injection (cert verified vs hostname)

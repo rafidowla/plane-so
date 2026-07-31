@@ -178,11 +178,17 @@ the CSV path cannot migrate attachments on its own. For deployment (S3/MinIO
 wiring) and a first-run test checklist, see the
 [attachment migration runbook](jira-attachments-runbook.md).
 
-Every attachment/inline-image download is restricted to the configured Jira
-instance's own host and fetched through the same SSRF-safe, redirect-re-validating
-client used elsewhere in the codebase (`plane.utils.url_security`) — a Jira
-response can't be used to make the import worker fetch an arbitrary internal or
-attacker-controlled URL.
+Every attachment/inline-image download is restricted to the exact (scheme, host)
+of the configured Jira instance and fetched through the same SSRF-safe,
+redirect-re-validating client used elsewhere in the codebase
+(`plane.utils.url_security`) — a Jira response can't be used to make the import
+worker fetch an arbitrary internal or attacker-controlled URL, and a same-host
+`http://` link can't be used to downgrade the connection and leak the Basic-Auth
+credentials in cleartext. A **self-hosted Jira on a private/internal IP** (the
+same network as Plane) is still supported: the configured host is explicitly
+trusted to skip the private-IP block, since it's an admin-configured value, not
+attacker-controlled data — but that trust doesn't extend past a redirect to a
+_different_ host, which is re-validated (and blocked if private) like any other.
 
 ### Self-service UI
 

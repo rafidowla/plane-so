@@ -277,7 +277,7 @@ def _basic_auth_header(jira_auth):
     return {"Authorization": f"Basic {creds}"}
 
 
-def _download_attachment(content_url, jira_auth, max_bytes, allowed_host):
+def _download_attachment(content_url, jira_auth, max_bytes, allowed_origin):
     """Stream a Jira attachment to a temp file (spilling to disk past 8 MB).
 
     Large files (e.g. screen recordings) must not be buffered whole in memory —
@@ -288,15 +288,31 @@ def _download_attachment(content_url, jira_auth, max_bytes, allowed_host):
     `content_url` comes straight out of a Jira API response - a Jira instance
     that's compromised, misconfigured, or simply malicious could point it
     anywhere, including at internal-network addresses (SSRF). Restrict it to
-    the same host as the configured Jira instance (`allowed_host`), and fetch
-    through `pinned_fetch_following_redirects` so a same-host redirect can't
-    be re-pointed at an internal IP either.
+    the exact (scheme, host) of the configured Jira instance (`allowed_origin`)
+    - the scheme check matters too: without it a same-host `http://` URL would
+    still be "the right host" but would send the Basic-Auth header in
+    cleartext - and fetch through `pinned_fetch_following_redirects` so a
+    same-host redirect can't be re-pointed at an internal IP either.
+
+    `allowed_hosts=[host]` lets that one exact, admin-configured hostname skip
+    the private-IP block: a self-hosted Jira instance living on the same
+    internal network as Plane is a legitimate, common deployment, and this
+    function already restricts the request to that single hostname above (an
+    admin-trusted value, not attacker-controlled data) - the connection is
+    still pinned to whatever IP that hostname resolves to, so DNS rebinding to
+    a *different* internal target is still blocked.
 
     Returns (fileobj, size) on success, ("too_large", size) if it exceeds
-    max_bytes, or (None, 0) on a blocked host, network, or HTTP failure.
+    max_bytes, or (None, 0) on a blocked/mismatched origin, network, or HTTP
+    failure.
     """
-    hostname = (urlparse(content_url).hostname or "").rstrip(".").lower()
-    if not allowed_host or hostname != allowed_host:
+    if not allowed_origin:
+        return None, 0
+    allowed_scheme, allowed_host = allowed_origin
+    parsed = urlparse(content_url)
+    hostname = (parsed.hostname or "").rstrip(".").lower()
+    scheme = (parsed.scheme or "").lower()
+    if hostname != allowed_host or scheme != allowed_scheme:
         return None, 0
     # 60s to connect; read timeout is per-chunk, so a slow-but-alive transfer
     # keeps going. Tunable for very slow Jira instances.
@@ -308,6 +324,7 @@ def _download_attachment(content_url, jira_auth, max_bytes, allowed_host):
             headers=_basic_auth_header(jira_auth),
             timeout=(60, read_timeout),
             stream=True,
+            allowed_hosts=[allowed_host],
         )
         with resp:
             resp.raise_for_status()
@@ -328,7 +345,7 @@ def _download_attachment(content_url, jira_auth, max_bytes, allowed_host):
 
 
 def migrate_attachments(
-    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name, allowed_host
+    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name, allowed_origin
 ):
     """Download each Jira attachment and store it as a Plane FileAsset.
 
@@ -353,7 +370,7 @@ def migrate_attachments(
         if int(att.get("size") or 0) > settings.FILE_SIZE_LIMIT:
             counts["skipped_size"] += 1
             continue
-        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT, allowed_host)
+        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT, allowed_origin)
         if fileobj == "too_large":
             counts["skipped_size"] += 1
             continue
@@ -450,7 +467,7 @@ def _attachment_link_html(att, asset):
 
 
 def _upload_body_image(
-    att, entity_type, link_kwargs, project, initiator, jira_auth, member_map, member_by_name, cache, allowed_host
+    att, entity_type, link_kwargs, project, initiator, jira_auth, member_map, member_by_name, cache, allowed_origin
 ):
     """Download a Jira image attachment and store it as an ISSUE_DESCRIPTION /
     COMMENT_DESCRIPTION FileAsset. Returns the new asset id (str) or None.
@@ -485,7 +502,7 @@ def _upload_body_image(
     if cached is not None:
         fileobj, size = cached
     else:
-        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT, allowed_host)
+        fileobj, size = _download_attachment(content_url, jira_auth, settings.FILE_SIZE_LIMIT, allowed_origin)
         if fileobj == "too_large" or fileobj is None:
             return None
         if cache is not None:
@@ -586,7 +603,15 @@ def run_import(
     unmapped_states, unmapped_users = set(), set()
     preview = []
 
-    allowed_host = (urlparse(normalize_jira_base(jira_url)).hostname or "").rstrip(".").lower() or None
+    # (scheme, host) of the configured Jira instance - attachment downloads are
+    # restricted to this exact origin (see _download_attachment). None when
+    # jira_url isn't set (previews/samples, which don't download anything).
+    _jira_base = urlparse(normalize_jira_base(jira_url)) if jira_url else None
+    allowed_origin = (
+        (_jira_base.scheme.lower(), _jira_base.hostname.rstrip(".").lower())
+        if _jira_base and _jira_base.scheme and _jira_base.hostname
+        else None
+    )
 
     state_map, default_state, member_map, member_by_name = build_maps(project)
 
@@ -666,7 +691,7 @@ def run_import(
             attachment_assets = {}
             if can_embed and jira_attachments:
                 c = migrate_attachments(
-                    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name, allowed_host
+                    issue, jira_attachments, project, initiator, jira_auth, member_map, member_by_name, allowed_origin
                 )
                 for k in att_totals:
                     att_totals[k] += c[k]
@@ -699,7 +724,7 @@ def run_import(
                         member_map,
                         member_by_name,
                         dl_cache,
-                        allowed_host,
+                        allowed_origin,
                     ),
                     attachment_assets,
                 )
@@ -753,7 +778,7 @@ def run_import(
                             member_map,
                             member_by_name,
                             dl_cache,
-                            allowed_host,
+                            allowed_origin,
                         ),
                         attachment_assets,
                     )

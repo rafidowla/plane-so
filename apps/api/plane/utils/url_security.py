@@ -244,12 +244,15 @@ def pinned_fetch_following_redirects(
         requests.RequestException: on network/transport errors.
     """
     current_url = url
+    # A mutable copy: a cross-host redirect drops credential-bearing headers
+    # from it (see below), so later hops must not see the caller's original.
+    current_headers = dict(headers or {})
     redirects = 0
     while True:
-        response, _ = _fetch_validated_hop(
+        response, hop_host = _fetch_validated_hop(
             method, current_url,
             allowed_ips=allowed_ips, allowed_hosts=allowed_hosts,
-            headers=headers, timeout=timeout, **kwargs,
+            headers=current_headers, timeout=timeout, **kwargs,
         )
 
         if response.status_code not in _REDIRECT_STATUSES:
@@ -269,4 +272,14 @@ def pinned_fetch_following_redirects(
         response.close()
         # Resolve the redirect target against the current URL; the next loop
         # iteration re-validates and re-pins it.
-        current_url = urljoin(current_url, location)
+        next_url = urljoin(current_url, location)
+        next_host = (urlsplit(next_url).hostname or "").rstrip(".").lower()
+        if next_host != hop_host:
+            # Cross-host redirect: a caller-supplied Authorization/Cookie
+            # header is scoped to the host that was actually requested and
+            # must not follow to a different one - mirrors what `requests`
+            # itself does for auto-followed redirects (we can't rely on that
+            # here since redirects are followed manually).
+            _cred_headers = ("authorization", "cookie", "proxy-authorization")
+            current_headers = {k: v for k, v in current_headers.items() if k.lower() not in _cred_headers}
+        current_url = next_url
