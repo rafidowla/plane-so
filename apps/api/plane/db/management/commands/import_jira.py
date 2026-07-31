@@ -104,6 +104,7 @@ class Command(BaseCommand):
             preview_limit=10**6,
             with_attachments=with_attachments,
             jira_auth=(jira_email, jira_token) if with_attachments else None,
+            jira_url=_opt(options, "jira_url", "JIRA_BASE_URL") if with_attachments else None,
         )
         for row in result["preview"]:
             self.stdout.write(

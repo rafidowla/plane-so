@@ -962,6 +962,38 @@ class TestAttachmentImport:
         assert FileAsset.objects.filter(external_source="jira", issue_id=tt["issue"].id).count() == 0
         assert cache == {}  # a too_large download is not cached for reuse
 
+    def test_management_command_threads_jira_url_for_attachments(self, tt, monkeypatch):
+        """The `import_jira` management command is a second, independent caller
+        of run_import(..., with_attachments=True) - it must also pass jira_url
+        through so the host-allowlist check has something to allow, not fail
+        every attachment closed by omission."""
+        import io
+
+        from django.core.management import call_command
+
+        from plane.db.management.commands import import_jira as import_jira_cmd
+        from plane.db.models import FileAsset
+
+        self._patch_io(monkeypatch)
+        monkeypatch.setattr(import_jira_cmd, "fetch_jira_issues", lambda **kwargs: [self._issue(key="ENG-504")])
+
+        out = io.StringIO()
+        call_command(
+            "import_jira",
+            "--slug", tt["workspace"].slug,
+            "--project", str(tt["project"].id),
+            "--initiator", tt["user"].email,
+            "--jira-url", "https://acme.atlassian.net",
+            "--jira-email", "e@x.com",
+            "--jira-token", "tok",
+            "--with-attachments",
+            "--execute",
+            stdout=out,
+        )
+        assert "1 migrated" in out.getvalue()
+        assert "0 failed" in out.getvalue()
+        assert FileAsset.objects.filter(external_source="jira", external_id="att-1").exists()
+
     def test_svg_body_image_rejected_before_download(self, tt, monkeypatch):
         """Jira's reported mimeType is attacker-controlled (an imported source
         project can claim anything). An SVG must be rejected outright rather
