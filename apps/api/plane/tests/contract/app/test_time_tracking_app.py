@@ -295,6 +295,37 @@ class TestReport:
         assert r.data["truncated"] is False
         assert r.data["limit"] == 200
 
+    def test_report_group_by_issue_tied_totals_ordered_deterministically(self, session_client, tt):
+        # Three issues logging the exact same duration tie at the top of the
+        # sort. Without a secondary sort key, Postgres doesn't guarantee which
+        # order tied rows come back in - which rows a truncated response keeps
+        # could vary between two otherwise-identical requests. Pin the
+        # documented tiebreaker (ascending issue id) instead of just checking
+        # "some order every time", so a regression that removes the secondary
+        # sort key fails even if it happens to still look stable locally.
+        slug, pid, iid = _ids(tt)
+        issue2 = self._second_issue(tt, name="Issue 2")
+        issue3 = self._second_issue(tt, name="Issue 3")
+        for issue_id in (iid, str(issue2.id), str(issue3.id)):
+            session_client.post(_wl_url(slug, pid, issue_id), {"duration": 60, "logged_date": "2026-06-22"}, format="json")
+
+        # The tiebreaker orders by the DB's own notion of ascending "issue"
+        # (the same field _aggregate sorts by) - not Python's str() ordering,
+        # which doesn't necessarily agree with how Postgres compares uuid
+        # columns.
+        expected_order = [
+            str(i)
+            for i in Issue.objects.filter(
+                id__in=[tt["issue"].id, issue2.id, issue3.id]
+            ).order_by("id").values_list("id", flat=True)
+        ]
+
+        r1 = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=issue")
+        r2 = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=issue")
+        assert r1.status_code == status.HTTP_200_OK
+        assert [g["issue_id"] for g in r1.data["groups"]] == expected_order
+        assert [g["issue_id"] for g in r2.data["groups"]] == expected_order
+
     def test_report_user_ids_filter(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         other = _member(tt["workspace"], tt["project"], role=15)

@@ -181,7 +181,16 @@ class TimeReportEndpoint(BaseAPIView):
                 ),
                 entry_count=Count("id"),
             )
-            .order_by("-total_minutes")
+            # key_field's raw id as a tiebreaker: Postgres doesn't guarantee
+            # stable ordering among equal total_minutes, so without it the
+            # 200-row truncation below could return a different arbitrary
+            # subset of tied rows on every identical request. key_field is
+            # always a FK (issue/project/logged_by/project__client) - ordering
+            # by the bare field name would make Django chase the related
+            # model's own Meta.ordering (e.g. Issue's "-created_at") instead
+            # of the id actually being grouped on, so use "<key_field>_id" to
+            # get the raw column.
+            .order_by("-total_minutes", f"{key_field}_id")
         )
         # Rows are already ordered by -total_minutes, so a limit keeps the most
         # time-significant groups rather than an arbitrary prefix.
