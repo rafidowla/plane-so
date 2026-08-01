@@ -18,6 +18,8 @@ import { LiteTextEditor } from "@/components/editor/lite-text";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 // services
 import { FileService } from "@/services/file.service";
+// FORK: comment-attachments (#18)
+import { CommentAttachmentComposer } from "@/plane-web/comment-attachments";
 
 type TCommentCreate = {
   entityId: string;
@@ -42,6 +44,9 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
   } = props;
   // states
   const [uploadedAssetIds, setUploadedAssetIds] = useState<string[]>([]);
+  // FORK: comment-attachments (#18) — staged non-image attachments + composer reset
+  const [stagedAttachmentIds, setStagedAttachmentIds] = useState<string[]>([]);
+  const [composerResetKey, setComposerResetKey] = useState(0);
   // refs
   const editorRef = useRef<EditorRefApi>(null);
   // store hooks
@@ -65,17 +70,22 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
     try {
       const comment = await activityOperations.createComment(formData);
       if (comment?.id) onSubmitCallback?.(comment.id);
-      if (uploadedAssetIds.length > 0) {
+      // FORK: comment-attachments (#18) — staged ids join editor-image ids in the
+      // bulk link, against the NEW comment's id (not the issue/entity id, which
+      // never matched the comment FK and was silently skipped server-side).
+      const allAssetIds = [...uploadedAssetIds, ...stagedAttachmentIds];
+      if (allAssetIds.length > 0 && comment?.id) {
         if (projectId) {
-          await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug, projectId.toString(), entityId, {
-            asset_ids: uploadedAssetIds,
+          await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug, projectId.toString(), comment.id, {
+            asset_ids: allAssetIds,
           });
         } else {
-          await fileService.updateBulkWorkspaceAssetsUploadStatus(workspaceSlug, entityId, {
-            asset_ids: uploadedAssetIds,
+          await fileService.updateBulkWorkspaceAssetsUploadStatus(workspaceSlug, comment.id, {
+            asset_ids: allAssetIds,
           });
         }
         setUploadedAssetIds([]);
+        setStagedAttachmentIds([]);
       }
     } catch (error) {
       console.error(error);
@@ -84,6 +94,8 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
         comment_html: "<p></p>",
       });
       editorRef.current?.clearEditor();
+      // FORK: comment-attachments (#18) — clear staged attachment chips
+      setComposerResetKey((prev) => prev + 1);
     }
   };
 
@@ -92,6 +104,7 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
 
   return (
     <div
+      role="presentation"
       className={cn("sticky bottom-0 z-[4] bg-surface-1 sm:static")}
       onKeyDown={(e) => {
         if (
@@ -153,6 +166,18 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
           />
         )}
       />
+      {/* FORK: comment-attachments (#18) */}
+      {projectId && (
+        <CommentAttachmentComposer
+          key={composerResetKey}
+          disabled={isSubmitting}
+          uploadAsset={async (file) => {
+            const { asset_id } = await activityOperations.uploadCommentAsset("", file);
+            return asset_id;
+          }}
+          onStagedAssetIdsChange={setStagedAttachmentIds}
+        />
+      )}
     </div>
   );
 });

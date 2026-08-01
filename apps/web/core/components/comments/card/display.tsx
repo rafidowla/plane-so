@@ -23,6 +23,8 @@ import { CommentCardEditForm } from "./edit-form";
 import { EmojiReactionButton, EmojiReactionPicker } from "@plane/propel/emoji-reaction";
 import { Avatar, Tooltip } from "@plane/ui";
 import { useMember } from "@/hooks/store/use-member";
+// FORK: comment-attachments (#18)
+import { CommentAttachmentList } from "@/plane-web/comment-attachments";
 
 export type TCommentCardDisplayProps = {
   activityOperations: TCommentsOperations;
@@ -174,6 +176,14 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
             }}
             parentClassName="border-none"
           />
+          {/* FORK: comment-attachments (#18) */}
+          {projectId && (
+            <CommentAttachmentList
+              workspaceSlug={workspaceSlug}
+              projectId={projectId.toString()}
+              commentId={comment.id}
+            />
+          )}
           {shouldRenderReactions &&
             (renderFooter ? (
               renderFooter(
