@@ -471,6 +471,9 @@ class IssueComment(ChangeTrackerMixin, ProjectBaseModel):
     )
     external_source = models.CharField(max_length=255, null=True, blank=True)
     external_id = models.CharField(max_length=255, blank=True, null=True)
+    # FORK: jira-comment-provenance (#15) — display name of the original
+    # external author when they couldn't be mapped to a workspace member.
+    external_actor_display = models.CharField(max_length=255, null=True, blank=True)
     edited_at = models.DateTimeField(null=True, blank=True)
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="parent_issue_comment"
