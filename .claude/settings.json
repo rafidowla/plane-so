@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/rdowla/Downloads/AiDev/BitBucket/lore/groundfloor-atlas/scripts/atlas-hook.mjs pre-search plane-so"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/rdowla/Downloads/AiDev/BitBucket/lore/groundfloor-atlas/scripts/atlas-hook.mjs pre-edit plane-so"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/rdowla/Downloads/AiDev/BitBucket/lore/groundfloor-atlas/scripts/atlas-hook.mjs post-bash plane-so"
+          }
+        ]
+      }
+    ]
+  }
+}
