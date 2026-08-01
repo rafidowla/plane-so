@@ -33,7 +33,9 @@ def project(db, workspace, create_user):
 def jira_author(db, workspace):
     from plane.db.models import User
 
-    user = User.objects.create(email="jane@plane.so", first_name="Jane", last_name="Doe", display_name="Jane Doe")
+    user = User.objects.create(
+        email="jane@plane.so", username="jane_doe", first_name="Jane", last_name="Doe", display_name="Jane Doe"
+    )
     WorkspaceMember.objects.create(workspace=workspace, member=user, role=20)
     return user
 

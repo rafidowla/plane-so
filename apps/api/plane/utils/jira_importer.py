@@ -766,7 +766,7 @@ def run_import(
                     ),
                     created_by_id=actor.id,
                 )
-                comment.save(created_by_id=initiator.id)
+                comment.save(created_by_id=actor.id)
 
                 c_resolver = None
                 if can_embed:
@@ -792,7 +792,7 @@ def run_import(
                 body_html = adf_document_to_html(jc.get("body"), c_resolver)
                 if body_html and body_html != comment.comment_html:
                     comment.comment_html = body_html
-                    comment.save(created_by_id=initiator.id)
+                    comment.save(created_by_id=actor.id)
                 # FORK: jira-comment-provenance (#15) — backfill the original
                 # Jira timestamps after the final save. A queryset update()
                 # bypasses auto_now_add/auto_now; assigning on the instance

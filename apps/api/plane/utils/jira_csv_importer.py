@@ -255,7 +255,7 @@ def run_csv_import(
                 external_actor_display=None if matched else (c["author"] or None),
                 created_by_id=actor.id,
             )
-            comment.save(created_by_id=initiator.id)
+            comment.save(created_by_id=actor.id)
             c_created = _parse_datetime(c["created"])
             if c_created:
                 IssueComment.objects.filter(id=comment.id).update(created_at=c_created)
