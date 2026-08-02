@@ -349,7 +349,7 @@ export const DescriptionInput = observer(function DescriptionInput(props: Props)
             {t("common.cancel")}
           </Button>
           <Button variant="primary" size="sm" onClick={handleExplicitSave}>
-            {t("common.save")}
+            {t("save")}
           </Button>
         </div>
       )}
