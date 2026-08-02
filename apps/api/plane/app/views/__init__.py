@@ -114,6 +114,8 @@ from .asset.v2 import (
     DuplicateAssetEndpoint,
     WorkspaceAssetDownloadEndpoint,
     ProjectAssetDownloadEndpoint,
+    # FORK: comment-attachments (#18)
+    ProjectCommentAssetsEndpoint,
 )
 from .issue.base import (
     IssueListEndpoint,

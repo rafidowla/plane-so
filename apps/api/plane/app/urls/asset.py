@@ -16,6 +16,8 @@ from plane.app.views import (
     AssetRestoreEndpoint,
     ProjectAssetEndpoint,
     ProjectBulkAssetEndpoint,
+    # FORK: comment-attachments (#18)
+    ProjectCommentAssetsEndpoint,
     AssetCheckEndpoint,
     DuplicateAssetEndpoint,
     WorkspaceAssetDownloadEndpoint,
@@ -90,6 +92,12 @@ urlpatterns = [
         "assets/v2/workspaces/<str:slug>/projects/<uuid:project_id>/<uuid:entity_id>/bulk/",
         ProjectBulkAssetEndpoint.as_view(),
         name="bulk-asset-update",
+    ),
+    # FORK: comment-attachments (#18)
+    path(
+        "assets/v2/workspaces/<str:slug>/projects/<uuid:project_id>/comments/<uuid:comment_id>/assets/",
+        ProjectCommentAssetsEndpoint.as_view(),
+        name="comment-assets",
     ),
     path(
         "assets/v2/workspaces/<str:slug>/check/<uuid:asset_id>/",

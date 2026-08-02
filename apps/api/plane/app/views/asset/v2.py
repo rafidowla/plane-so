@@ -18,6 +18,7 @@ from rest_framework.permissions import AllowAny
 
 # Module imports
 from ..base import BaseAPIView
+from plane.app.serializers import FileAssetSerializer
 from plane.db.models import FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember
 from plane.settings.storage import S3Storage
 from plane.app.permissions import allow_permission, ROLE
@@ -592,17 +593,24 @@ class ProjectAssetEndpoint(BaseAPIView):
             )
 
         # Check if the file type is allowed
-        allowed_types = [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/jpg",
-            "image/gif",
-        ]
+        # FORK: comment attachments (#18) accept the same broad MIME list as
+        # issue attachments; every other entity type stays image-only.
+        if entity_type == FileAsset.EntityTypeContext.COMMENT_DESCRIPTION:
+            allowed_types = settings.ATTACHMENT_MIME_TYPES
+            type_error = "Invalid file type."
+        else:
+            allowed_types = [
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/jpg",
+                "image/gif",
+            ]
+            type_error = "Invalid file type. Only JPEG, PNG, WebP, JPG and GIF files are allowed."
         if type not in allowed_types:
             return Response(
                 {
-                    "error": "Invalid file type. Only JPEG, PNG, WebP, JPG and GIF files are allowed.",
+                    "error": type_error,
                     "status": False,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -684,10 +692,18 @@ class ProjectAssetEndpoint(BaseAPIView):
 
         # Get the presigned URL
         storage = S3Storage(request=request)
+        # FORK: comment-attachments (#18) — `?disposition=inline` lets the in-app
+        # viewer render the file instead of forcing a download. Script-capable
+        # types are always forced to download (stored-XSS guard; mirrors
+        # issue/attachment.py).
+        disposition = "inline" if request.GET.get("disposition") == "inline" else "attachment"
+        asset_mime_type = (asset.attributes.get("type") or "").split(";")[0].strip().lower()
+        if asset_mime_type in settings.SCRIPT_CAPABLE_MIME_TYPES:
+            disposition = "attachment"
         # Generate a presigned URL to share an S3 object
         signed_url = storage.generate_presigned_url(
             object_name=asset.asset.name,
-            disposition="attachment",
+            disposition=disposition,
             filename=asset.attributes.get("name"),
         )
         # Redirect to the signed URL
@@ -753,6 +769,24 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
                 pass
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# FORK: comment-attachments (#18) — list the uploaded files attached to a
+# comment so the frontend can render an attachment row under saved comments.
+class ProjectCommentAssetsEndpoint(BaseAPIView):
+    serializer_class = FileAssetSerializer
+    model = FileAsset
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    def get(self, request, slug, project_id, comment_id):
+        assets = FileAsset.objects.filter(
+            workspace__slug=slug,
+            project_id=project_id,
+            comment_id=comment_id,
+            entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            is_uploaded=True,
+        ).order_by("created_at")
+        return Response(FileAssetSerializer(assets, many=True).data, status=status.HTTP_200_OK)
 
 
 class AssetCheckEndpoint(BaseAPIView):
