@@ -9,6 +9,7 @@ import { observer } from "mobx-react";
 import { useTranslation } from "@plane/i18n";
 // local imports
 import { useProjectCustomProperties } from "@/plane-web/custom-properties";
+import { CreatePropertyInputRows } from "./create-property-input-rows";
 import { PropertyInputRows } from "./property-input-rows";
 
 type Props = {
@@ -21,30 +22,32 @@ type Props = {
 /**
  * Custom-property inputs inside the create/edit work-item modal. Fills B1.
  *
- * v1 renders only in EDIT mode — the modal passes `workItemId` only once the
- * item exists (`data?.id`), so on create the section is absent and users set
- * custom properties immediately after (sidebar/spreadsheet). This avoids
- * coupling to the modal's submit pipeline (an EE-only provider hook), keeping
- * the seam a pure stub delegation. Create-time staging is a documented
- * follow-up.
+ * EDIT mode (workItemId present) binds inputs to the property-values store.
+ * CREATE mode stages values on the IssueModalContext — prefilled from the
+ * user's last-used value or the configured default (improvement #19) — and the
+ * modal provider saves them once the work item exists.
  */
 export const CustomPropertiesModalSection = observer(function CustomPropertiesModalSection(props: Props) {
   const { projectId, workItemId, workspaceSlug } = props;
   const { t } = useTranslation();
   const { enabled, properties } = useProjectCustomProperties(workspaceSlug, projectId ?? undefined);
 
-  // Create mode (no work-item id yet) or feature off ⇒ render nothing.
-  if (!enabled || !workItemId || !projectId || properties.length === 0) return null;
+  // Feature off ⇒ render nothing (create mode is handled below).
+  if (!enabled || !projectId || properties.length === 0) return null;
 
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-subtle pt-3">
       <span className="text-xs font-medium text-secondary">{t("custom_properties.options")}</span>
-      <PropertyInputRows
-        workspaceSlug={workspaceSlug}
-        projectId={projectId}
-        workItemId={workItemId}
-        disabled={false}
-      />
+      {workItemId ? (
+        <PropertyInputRows
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          workItemId={workItemId}
+          disabled={false}
+        />
+      ) : (
+        <CreatePropertyInputRows workspaceSlug={workspaceSlug} projectId={projectId} disabled={false} />
+      )}
     </div>
   );
 });

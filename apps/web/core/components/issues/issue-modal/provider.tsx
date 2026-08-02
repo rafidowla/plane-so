@@ -7,11 +7,13 @@
 import React, { useState } from "react";
 import { observer } from "mobx-react";
 // plane imports
-import type { ISearchIssueResponse, TIssue } from "@plane/types";
+import type { ISearchIssueResponse, TIssue, TIssuePropertyValues } from "@plane/types";
 // components
 import { IssueModalContext } from "@/components/issues/issue-modal/context";
 // hooks
 import { useUser } from "@/hooks/store/user/user-user";
+// FORK: custom-properties — create-time staged values are saved after the work item exists
+import { issuePropertiesService } from "@/plane-web/custom-properties/issue-properties.service";
 
 export type TIssueModalProviderProps = {
   templateId?: string;
@@ -24,10 +26,31 @@ export const IssueModalProvider = observer(function IssueModalProvider(props: TI
   const { children, allowedProjectIds } = props;
   // states
   const [selectedParentIssue, setSelectedParentIssue] = useState<ISearchIssueResponse | null>(null);
+  // FORK: custom-properties — staged create-time values (propertyId -> values)
+  const [issuePropertyValues, setIssuePropertyValues] = useState<TIssuePropertyValues>({});
   // store hooks
   const { projectsWithCreatePermissions } = useUser();
   // derived values
   const projectIdsWithCreatePermissions = Object.keys(projectsWithCreatePermissions ?? {});
+
+  // FORK: custom-properties — persist staged values against the just-created
+  // work item (improvement #19). Failures must not fail issue creation, and
+  // staging is kept so "create more" reuses the last selection.
+  const handleCreateUpdatePropertyValues = async (args: {
+    issueId: string;
+    projectId: string;
+    workspaceSlug: string;
+  }): Promise<void> => {
+    const staged = Object.entries(issuePropertyValues).filter(([, values]) => Array.isArray(values));
+    if (!args.workspaceSlug || !args.projectId || !args.issueId || staged.length === 0) return;
+    await Promise.all(
+      staged.map(([propertyId, values]) =>
+        issuePropertiesService
+          .setValues(args.workspaceSlug, args.projectId, args.issueId, propertyId, values as string[])
+          .catch((error) => console.error(`Failed to save property ${propertyId} for ${args.issueId}:`, error))
+      )
+    );
+  };
 
   return (
     <IssueModalContext.Provider
@@ -40,14 +63,14 @@ export const IssueModalProvider = observer(function IssueModalProvider(props: TI
         setIsApplyingTemplate: () => {},
         selectedParentIssue,
         setSelectedParentIssue,
-        issuePropertyValues: {},
-        setIssuePropertyValues: () => {},
+        issuePropertyValues,
+        setIssuePropertyValues,
         issuePropertyValueErrors: {},
         setIssuePropertyValueErrors: () => {},
         getIssueTypeIdOnProjectChange: () => null,
         getActiveAdditionalPropertiesLength: () => 0,
         handlePropertyValuesValidation: () => true,
-        handleCreateUpdatePropertyValues: () => Promise.resolve(),
+        handleCreateUpdatePropertyValues,
         handleProjectEntitiesFetch: () => Promise.resolve(),
         handleTemplateChange: () => Promise.resolve(),
         handleConvert: () => Promise.resolve(),

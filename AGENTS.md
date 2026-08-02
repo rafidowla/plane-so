@@ -34,3 +34,25 @@ Prereq (once): `./setup.sh` — generates `apps/api/.env` from `.env.example`.
 - Teardown: `docker compose -f docker-compose-test.yml down -v`
 
 See `apps/api/tests/RUNNING_TESTS.md` for the full walkthrough and troubleshooting; see `apps/api/tests/TESTING_GUIDE.md` for test conventions and fixtures.
+
+<!-- atlas-wire-begin -->
+
+## Atlas / Lorebase — code intelligence + knowledge layer
+
+This repo is wired to Atlas (workspace `plane-so`). Atlas holds the code graph,
+blast-radius, layer/coupling analysis, and the team knowledge graph. **Consult it —
+don't fly blind:**
+
+- **Before a broad code search**, use `atlas_subgraph` / `knowledge_recall` for a
+  structural answer instead of grepping the whole tree.
+- **Before changing a function or file**, run `atlas_blast_radius` on the symbol to see
+  what will break (d1 = WILL BREAK).
+- **Before/after a schema change** (`*.sql`, `*.prisma`, `migrations/**`), run
+  `atlas_schema_drift` and record the WHY with `schema_confirm` so DB churn stays minimal.
+- **When you make a non-obvious decision**, persist it with `knowledge_store` so the next
+  engineer (human or agent) recalls it.
+- **After a commit**, the index goes stale — re-run `atlas_index` on the repo root to refresh.
+
+Atlas tools are reached through the `atlas` MCP server (`atlas_tool_invoke`).
+
+<!-- atlas-wire-end -->
