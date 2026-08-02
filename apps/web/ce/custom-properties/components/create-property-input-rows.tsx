@@ -27,8 +27,8 @@ type Props = {
  * `handleCreateUpdatePropertyValues` once the item exists.
  *
  * Each property prefills from the user's last-used value, else the configured
- * default option. User edits are never overwritten: a property prefills only
- * once per project selection, and staged values (e.g. "create more") win over
+ * default option. User edits are never overwritten: manual changes mark the
+ * property as touched, and staged values (e.g. "create more") win over
  * prefills. Every change is also remembered as the new last-used value.
  */
 export const CreatePropertyInputRows = observer(function CreatePropertyInputRows(props: Props) {
@@ -36,27 +36,34 @@ export const CreatePropertyInputRows = observer(function CreatePropertyInputRows
   const { enabled, properties } = useProjectCustomProperties(workspaceSlug, projectId);
   const { issuePropertyValues, setIssuePropertyValues } = useIssueModal();
   const { data: currentUser } = useUser();
-  // properties that already had their one-time prefill for this project selection
-  const prefilledRef = useRef<Set<string>>(new Set());
+  // last project the staging was cleared for, and properties the user edited
+  // by hand (manual edits are never overwritten by a prefill)
+  const clearedForProjectRef = useRef<string | null>(null);
+  const userTouchedRef = useRef<Set<string>>(new Set());
 
-  // Switching projects clears staging (property ids are project-scoped) and
-  // re-arms the prefill for the new project's properties.
+  // Switching projects clears staging (property ids are project-scoped). The
+  // ref guard makes repeat invocations (re-mounts, effect re-runs) no-ops so a
+  // later stray run can't wipe an already-applied prefill.
   useEffect(() => {
-    prefilledRef.current = new Set();
+    if (clearedForProjectRef.current === projectId) return;
+    clearedForProjectRef.current = projectId;
+    userTouchedRef.current = new Set();
     setIssuePropertyValues({});
   }, [projectId, setIssuePropertyValues]);
 
-  // One-time prefill per property: last-used → default. Staged values win so a
-  // "create more" round keeps what the user picked last time.
+  // Prefill every untouched, still-empty property: last-used → default. Not
+  // one-shot: if staging is reset underneath us (modal lifecycle), the next
+  // run re-applies the prefill. Staged values win so a "create more" round
+  // keeps what the user picked last time.
   useEffect(() => {
     if (!enabled || properties.length === 0) return;
     setIssuePropertyValues((prev) => {
       let changed = false;
       const next = { ...prev };
       for (const property of properties) {
-        if (prefilledRef.current.has(property.id)) continue;
-        prefilledRef.current.add(property.id);
-        if (next[property.id] !== undefined) continue;
+        if (userTouchedRef.current.has(property.id)) continue;
+        const stagedValue = next[property.id];
+        if (Array.isArray(stagedValue) && stagedValue.length > 0) continue;
         const prefill = getPrefillPropertyValue(currentUser?.id, projectId, property);
         if (prefill.length > 0) {
           next[property.id] = prefill;
@@ -87,6 +94,7 @@ export const CreatePropertyInputRows = observer(function CreatePropertyInputRows
                 values={values}
                 disabled={disabled}
                 onChange={async (next) => {
+                  userTouchedRef.current.add(property.id);
                   setIssuePropertyValues((prev) => ({ ...prev, [property.id]: next }));
                   setLastUsedPropertyValue(currentUser?.id, projectId, property.id, next);
                 }}
