@@ -21,6 +21,7 @@ from datetime import datetime
 from django.utils import timezone
 
 from plane.db.models import (
+    Description,
     Issue,
     IssueAssignee,
     IssueComment,
@@ -39,6 +40,19 @@ def _parse_date(value):
     for fmt in _DATE_FORMATS:
         try:
             return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_datetime(value):
+    """FORK: jira-comment-provenance (#15) — full timestamp variant of _parse_date.
+    Jira CSV comment cells carry no timezone, so make parsed values aware."""
+    value = (value or "").strip()
+    for fmt in _DATE_FORMATS:
+        try:
+            parsed = datetime.strptime(value, fmt)
+            return timezone.make_aware(parsed) if timezone.is_naive(parsed) else parsed
         except ValueError:
             continue
     return None
@@ -227,16 +241,26 @@ def run_csv_import(
             label, _ = Label.objects.get_or_create(project=project, name=lname, defaults={"created_by_id": initiator.id})
             IssueLabel.objects.create(issue=issue, label=label, project=project, created_by_id=initiator.id)
         for c in ji["comments"]:
-            actor = resolve_member(c["author"]) or initiator
-            IssueComment(
+            matched = resolve_member(c["author"])
+            actor = matched or initiator
+            # FORK: jira-comment-provenance (#15) — resolved author as creator,
+            # Jira author name kept when unmapped, original timestamp backfilled.
+            comment = IssueComment(
                 issue=issue,
                 project=project,
                 workspace=project.workspace,
                 comment_html=_to_html(c["body"]),
                 actor=actor,
                 external_source="jira",
-                created_by_id=initiator.id,
-            ).save(created_by_id=initiator.id)
+                external_actor_display=None if matched else (c["author"] or None),
+                created_by_id=actor.id,
+            )
+            comment.save(created_by_id=actor.id)
+            c_created = _parse_datetime(c["created"])
+            if c_created:
+                IssueComment.objects.filter(id=comment.id).update(created_at=c_created)
+                if comment.description_id:
+                    Description.objects.filter(id=comment.description_id).update(created_at=c_created)
         for w in wl:
             if w["seconds"] <= 0:
                 continue

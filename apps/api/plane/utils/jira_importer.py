@@ -27,6 +27,7 @@ from django.utils.dateparse import parse_datetime
 from plane.utils.jira_adf import adf_document_to_html
 
 from plane.db.models import (
+    Description,
     FileAsset,
     Issue,
     IssueAssignee,
@@ -757,9 +758,15 @@ def run_import(
                     actor=actor,
                     external_source="jira",
                     external_id=str(jc.get("id")),
-                    created_by_id=initiator.id,
+                    # FORK: jira-comment-provenance (#15) — attribute the comment
+                    # to the resolved author (not the import initiator) and keep
+                    # the Jira display name when the author couldn't be mapped.
+                    external_actor_display=(
+                        None if matched_actor else (jc_author.get("displayName") or jc_author.get("emailAddress"))
+                    ),
+                    created_by_id=actor.id,
                 )
-                comment.save(created_by_id=initiator.id)
+                comment.save(created_by_id=actor.id)
 
                 c_resolver = None
                 if can_embed:
@@ -785,7 +792,20 @@ def run_import(
                 body_html = adf_document_to_html(jc.get("body"), c_resolver)
                 if body_html and body_html != comment.comment_html:
                     comment.comment_html = body_html
-                    comment.save(created_by_id=initiator.id)
+                    comment.save(created_by_id=actor.id)
+                # FORK: jira-comment-provenance (#15) — backfill the original
+                # Jira timestamps after the final save. A queryset update()
+                # bypasses auto_now_add/auto_now; assigning on the instance
+                # before save would be silently overwritten.
+                jc_created = parse_datetime(jc.get("created")) if jc.get("created") else None
+                jc_updated = parse_datetime(jc.get("updated")) if jc.get("updated") else None
+                if jc_created:
+                    timestamp_fields = {"created_at": jc_created}
+                    if jc_updated and jc_updated > jc_created:
+                        timestamp_fields["edited_at"] = jc_updated
+                    IssueComment.objects.filter(id=comment.id).update(**timestamp_fields)
+                    if comment.description_id:
+                        Description.objects.filter(id=comment.description_id).update(created_at=jc_created)
             for jw in jira_worklogs:
                 seconds = int(jw.get("timeSpentSeconds") or 0)
                 if seconds <= 0:
