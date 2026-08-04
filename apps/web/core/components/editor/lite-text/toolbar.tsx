@@ -134,11 +134,11 @@ export function IssueCommentToolbar(props: Props) {
         </div>
       )}
       <div className="flex w-full items-stretch justify-between gap-2 rounded-sm border-[0.5px] border-subtle p-1">
-        <div className="flex items-stretch">
+        <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
           {Object.keys(toolbarItems).map((key, index) => (
             <div
               key={key}
-              className={cn("flex items-stretch gap-0.5 border-r border-subtle px-2.5", {
+              className={cn("flex items-stretch gap-0.5 border-r border-subtle px-1", {
                 "pl-0": index === 0,
               })}
             >
@@ -177,23 +177,25 @@ export function IssueCommentToolbar(props: Props) {
               })}
             </div>
           ))}
-          {/* FORK (#22): accessory slot — the comment attachment paperclip renders here */}
-          {toolbarAccessory && (
-            <div className="flex items-stretch gap-0.5 border-r border-subtle px-2.5">{toolbarAccessory}</div>
-          )}
         </div>
-        {showSubmitButton && (
-          <div className="sticky right-1">
-            <Button
-              type="submit"
-              variant="primary"
-              className="px-2.5 py-1.5 text-11"
-              onClick={handleSubmit}
-              disabled={isSubmitButtonDisabled}
-              loading={isSubmitting}
-            >
-              {t(submitButtonText)}
-            </Button>
+        {/* FORK (#22): accessory slot — pinned next to the submit button so it never scrolls out of view */}
+        {(toolbarAccessory || showSubmitButton) && (
+          <div className="flex flex-shrink-0 items-stretch gap-1.5">
+            {toolbarAccessory && (
+              <div className="flex items-stretch gap-0.5 border-l border-subtle px-1">{toolbarAccessory}</div>
+            )}
+            {showSubmitButton && (
+              <Button
+                type="submit"
+                variant="primary"
+                className="px-2.5 py-1.5 text-11"
+                onClick={handleSubmit}
+                disabled={isSubmitButtonDisabled}
+                loading={isSubmitting}
+              >
+                {t(submitButtonText)}
+              </Button>
+            )}
           </div>
         )}
       </div>

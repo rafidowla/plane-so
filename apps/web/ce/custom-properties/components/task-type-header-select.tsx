@@ -64,7 +64,10 @@ export const TaskTypeHeaderSelect = observer(function TaskTypeHeaderSelect(props
         buttonClassName="flex h-full items-center gap-1.5 rounded-sm border-[0.5px] border-strong px-2 py-0.5 text-left text-xs hover:bg-layer-2"
         buttonContent={() =>
           selected ? (
-            <StatusChip option={selected} />
+            <>
+              <span className="shrink-0 text-tertiary">{placeholder}:</span>
+              <StatusChip option={selected} />
+            </>
           ) : (
             <span className="flex-grow truncate text-tertiary">{placeholder}</span>
           )
