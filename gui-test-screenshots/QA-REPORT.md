@@ -1,6 +1,6 @@
 # Visual QA & Regression Report — Improvements 20–24
 
-**Date:** 2026-08-04 (round 2 same day) · **Branch:** `preview` (with 4 uncommitted QA fixes) · **Tester:** black-box GUI testing in a real browser at 1280×720, plus database verification after each action.
+**Date:** 2026-08-04 (rounds 2–3 same day) · **Branch:** `preview` · **Tester:** black-box GUI testing in a real browser at 1280×720, plus database verification after each action.
 
 **Short version:** you were right — the last version had a real UX bug that made comment attachments unusable. It's fixed. One more gap was found and fixed during testing. Everything else passed.
 
@@ -75,7 +75,7 @@ After — paperclip always visible next to Comment:
 
 ---
 
-## Minor notes — all 3 fixed in round 2 (2026-08-04)
+## Minor notes — all fixed (rounds 2–3, 2026-08-04)
 
 ### Fix 1: Comment delete now asks for confirmation
 
@@ -106,22 +106,21 @@ After — paperclip always visible next to Comment:
 
 Type checks and lint pass on all 4 changed files.
 
-**Still open (cosmetic, out of scope):** some old Jira comments contain leftover Jira attachment markup like `!video.mp4|width=587!` or `[image: file.wmv]` as plain text — that's missing file content from the original import, not a display bug.
+### Fix 4: Leftover Jira attachment markup cleaned up (one-time data fix, round 3 same day)
+
+- Old imported text had raw Jira attachment codes like `!video.mp4|width=587!` and `[image: file.wmv]` showing as plain text — the files themselves were never imported.
+- Cleaned in the database (both HTML and plain-text columns), in comments **and** work-item descriptions:
+  - Where the file actually exists as an attachment on the same work item (3 cases), the markup now reads `[attached: filename]`.
+  - Everywhere else (8 comments + 26 descriptions) it now reads `[Jira attachment: filename — file not imported]` — keeps the info that a file was referenced, without inventing content.
+- Verified: zero rows with the old markup remain, and the new note renders correctly in the browser (DEMO-6 below; also DOM-checked on DEMO-7).
+
+![cleaned-note](file:///Users/rdowla/Downloads/AiDev/Marketplace/Plane.so/gui-test-screenshots/36-jira-attachment-markup-cleaned.png)
 
 ## Housekeeping done during testing
 
 - DEMO-35's description was briefly overwritten by a stray test keystroke; it was restored from the activity history within minutes and verified. No lasting change.
 - Test work item DEMO-47 ("QA task type test") was deleted.
 
-## Uncommitted changes (need a branch + commit)
+## Commit status
 
-Four files are modified in the working tree — two from the first QA round, two from round 2:
-
-- `apps/web/core/components/editor/lite-text/toolbar.tsx` — paperclip pinned next to Comment button (#22 fix)
-- `apps/web/core/components/issues/issue-detail-widgets/attachments/quick-action-button.tsx` — file-type rules on the Attach button (#24 gap)
-- `apps/web/core/components/comments/quick-actions.tsx` — comment delete confirmation (Fix 1)
-- `apps/web/ce/custom-properties/components/task-type-header-select.tsx` — "Task Type:" label on the chip (Fix 3)
-
-(Fix 2 was a database-only change — no code.)
-
-Suggested: new branch `feat/25-qa-toolbar-attach-fixes` off `preview`, commit all four, merge with the usual "Merge feat/25-…: …(#25)" message.
+All four code fixes are committed and merged to `preview` via `feat/25-qa-toolbar-attach-fixes` (#25). Fixes 2 and 4 were database-only cleanups — no code.
