@@ -155,12 +155,33 @@ export function CustomImageUploader(props: CustomImageUploaderProps) {
     }
   }, [imageEntityId, isTouchDevice, uploadFile, imageComponentImageFileMap]);
 
+  // FORK: empty-image-placeholder (#23) — when the file picker is dismissed
+  // without a selection, delete the placeholder node instead of leaving an
+  // empty "Add an image" block in the comment.
+  const removePlaceholderNode = useCallback(() => {
+    // keep the node if an upload already resolved a src for it
+    if (node.attrs.src) return;
+    const pos = getPos();
+    if (pos === undefined) return;
+    editor
+      .chain()
+      .deleteRange({ from: pos, to: pos + node.nodeSize })
+      .run();
+    imageComponentImageFileMap?.delete(imageEntityId ?? "");
+  }, [editor, getPos, node, imageComponentImageFileMap, imageEntityId]);
+
   const onFileChange = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
       e.preventDefault();
       const filesList = e.target.files;
       const pos = getPos();
       if (!filesList || pos === undefined) {
+        return;
+      }
+      // FORK: empty-image-placeholder (#23) — some browsers fire `change`
+      // with an empty list when the picker is cancelled
+      if (filesList.length === 0) {
+        removePlaceholderNode();
         return;
       }
       await uploadFirstFileAndInsertRemaining({
@@ -171,8 +192,17 @@ export function CustomImageUploader(props: CustomImageUploaderProps) {
         uploader: uploadFile,
       });
     },
-    [uploadFile, editor, getPos]
+    [uploadFile, editor, getPos, removePlaceholderNode]
   );
+
+  // The file input's `cancel` event fires when the picker is closed without
+  // choosing a file. React has no onCancel prop for it, so attach it natively.
+  useEffect(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.addEventListener("cancel", removePlaceholderNode);
+    return () => input.removeEventListener("cancel", removePlaceholderNode);
+  }, [removePlaceholderNode]);
 
   const isErrorState = failedToLoadImage || hasDuplicationFailed;
 
@@ -209,6 +239,7 @@ export function CustomImageUploader(props: CustomImageUploaderProps) {
   );
 
   return (
+    // oxlint-disable-next-line click-events-have-key-events, no-static-element-interactions — upstream node-view wrapper; keyboard users interact via the editor itself
     <div
       className={cn(
         "image-upload-component flex cursor-default items-center justify-start gap-2 rounded-lg border border-dashed bg-layer-3 px-2 py-3 text-tertiary transition-all duration-200 ease-in-out",

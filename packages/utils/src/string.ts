@@ -56,6 +56,7 @@ export const truncateText = (str: string, length: number) => {
 export const createSimilarString = (str: string) => {
   const shuffled = str
     .split("")
+    // oxlint-disable-next-line no-array-sort — toSorted needs es2023 lib
     .sort(() => Math.random() - 0.5)
     .join("");
 
@@ -153,7 +154,7 @@ export const checkEmailValidity = (email: string): boolean => {
   if (!email) return false;
 
   const isEmailValid =
-    /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(
+    /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(
       email
     );
 
@@ -166,6 +167,13 @@ export const isEmptyHtmlString = (htmlString: string, allowedHTMLTags: string[] 
   // Trim the string and check if it's empty
   return cleanText.trim() === "";
 };
+
+// FORK: empty-image-placeholder (#23) — an <img>/<image-component> tag with no
+// src is an unsubmitted file-picker placeholder, not real content. Strip those
+// tags before checking emptiness so a placeholder-only comment can't be posted.
+const EMPTY_IMAGE_TAG_PATTERN = /<(img|image-component)\b(?:(?!\bsrc=)[^>])*(?:\/>|>(?:<\/\1>)?)/gi;
+
+const stripEmptyImageTags = (html: string): string => html.replace(EMPTY_IMAGE_TAG_PATTERN, "");
 
 /**
  * @description
@@ -186,6 +194,11 @@ export const isJSONContentEmpty = (content: JSONContent | undefined): boolean =>
   if (!content.content || content.content.length === 0) {
     // Special case: empty paragraph nodes should be considered empty
     if (content.type === "paragraph" || content.type === "doc") {
+      return true;
+    }
+    // FORK: empty-image-placeholder (#23) — an image node without a src is an
+    // unsubmitted file-picker placeholder, not real content
+    if ((content.type === "image" || content.type === "image-component") && !content.attrs?.src) {
       return true;
     }
     // For other node types without content (like hard breaks), check if they're meaningful
@@ -227,16 +240,18 @@ export const isCommentEmpty = (comment: Content | undefined): boolean => {
 
   // Handle HTMLContent (string)
   if (typeof comment === "string") {
+    // FORK: empty-image-placeholder (#23)
+    const stripped = stripEmptyImageTags(comment);
     return (
-      comment.trim() === "" ||
-      comment === "<p></p>" ||
-      isEmptyHtmlString(comment, ["img", "mention-component", "image-component"])
+      stripped.trim() === "" ||
+      stripped === "<p></p>" ||
+      isEmptyHtmlString(stripped, ["img", "mention-component", "image-component"])
     );
   }
 
   // Handle JSONContent[] (array)
   if (Array.isArray(comment)) {
-    return comment.length === 0 || comment.every(isJSONContentEmpty);
+    return comment.every(isJSONContentEmpty);
   }
 
   // Handle JSONContent (object)
@@ -253,10 +268,12 @@ export const isCommentEmpty = (comment: Content | undefined): boolean => {
 export const isStringCommentEmpty = (comment: string | undefined): boolean => {
   // return true if comment is undefined
   if (!comment) return true;
+  // FORK: empty-image-placeholder (#23)
+  const stripped = stripEmptyImageTags(comment);
   return (
-    comment?.trim() === "" ||
-    comment === "<p></p>" ||
-    isEmptyHtmlString(comment ?? "", ["img", "mention-component", "image-component", "embed-component"])
+    stripped.trim() === "" ||
+    stripped === "<p></p>" ||
+    isEmptyHtmlString(stripped, ["img", "mention-component", "image-component", "embed-component"])
   );
 };
 
