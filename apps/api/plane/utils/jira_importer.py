@@ -115,6 +115,32 @@ def _jira_json(resp):
         )
 
 
+# FORK: jira-comment-structure (#21) — Jira's threaded comments surface the
+# reply's parent in different shapes depending on API version/deployment, so
+# every known variant is probed. Returns the parent's Jira comment id or None.
+def _jira_comment_parent_id(jc):
+    parent_id = jc.get("parentCommentId") or jc.get("parentId") or (jc.get("parent") or {}).get("id")
+    return str(parent_id) if parent_id else None
+
+
+def _flatten_jira_comments(jira_comments):
+    """Flatten Jira threaded comments into import order.
+
+    Returns a list of (comment, parent_jira_id, rendered_index) tuples.
+    Top-level comments keep their index into renderedFields.comment.comments
+    (used for inline-image placement); nested replies have no rendered entry.
+    Reply nesting deeper than one level is flattened onto the top-level parent,
+    matching Jira's single-level reply model.
+    """
+    flat = []
+    for ci, jc in enumerate(jira_comments):
+        jc_id = str(jc.get("id"))
+        flat.append((jc, _jira_comment_parent_id(jc), ci))
+        for reply in jc.get("replies") or jc.get("children") or []:
+            flat.append((reply, jc_id, None))
+    return flat
+
+
 def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=None, limit=0):
     """Fetch issues (with comments + worklogs) from Jira Cloud REST API v3."""
     for key, val in (("jira_url", jira_url), ("jira_email", jira_email), ("jira_token", jira_token)):
@@ -644,7 +670,7 @@ def run_import(
         jira_comments = (f.get("comment") or {}).get("comments", [])
         jira_worklogs = (f.get("worklog") or {}).get("worklogs", []) if with_worklogs else []
         jira_attachments = (f.get("attachment") or []) if with_attachments else []
-        comments_n += len(jira_comments)
+        comments_n += len(_flatten_jira_comments(jira_comments))
         worklogs_n += len(jira_worklogs)
         attachments_n += len(jira_attachments)
         created += 1
@@ -744,7 +770,12 @@ def run_import(
                 )
                 IssueLabel.objects.create(issue=issue, label=label, project=project, created_by_id=initiator.id)
             rendered_comments = (rendered.get("comment") or {}).get("comments", [])
-            for ci, jc in enumerate(jira_comments):
+            # FORK: jira-comment-structure (#21) — import replies too and remember
+            # each comment's Jira parent id so threading can be restored below.
+            flat_comments = _flatten_jira_comments(jira_comments)
+            comments_by_external = {}  # jira comment id -> IssueComment
+            comment_parent_links = {}  # IssueComment id -> parent jira comment id
+            for ci, (jc, parent_jira_id, rendered_idx) in enumerate(flat_comments):
                 jc_author = jc.get("author") or {}
                 matched_actor = resolve_member(member_map, member_by_name, jc_author)
                 actor = matched_actor or initiator
@@ -767,10 +798,17 @@ def run_import(
                     created_by_id=actor.id,
                 )
                 comment.save(created_by_id=actor.id)
+                comments_by_external[str(jc.get("id"))] = comment
+                if parent_jira_id:
+                    comment_parent_links[comment.id] = parent_jira_id
 
                 c_resolver = None
                 if can_embed:
-                    rc_html = rendered_comments[ci].get("body") if ci < len(rendered_comments) else ""
+                    rc_html = (
+                        rendered_comments[rendered_idx].get("body")
+                        if rendered_idx is not None and rendered_idx < len(rendered_comments)
+                        else ""
+                    )
                     c_atts = _ordered_media_attachments(rc_html or "", jira_attachments)
                     c_resolver = _make_media_resolver(
                         c_atts,
@@ -806,6 +844,16 @@ def run_import(
                     IssueComment.objects.filter(id=comment.id).update(**timestamp_fields)
                     if comment.description_id:
                         Description.objects.filter(id=comment.description_id).update(created_at=jc_created)
+            # FORK: jira-comment-structure (#21) — restore Jira's reply threading.
+            # Resolve parents from this issue's just-imported comments first, then
+            # the DB (covers parents imported in an earlier run). A queryset
+            # update() keeps the backfilled timestamps untouched.
+            for child_id, parent_jira_id in comment_parent_links.items():
+                parent_comment = comments_by_external.get(parent_jira_id) or IssueComment.objects.filter(
+                    issue=issue, external_source="jira", external_id=parent_jira_id
+                ).first()
+                if parent_comment and parent_comment.id != child_id:
+                    IssueComment.objects.filter(id=child_id, parent__isnull=True).update(parent_id=parent_comment.id)
             for jw in jira_worklogs:
                 seconds = int(jw.get("timeSpentSeconds") or 0)
                 if seconds <= 0:

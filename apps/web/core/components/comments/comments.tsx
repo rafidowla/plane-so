@@ -59,31 +59,61 @@ export const CommentsWrapper = observer(function CommentsWrapper(props: TComment
     <div className="relative flex h-full flex-col gap-y-2 overflow-hidden">
       {renderCommentCreate}
       <div className="flex-grow overflow-y-auto py-4">
-        {comments?.map((data, index) => {
-          let comment;
-          if (typeof data === "string") {
-            comment = getCommentById?.(data);
-          } else {
-            comment = data;
+        {(() => {
+          // FORK: jira-comment-structure (#21) — group reply comments under
+          // their parent so migrated Jira threads keep their discussion flow.
+          const resolved = comments
+            ?.map((data) => (typeof data === "string" ? getCommentById?.(data) : data))
+            .filter((c): c is TIssueComment => !!c);
+          if (!resolved) return null;
+          const visibleIds = new Set(resolved.map((c) => c.id));
+          const topLevel = resolved.filter((c) => !c.parent || !visibleIds.has(c.parent));
+          const repliesByParent = new Map<string, TIssueComment[]>();
+          for (const comment of resolved) {
+            if (!comment.parent || !visibleIds.has(comment.parent)) continue;
+            const siblings = repliesByParent.get(comment.parent) ?? [];
+            siblings.push(comment);
+            repliesByParent.set(comment.parent, siblings);
           }
-
-          if (!comment) return null;
-          return (
-            <CommentCard
-              key={comment.id}
-              workspaceSlug={workspaceSlug}
-              entityId={entityId}
-              comment={comment}
-              activityOperations={activityOperations}
-              disabled={!isEditingAllowed}
-              ends={index === 0 ? "top" : index === comments.length - 1 ? "bottom" : undefined}
-              projectId={projectId}
-              showAccessSpecifier={showAccessSpecifier}
-              showCopyLinkOption={showCopyLinkOption}
-              enableReplies={enableReplies}
-            />
-          );
-        })}
+          return topLevel.map((comment, index) => {
+            const replies = repliesByParent.get(comment.id) ?? [];
+            return (
+              <div key={comment.id}>
+                <CommentCard
+                  workspaceSlug={workspaceSlug}
+                  entityId={entityId}
+                  comment={comment}
+                  activityOperations={activityOperations}
+                  disabled={!isEditingAllowed}
+                  ends={index === 0 ? "top" : index === topLevel.length - 1 ? "bottom" : undefined}
+                  projectId={projectId}
+                  showAccessSpecifier={showAccessSpecifier}
+                  showCopyLinkOption={showCopyLinkOption}
+                  enableReplies={enableReplies}
+                />
+                {replies.length > 0 && (
+                  <div className="ml-10 border-l border-subtle pl-3">
+                    {replies.map((reply) => (
+                      <CommentCard
+                        key={reply.id}
+                        workspaceSlug={workspaceSlug}
+                        entityId={entityId}
+                        comment={reply}
+                        activityOperations={activityOperations}
+                        disabled={!isEditingAllowed}
+                        ends={undefined}
+                        projectId={projectId}
+                        showAccessSpecifier={showAccessSpecifier}
+                        showCopyLinkOption={showCopyLinkOption}
+                        enableReplies={enableReplies}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          });
+        })()}
       </div>
     </div>
   );
