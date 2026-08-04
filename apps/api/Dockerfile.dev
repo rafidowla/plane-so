@@ -7,13 +7,13 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV INSTANCE_CHANGELOG_URL https://sites.plane.so/pages/691ef037bcfe416a902e48cb55f59891/
 
 RUN apk --no-cache add \
-    "bash~=5.2" \
+    "bash" \
     "libpq" \
     "libxslt" \
     "nodejs-current" \
     "xmlsec" \
     "libffi-dev" \
-    "bash~=5.2" \
+    "bash" \
     "g++" \
     "gcc" \
     "cargo" \
