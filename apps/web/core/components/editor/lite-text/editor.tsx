@@ -45,6 +45,8 @@ type LiteTextEditorWrapperProps = MakeOptional<
   parentClassName?: string;
   editorClassName?: string;
   submitButtonText?: string;
+  /** FORK (#22): extra controls rendered in the full comment toolbar (e.g. the attachment paperclip). */
+  toolbarAccessory?: React.ReactNode;
 } & (
     | {
         editable: false;
@@ -85,6 +87,7 @@ export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
     editorClassName = "",
     showPlaceholderOnEmpty = true,
     submitButtonText = "common.comment",
+    toolbarAccessory,
     ...rest
   } = props;
   // states
@@ -218,6 +221,7 @@ export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
             editorRef={editorRef}
             showSubmitButton={showSubmitButton}
             submitButtonText={submitButtonText}
+            toolbarAccessory={toolbarAccessory}
           />
         </div>
       )}

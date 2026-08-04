@@ -508,10 +508,12 @@ ATTACHMENT_MIME_TYPES = [
     "video/quicktime",
     "video/x-msvideo",
     "video/x-ms-wmv",
+    "video/x-matroska",  # FORK: attachment file types (#24) — .mkv
     # Archives
     "application/zip",
     "application/x-rar",
     "application/x-rar-compressed",
+    "application/vnd.rar",  # FORK: attachment file types (#24) — modern .rar type
     "application/x-tar",
     "application/gzip",
     "application/x-zip",
@@ -543,6 +545,8 @@ ATTACHMENT_MIME_TYPES = [
     "application/xml",
     # SQL
     "application/x-sql",
+    # FORK: attachment file types (#24) — .yaml/.yml
+    "text/yaml",
     # Gzip
     "application/x-gzip",
     # Markdown

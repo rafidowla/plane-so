@@ -7,8 +7,16 @@
 import { useCallback, useState } from "react";
 import { observer } from "mobx-react";
 import { useDropzone } from "react-dropzone";
+// plane imports
+import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 // plane web hooks
 import { useFileSize } from "@/hooks/use-file-size";
+// FORK: attachment file types (#24) — same accept rules as comment attachments
+import {
+  ATTACHMENT_ACCEPT_ATTRIBUTE,
+  ATTACHMENT_ACCEPT_LABEL,
+  isAcceptedAttachmentFile,
+} from "@/plane-web/attachment-accept";
 // types
 import type { TAttachmentOperations } from "../issue-detail-widgets/attachments/helper";
 
@@ -31,6 +39,16 @@ export const IssueAttachmentUpload = observer(function IssueAttachmentUpload(pro
     (acceptedFiles: File[]) => {
       const currentFile: File = acceptedFiles[0];
       if (!currentFile || !workspaceSlug) return;
+
+      // FORK: attachment file types (#24) — reject unsupported types with a clear message
+      if (!isAcceptedAttachmentFile(currentFile.name)) {
+        setToast({
+          type: TOAST_TYPE.ERROR,
+          title: "Unsupported file type",
+          message: `${currentFile.name} can't be attached. Supported files: ${ATTACHMENT_ACCEPT_LABEL}`,
+        });
+        return;
+      }
 
       setIsLoading(true);
       attachmentOperations.create(currentFile).finally(() => setIsLoading(false));
@@ -55,7 +73,7 @@ export const IssueAttachmentUpload = observer(function IssueAttachmentUpload(pro
         isDragActive ? "border-accent-strong bg-accent-primary/10" : "border-subtle"
       } ${isDragReject ? "bg-danger-subtle" : ""} ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
     >
-      <input {...getInputProps()} />
+      <input {...getInputProps()} accept={ATTACHMENT_ACCEPT_ATTRIBUTE} />
       <span className="flex items-center gap-2">
         {isDragActive ? (
           <p>Drop here...</p>

@@ -18,8 +18,9 @@ import { LiteTextEditor } from "@/components/editor/lite-text";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 // services
 import { FileService } from "@/services/file.service";
-// FORK: comment-attachments (#18)
-import { CommentAttachmentComposer } from "@/plane-web/comment-attachments";
+// FORK: comment-attachments (#18, #22)
+import { CommentAttachToolbarButton, CommentAttachmentComposer } from "@/plane-web/comment-attachments";
+import type { TCommentAttachmentComposerHandle } from "@/plane-web/comment-attachments";
 
 type TCommentCreate = {
   entityId: string;
@@ -49,6 +50,8 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
   const [composerResetKey, setComposerResetKey] = useState(0);
   // refs
   const editorRef = useRef<EditorRefApi>(null);
+  // FORK: comment-attachments (#22) — toolbar paperclip opens this picker's input
+  const attachmentComposerRef = useRef<TCommentAttachmentComposerHandle>(null);
   // store hooks
   const workspaceStore = useWorkspace();
   // derived values
@@ -161,15 +164,26 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
                 displayConfig={{
                   fontSize: "small-font",
                 }}
+                // FORK: comment-attachments (#22) — paperclip lives in the toolbar now
+                toolbarAccessory={
+                  projectId ? (
+                    <CommentAttachToolbarButton
+                      disabled={isSubmitting}
+                      onClick={() => attachmentComposerRef.current?.open()}
+                    />
+                  ) : undefined
+                }
               />
             )}
           />
         )}
       />
-      {/* FORK: comment-attachments (#18) */}
+      {/* FORK: comment-attachments (#18, #22) — staged chips only; the paperclip is in the toolbar */}
       {projectId && (
         <CommentAttachmentComposer
+          ref={attachmentComposerRef}
           key={composerResetKey}
+          hideAttachButton
           disabled={isSubmitting}
           uploadAsset={async (file) => {
             const { asset_id } = await activityOperations.uploadCommentAsset("", file);
