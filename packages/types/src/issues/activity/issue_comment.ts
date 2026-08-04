@@ -44,6 +44,10 @@ export type TIssueComment = {
   comment_json: JSONContent;
   external_id: string | undefined;
   external_source: string | undefined;
+  // FORK: jira-comment-provenance/structure (#15, #21) — Jira display name for
+  // authors unmapped to a workspace member, and reply threading.
+  external_actor_display?: string | null;
+  parent?: string | null;
   access: EIssueCommentAccessSpecifier;
 };
 

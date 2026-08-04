@@ -65,10 +65,16 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
   const { getUserDetails } = useMember();
   // derived values
   const userDetails = getUserDetails(comment?.actor);
-  const displayName = comment?.actor_detail?.is_bot
-    ? comment?.actor_detail?.first_name + `Bot`
-    : (userDetails?.display_name ?? comment?.actor_detail?.display_name);
-  const avatarUrl = userDetails?.avatar_url ?? comment?.actor_detail?.avatar_url;
+  // FORK: jira-comment-structure (#21) — for migrated comments whose Jira
+  // author isn't a workspace member, show the original Jira display name
+  // instead of the import initiator the comment was attributed to.
+  const externalAuthorName = comment?.external_actor_display?.trim() || null;
+  const displayName =
+    externalAuthorName ??
+    (comment?.actor_detail?.is_bot
+      ? comment?.actor_detail?.first_name + `Bot`
+      : (userDetails?.display_name ?? comment?.actor_detail?.display_name));
+  const avatarUrl = externalAuthorName ? undefined : (userDetails?.avatar_url ?? comment?.actor_detail?.avatar_url);
 
   const userReactions = activityOperations.userReactions(comment.id);
 
@@ -119,9 +125,10 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
         </div>
       )}
       <div className="relative mb-3 flex w-full items-center gap-2">
-        <Avatar size="sm" name={displayName} src={getFileURL(avatarUrl)} className="shrink-0" />
+        <Avatar size="sm" name={displayName} src={avatarUrl ? getFileURL(avatarUrl) : undefined} className="shrink-0" />
         <div className="flex flex-1 flex-wrap items-center gap-1">
           <div className="text-caption-sm-medium">{displayName}</div>
+          {externalAuthorName && <div className="text-caption-sm-regular text-tertiary">(via Jira)</div>}
           <div className="text-caption-sm-regular text-tertiary">
             commented{" "}
             <Tooltip

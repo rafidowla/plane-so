@@ -40,7 +40,8 @@ export const TaskTypeHeaderSelect = observer(function TaskTypeHeaderSelect(props
 
   const options = (taskTypeProperty.options ?? [])
     .filter((o) => o.is_active)
-    .toSorted((a, b) => a.sort_order - b.sort_order);
+    // oxlint-disable-next-line no-array-sort — matches status-input.tsx; toSorted needs es2023 lib
+    .sort((a, b) => a.sort_order - b.sort_order);
   if (options.length === 0) return null;
 
   const values = getStagedValues(taskTypeProperty.id);
