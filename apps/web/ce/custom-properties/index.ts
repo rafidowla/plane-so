@@ -19,6 +19,9 @@ export * from "./issue-properties.service";
 export * from "./hooks/use-custom-properties";
 export * from "./hooks/use-property-values";
 export * from "./hooks/use-project-custom-properties";
+export * from "./hooks/use-create-property-staging";
+// utils
+export * from "./utils/task-type";
 // components
 export * from "./components/settings/project-properties-settings";
 export * from "./components/settings/property-list";
@@ -31,3 +34,4 @@ export * from "./components/status-chip";
 export * from "./components/card-chips";
 export * from "./components/sidebar-section";
 export * from "./components/modal-section";
+export * from "./components/task-type-header-select";
