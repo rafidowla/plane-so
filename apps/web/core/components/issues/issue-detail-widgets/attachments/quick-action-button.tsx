@@ -16,6 +16,12 @@ import type { TIssueServiceType } from "@plane/types";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // plane web hooks
 import { useFileSize } from "@/hooks/use-file-size";
+// FORK: attachment file types (#24) — same accept rules as the other attachment pickers
+import {
+  ATTACHMENT_ACCEPT_ATTRIBUTE,
+  ATTACHMENT_ACCEPT_LABEL,
+  isAcceptedAttachmentFile,
+} from "@/plane-web/attachment-accept";
 // local imports
 import { useAttachmentOperations } from "./helper";
 
@@ -55,6 +61,16 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
       if (rejectedFiles.length === 0) {
         const currentFile: File = acceptedFiles[0];
         if (!currentFile || !workspaceSlug) return;
+
+        // FORK: attachment file types (#24) — reject unsupported types with a clear message
+        if (!isAcceptedAttachmentFile(currentFile.name)) {
+          setToast({
+            type: TOAST_TYPE.ERROR,
+            title: "Unsupported file type",
+            message: `${currentFile.name} can't be attached. Supported files: ${ATTACHMENT_ACCEPT_LABEL}`,
+          });
+          return;
+        }
 
         setIsLoading(true);
         attachmentOperations
@@ -105,7 +121,7 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
       }}
     >
       <button {...getRootProps()} type="button" disabled={disabled}>
-        <input {...getInputProps()} />
+        <input {...getInputProps()} accept={ATTACHMENT_ACCEPT_ATTRIBUTE} />
         {customButton ? customButton : <PlusIcon className="h-4 w-4" />}
       </button>
     </div>
