@@ -47,6 +47,8 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 import { useProjectIssueProperties } from "@/hooks/use-project-issue-properties";
 // FORK: custom-properties
 import { WorkItemModalAdditionalProperties } from "@/plane-web/components/issues/issue-modal/modal-additional-properties";
+// FORK: custom-properties — Task Type chip in the create-modal header (improvement #20)
+import { TaskTypeHeaderSelect } from "@/plane-web/custom-properties";
 
 export interface IssueFormProps {
   data?: Partial<TIssue>;
@@ -370,6 +372,14 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                     disabled={!!data?.id || !!data?.sourceIssueId || isProjectSelectionDisabled}
                     handleFormChange={handleFormChange}
                   />
+                  {/* FORK: custom-properties — Task Type next to the project selector (improvement #20) */}
+                  {!data?.id && !data?.sourceIssueId && (
+                    <TaskTypeHeaderSelect
+                      workspaceSlug={workspaceSlug?.toString()}
+                      projectId={projectId ?? null}
+                      disabled={false}
+                    />
+                  )}
                 </div>
               </div>
               {watch("parent_id") && selectedParentIssue && (

@@ -9,6 +9,7 @@ import { observer } from "mobx-react";
 import { useTranslation } from "@plane/i18n";
 // local imports
 import { useProjectCustomProperties } from "@/plane-web/custom-properties";
+import { splitTaskTypeProperty } from "../utils/task-type";
 import { CreatePropertyInputRows } from "./create-property-input-rows";
 import { PropertyInputRows } from "./property-input-rows";
 
@@ -32,8 +33,14 @@ export const CustomPropertiesModalSection = observer(function CustomPropertiesMo
   const { t } = useTranslation();
   const { enabled, properties } = useProjectCustomProperties(workspaceSlug, projectId ?? undefined);
 
+  // Improvement #20: in create mode the Task Type property moves to the modal
+  // header; when it is the only property, the Options section renders nothing
+  // (no leftover whitespace).
+  const { otherProperties } = splitTaskTypeProperty(properties);
+  const hasCreateRows = !!workItemId || otherProperties.length > 0;
+
   // Feature off ⇒ render nothing (create mode is handled below).
-  if (!enabled || !projectId || properties.length === 0) return null;
+  if (!enabled || !projectId || properties.length === 0 || !hasCreateRows) return null;
 
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-subtle pt-3">
