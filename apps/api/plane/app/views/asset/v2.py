@@ -24,6 +24,10 @@ from plane.settings.storage import S3Storage
 from plane.app.permissions import allow_permission, ROLE
 from plane.utils.cache import invalidate_cache_directly
 from plane.utils.path_validator import sanitize_filename
+from plane.utils.attachment_mime import (
+    SUPPORTED_ATTACHMENT_EXTENSIONS,
+    resolve_attachment_type,
+)
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.throttles.asset import AssetRateThrottle
 
@@ -595,9 +599,12 @@ class ProjectAssetEndpoint(BaseAPIView):
         # Check if the file type is allowed
         # FORK: comment attachments (#18) accept the same broad MIME list as
         # issue attachments; every other entity type stays image-only.
+        # FORK: attachment file types (#24) — fall back to the file name's
+        # extension when the browser sends an empty/generic MIME type.
         if entity_type == FileAsset.EntityTypeContext.COMMENT_DESCRIPTION:
+            type = resolve_attachment_type(name, type)
             allowed_types = settings.ATTACHMENT_MIME_TYPES
-            type_error = "Invalid file type."
+            type_error = f"Unsupported file type. Supported files: {SUPPORTED_ATTACHMENT_EXTENSIONS}"
         else:
             allowed_types = [
                 "image/jpeg",

@@ -25,6 +25,10 @@ from plane.bgtasks.issue_activities_task import issue_activity
 from plane.app.permissions import allow_permission, ROLE
 from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
+from plane.utils.attachment_mime import (
+    SUPPORTED_ATTACHMENT_EXTENSIONS,
+    resolve_attachment_type,
+)
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.utils.host import base_host
 
@@ -99,12 +103,18 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def post(self, request, slug, project_id, issue_id):
         name = sanitize_filename(request.data.get("name")) or "unnamed"
-        type = request.data.get("type", False)
+        # FORK: attachment file types (#24) — fall back to the file name's
+        # extension when the browser sends an empty/generic MIME type, and
+        # name the supported extensions in the error.
+        type = resolve_attachment_type(name, request.data.get("type") or "")
         size = int(request.data.get("size", settings.FILE_SIZE_LIMIT))
 
-        if not type or type not in settings.ATTACHMENT_MIME_TYPES:
+        if not type:
             return Response(
-                {"error": "Invalid file type.", "status": False},
+                {
+                    "error": f"Unsupported file type. Supported files: {SUPPORTED_ATTACHMENT_EXTENSIONS}",
+                    "status": False,
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

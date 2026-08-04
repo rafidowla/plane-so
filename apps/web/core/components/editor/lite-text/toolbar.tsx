@@ -34,6 +34,8 @@ type Props = {
   showSubmitButton: boolean;
   editorRef: EditorRefApi | null;
   submitButtonText?: string;
+  /** FORK (#22): extra controls (e.g. the comment attachment paperclip) rendered after the formatting groups. */
+  toolbarAccessory?: React.ReactNode;
 };
 
 type TCommentAccessType = {
@@ -70,6 +72,7 @@ export function IssueCommentToolbar(props: Props) {
     showSubmitButton,
     editorRef,
     submitButtonText = "common.comment",
+    toolbarAccessory,
   } = props;
   // State to manage active states of toolbar items
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
@@ -174,6 +177,10 @@ export function IssueCommentToolbar(props: Props) {
               })}
             </div>
           ))}
+          {/* FORK (#22): accessory slot — the comment attachment paperclip renders here */}
+          {toolbarAccessory && (
+            <div className="flex items-stretch gap-0.5 border-r border-subtle px-2.5">{toolbarAccessory}</div>
+          )}
         </div>
         {showSubmitButton && (
           <div className="sticky right-1">
