@@ -11,7 +11,7 @@ import { MoreHorizontal } from "lucide-react";
 import { EIssueCommentAccessSpecifier } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { IconButton } from "@plane/propel/icon-button";
-import { LinkIcon, GlobeIcon, LockIcon, EditIcon, TrashIcon } from "@plane/propel/icons";
+import { LinkIcon, GlobeIcon, LockIcon, EditIcon, TrashIcon, CommentReplyIcon } from "@plane/propel/icons";
 import type { TIssueComment, TCommentsOperations } from "@plane/types";
 import type { TContextMenuItem } from "@plane/ui";
 import { AlertModalCore, CustomMenu } from "@plane/ui";
@@ -25,10 +25,12 @@ type TCommentCard = {
   setEditMode: () => void;
   showAccessSpecifier: boolean;
   showCopyLinkOption: boolean;
+  // FORK: comment-replies (#26)
+  setReplyMode?: () => void;
 };
 
 export const CommentQuickActions = observer(function CommentQuickActions(props: TCommentCard) {
-  const { activityOperations, comment, setEditMode, showAccessSpecifier, showCopyLinkOption } = props;
+  const { activityOperations, comment, setEditMode, showAccessSpecifier, showCopyLinkOption, setReplyMode } = props;
   // store hooks
   const { data: currentUser } = useUser();
   // FORK: comment delete confirmation — deleting used to be one click with no undo
@@ -44,6 +46,14 @@ export const CommentQuickActions = observer(function CommentQuickActions(props: 
   const MENU_ITEMS = useMemo(
     function MENU_ITEMS(): TContextMenuItem[] {
       return [
+        {
+          // FORK: comment-replies (#26) — anyone who can comment can reply in thread
+          key: "reply",
+          action: () => setReplyMode?.(),
+          title: t("issue.comments.reply", { defaultValue: "Reply" }),
+          icon: CommentReplyIcon,
+          shouldRender: !!setReplyMode,
+        },
         {
           key: "edit",
           action: setEditMode,
@@ -84,7 +94,17 @@ export const CommentQuickActions = observer(function CommentQuickActions(props: 
         },
       ].filter((item) => item.shouldRender !== false);
     },
-    [t, setEditMode, canEdit, showCopyLinkOption, activityOperations, comment, showAccessSpecifier, canDelete]
+    [
+      t,
+      setEditMode,
+      canEdit,
+      showCopyLinkOption,
+      activityOperations,
+      comment,
+      showAccessSpecifier,
+      canDelete,
+      setReplyMode,
+    ]
   );
 
   if (MENU_ITEMS.length === 0) return null;
