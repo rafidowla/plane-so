@@ -13,6 +13,8 @@ import type { TIssueComment, TCommentsOperations } from "@plane/types";
 import { CommentQuickActions } from "../quick-actions";
 import { CommentBlock } from "../comment-block";
 import { CommentCardDisplay } from "./display";
+// FORK: comment-replies (#26)
+import { CommentReplyComposer } from "@/plane-web/comment-replies";
 
 type TCommentCard = {
   workspaceSlug: string;
@@ -41,6 +43,8 @@ export const CommentCard = observer(function CommentCard(props: TCommentCard) {
   } = props;
   // states
   const [isEditing, setIsEditing] = useState(false);
+  // FORK: comment-replies (#26)
+  const [isReplying, setIsReplying] = useState(false);
   // refs
   const readOnlyEditorRef = useRef<EditorRefApi>(null);
   // derived values
@@ -69,9 +73,23 @@ export const CommentCard = observer(function CommentCard(props: TCommentCard) {
             setEditMode={() => setIsEditing(true)}
             showAccessSpecifier={showAccessSpecifier}
             showCopyLinkOption={showCopyLinkOption}
+            // FORK: comment-replies (#26)
+            setReplyMode={() => setIsReplying(true)}
           />
         )}
       />
+      {/* FORK: comment-replies (#26) — threads display one level deep (see #21),
+          so a reply to a reply attaches to the top-level parent instead of vanishing */}
+      {isReplying && (
+        <CommentReplyComposer
+          activityOperations={activityOperations}
+          parentCommentId={comment.parent ?? comment.id}
+          projectId={projectId}
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          onDone={() => setIsReplying(false)}
+        />
+      )}
     </CommentBlock>
   );
 });
