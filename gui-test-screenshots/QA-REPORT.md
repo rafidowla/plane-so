@@ -124,3 +124,19 @@ Type checks and lint pass on all 4 changed files.
 ## Commit status
 
 All four code fixes are committed and merged to `preview` via `feat/25-qa-toolbar-attach-fixes` (#25). Fixes 2 and 4 were database-only cleanups — no code.
+
+---
+
+# Addendum — #26 Reply in comment threads (2026-08-04)
+
+- **What was added:** every comment's "…" menu now starts with **Reply**. It opens a small composer right under that comment (with a "Replying in thread" hint and a cancel ×); submitting posts a threaded reply. The server already accepted a parent link on comments, so this was a screen-only change.
+- **Verified in the browser (DEMO-33):**
+  - "…" menu shows Reply first, then Edit / Copy link / Delete.
+  - Composer opens under the chosen comment; typing and clicking the green check posts the reply.
+  - The reply renders nested and indented under its parent (screenshot below).
+  - Database check: the reply row's parent points at the right comment.
+  - Replying to a reply attaches to the top-level comment instead of disappearing (threads show one level deep, same as the imported Jira threads from #21).
+- **Cleanup:** the test reply was deleted through the UI (the #25 "are you sure?" dialog appeared; comment removed), and the database shows it soft-deleted. Demo data left clean.
+- Type checks and lint pass. Committed via `feat/26-comment-replies`, merged to `preview`.
+
+![threaded-reply](file:///Users/rdowla/Downloads/AiDev/Marketplace/Plane.so/gui-test-screenshots/37-comment-reply-threaded.png)
