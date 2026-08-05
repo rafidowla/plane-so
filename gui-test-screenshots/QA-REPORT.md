@@ -140,3 +140,13 @@ All four code fixes are committed and merged to `preview` via `feat/25-qa-toolba
 - Type checks and lint pass. Committed via `feat/26-comment-replies`, merged to `preview`.
 
 ![threaded-reply](file:///Users/rdowla/Downloads/AiDev/Marketplace/Plane.so/gui-test-screenshots/37-comment-reply-threaded.png)
+
+## Round 2 — detailed visual tests (same day)
+
+- **Cancel × — pass.** Opening the reply composer and clicking × closed it without posting; no new row in the database.
+- **Reply-to-a-reply — pass.** Clicking Reply on a nested reply posted a new reply attached to the _top-level_ comment (threads stay one level deep, matching #21). It renders at the same indent as the first reply (screenshot below), and the database confirms both replies point at the same parent.
+- **Enter-to-submit — not testable here.** The automation browser can't send keystroke-level Enter, so this was submitted with the ✓ button instead. The code path is the same one the main comment editor already uses, but it wasn't exercised in a real browser. Worth one manual check: open a reply, type, hit Enter — it should post, and Shift+Enter should add a new line.
+- **Attachments in replies — partial.** The reply composer has the standard small toolbar (image button; paste/drop uploads are wired and get linked to the new reply). There is no paperclip — that button was added to the main comment box only (#22). Native file-open dialogs can't be driven by the testing browser, so the image picker wasn't clicked end-to-end.
+- **Cleanup:** all test replies (three total) were deleted through the UI with the "are you sure?" dialog; the database shows all three soft-deleted and DEMO-33 shows only the two original Jira comments.
+
+![flattened-reply](file:///Users/rdowla/Downloads/AiDev/Marketplace/Plane.so/gui-test-screenshots/38-reply-to-reply-flattened.png)
