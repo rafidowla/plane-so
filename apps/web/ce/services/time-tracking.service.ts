@@ -113,6 +113,14 @@ export class TimeTrackingService extends APIService {
   }
 
   // ---- Jira import (self-service) ----
+  async getJiraStatuses(workspaceSlug: string, projectId: string, config: TJiraImportConfig): Promise<string[]> {
+    return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/jira-import/statuses/`, config)
+      .then((res) => res?.data?.statuses ?? [])
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
   async previewJiraImport(workspaceSlug: string, projectId: string, config: TJiraImportConfig): Promise<TJiraPreview> {
     return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/jira-import/preview/`, config)
       .then((res) => res?.data)

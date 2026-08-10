@@ -34,6 +34,11 @@ export const Imports = observer(function Imports() {
   const [withAttachments, setWithAttachments] = useState(false);
   const [useSample, setUseSample] = useState(false);
 
+  // Status filter: null = never loaded (import everything, the old behavior).
+  const [jiraStatuses, setJiraStatuses] = useState<string[] | null>(null);
+  const [checkedStatuses, setCheckedStatuses] = useState<string[]>([]);
+  const [loadingStatuses, setLoadingStatuses] = useState(false);
+
   const [preview, setPreview] = useState<TJiraPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [job, setJob] = useState<TJiraImportJob | null>(null);
@@ -48,8 +53,41 @@ export const Imports = observer(function Imports() {
     with_worklogs: withWorklogs,
     with_attachments: withAttachments,
     sample: useSample,
+    // Only send a status filter once the user has loaded and picked statuses.
+    ...(jiraStatuses !== null ? { statuses: checkedStatuses } : {}),
   });
-  const canRun = Boolean(projectId) && (useSample || (jiraUrl && jiraEmail && jiraToken));
+  const canLoadStatuses = Boolean(projectId && jiraUrl && jiraEmail && jiraToken && jiraProject) && !useSample;
+  const canRun =
+    Boolean(projectId) &&
+    (useSample || (jiraUrl && jiraEmail && jiraToken)) &&
+    // If the list was loaded, at least one status must stay checked.
+    (jiraStatuses === null || checkedStatuses.length > 0);
+
+  // Changing the Jira connection makes a previously loaded status list stale.
+  const handleConnChange = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setter(e.target.value);
+    setJiraStatuses(null);
+  };
+
+  const handleLoadStatuses = async () => {
+    setLoadingStatuses(true);
+    try {
+      const list = await timeTrackingService.getJiraStatuses(workspaceSlug, projectId, cfg());
+      setJiraStatuses(list);
+      setCheckedStatuses(list); // everything checked by default
+    } catch (err: any) {
+      setToast({
+        type: TOAST_TYPE.ERROR,
+        title: "Could not load statuses",
+        message: err?.error ?? "Check your Jira details.",
+      });
+    } finally {
+      setLoadingStatuses(false);
+    }
+  };
+
+  const toggleStatus = (name: string) =>
+    setCheckedStatuses((prev) => (prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]));
 
   useEffect(
     () => () => {
@@ -154,7 +192,7 @@ export const Imports = observer(function Imports() {
               <span className="text-xs mb-1 block text-tertiary">Jira URL</span>
               <Input
                 value={jiraUrl}
-                onChange={(e) => setJiraUrl(e.target.value)}
+                onChange={handleConnChange(setJiraUrl)}
                 placeholder="https://acme.atlassian.net"
                 className="w-full"
               />
@@ -163,7 +201,7 @@ export const Imports = observer(function Imports() {
               <span className="text-xs mb-1 block text-tertiary">Jira email</span>
               <Input
                 value={jiraEmail}
-                onChange={(e) => setJiraEmail(e.target.value)}
+                onChange={handleConnChange(setJiraEmail)}
                 placeholder="you@acme.com"
                 className="w-full"
               />
@@ -173,7 +211,7 @@ export const Imports = observer(function Imports() {
               <Input
                 type="password"
                 value={jiraToken}
-                onChange={(e) => setJiraToken(e.target.value)}
+                onChange={handleConnChange(setJiraToken)}
                 placeholder="••••••••"
                 className="w-full"
               />
@@ -182,11 +220,53 @@ export const Imports = observer(function Imports() {
               <span className="text-xs mb-1 block text-tertiary">Jira project key</span>
               <Input
                 value={jiraProject}
-                onChange={(e) => setJiraProject(e.target.value)}
+                onChange={handleConnChange(setJiraProject)}
                 placeholder="ENG"
                 className="w-full"
               />
             </div>
+          </div>
+        )}
+
+        {!useSample && (
+          <div className="grid gap-2">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleLoadStatuses}
+                disabled={!canLoadStatuses || loadingStatuses}
+              >
+                {loadingStatuses ? "Loading…" : jiraStatuses ? "Reload statuses" : "Load statuses"}
+              </Button>
+              <span className="text-xs text-tertiary">
+                Optional — pick which Jira statuses to import (e.g. skip Done/Closed to leave old tickets behind).
+              </span>
+            </div>
+            {jiraStatuses !== null && (
+              <div className="grid gap-1.5 rounded border border-subtle p-3">
+                <label className="text-sm flex items-center gap-2 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={jiraStatuses.length > 0 && checkedStatuses.length === jiraStatuses.length}
+                    onChange={() =>
+                      setCheckedStatuses(checkedStatuses.length === jiraStatuses.length ? [] : jiraStatuses)
+                    }
+                  />
+                  Select all ({checkedStatuses.length}/{jiraStatuses.length})
+                </label>
+                {jiraStatuses.map((s) => (
+                  <label key={s} className="text-sm flex items-center gap-2 pl-5">
+                    <input type="checkbox" checked={checkedStatuses.includes(s)} onChange={() => toggleStatus(s)} />
+                    {s}
+                  </label>
+                ))}
+                {jiraStatuses.length === 0 && (
+                  <p className="text-xs text-amber-600">Jira returned no statuses for this project key.</p>
+                )}
+                <p className="text-xs text-tertiary">Only tickets in the selected statuses will be imported.</p>
+              </div>
+            )}
           </div>
         )}
 

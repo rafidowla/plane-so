@@ -11,6 +11,7 @@ from plane.app.views import (
     TimesheetViewSet,
     ResourceCapacityViewSet,
     TimeReportEndpoint,
+    JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
     JiraImportJobDetailEndpoint,
@@ -76,6 +77,11 @@ urlpatterns = [
         name="time-report",
     ),
     # Jira import (self-service)
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/jira-import/statuses/",
+        JiraImportStatusesEndpoint.as_view(),
+        name="jira-import-statuses",
+    ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/jira-import/preview/",
         JiraImportPreviewEndpoint.as_view(),

@@ -141,12 +141,86 @@ def _flatten_jira_comments(jira_comments):
     return flat
 
 
-def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=None, limit=0):
+def _jql_quote(value):
+    """Quote a JQL string literal, escaping backslashes and double quotes."""
+    return '"{}"'.format(str(value).replace("\\", "\\\\").replace('"', '\\"'))
+
+
+def build_jql(jira_project=None, jql=None, statuses=None):
+    """Build the JQL query for an import.
+
+    `statuses` (list of Jira status names) narrows the fetch to tickets in
+    those statuses only. An empty/None list means no filtering — the import
+    behaves exactly as before. With a custom `jql`, the status clause is
+    AND-ed onto it (parenthesised so an ORDER BY in the custom query isn't
+    trapped inside the AND).
+    """
+    base = jql or (f"project = {jira_project} ORDER BY created ASC" if jira_project else None)
+    if not base:
+        return None
+    statuses = [s.strip() for s in (statuses or []) if s and s.strip()]
+    if not statuses:
+        return base
+    status_clause = "status IN ({})".format(", ".join(_jql_quote(s) for s in statuses))
+    if jql:
+        return f"({base}) AND {status_clause}"
+    # Insert before ORDER BY so the default query stays valid.
+    order_by = " ORDER BY created ASC"
+    if base.endswith(order_by):
+        return f"{base[: -len(order_by)]} AND {status_clause}{order_by}"
+    return f"{base} AND {status_clause}"
+
+
+def fetch_jira_statuses(jira_url, jira_email, jira_token, jira_project):
+    """List the workflow statuses used by a Jira project (for the picker UI).
+
+    Uses the per-project statuses endpoint (Cloud v3, falling back to v2 for
+    Server/DC) and dedupes names across issue types — Jira returns one entry
+    per issue type, and most share the same workflow.
+    """
+    for key, val in (
+        ("jira_url", jira_url),
+        ("jira_email", jira_email),
+        ("jira_token", jira_token),
+        ("jira_project", jira_project),
+    ):
+        if not val:
+            raise JiraConfigError(f"Missing Jira setting: {key}")
+
+    base = normalize_jira_base(jira_url)
+    auth = (jira_email, jira_token)
+    headers = {"Accept": "application/json"}
+
+    resp = requests.get(
+        f"{base}/rest/api/3/project/{jira_project}/statuses", auth=auth, headers=headers, timeout=60
+    )
+    if resp.status_code in (404, 410):
+        resp = requests.get(
+            f"{base}/rest/api/2/project/{jira_project}/statuses", auth=auth, headers=headers, timeout=60
+        )
+    if resp.status_code in (401, 403):
+        raise JiraConfigError(
+            f"Jira rejected the credentials ({resp.status_code}). Check the email + API token "
+            f"and that the token has permission to read this project."
+        )
+    resp.raise_for_status()
+    data = _jira_json(resp)
+
+    names = set()
+    for issue_type in data if isinstance(data, list) else []:
+        for st in issue_type.get("statuses") or []:
+            name = (st.get("name") or "").strip()
+            if name:
+                names.add(name)
+    return sorted(names, key=str.lower)
+
+
+def fetch_jira_issues(jira_url, jira_email, jira_token, jira_project=None, jql=None, limit=0, statuses=None):
     """Fetch issues (with comments + worklogs) from Jira Cloud REST API v3."""
     for key, val in (("jira_url", jira_url), ("jira_email", jira_email), ("jira_token", jira_token)):
         if not val:
             raise JiraConfigError(f"Missing Jira setting: {key}")
-    query = jql or (f"project = {jira_project} ORDER BY created ASC" if jira_project else None)
+    query = build_jql(jira_project=jira_project, jql=jql, statuses=statuses)
     if not query:
         raise JiraConfigError("Provide a Jira project key or a JQL query")
 

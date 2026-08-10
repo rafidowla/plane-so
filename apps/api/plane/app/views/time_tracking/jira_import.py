@@ -12,19 +12,55 @@ from plane.app.permissions import ROLE, allow_permission
 from plane.app.serializers import JiraImportJobSerializer
 from plane.bgtasks.jira_import_task import run_jira_import_task
 from plane.db.models import Project, Workspace, JiraImportJob
-from plane.utils.jira_importer import JiraConfigError, fetch_jira_issues, run_import, sample_issues
+from plane.utils.jira_importer import (
+    JiraConfigError,
+    fetch_jira_issues,
+    fetch_jira_statuses,
+    run_import,
+    sample_issues,
+)
 
 PREVIEW_LIMIT = 50
 
 
 def _jira_cfg(data):
+    statuses = data.get("statuses")
     return {
         "jira_url": data.get("jira_url"),
         "jira_email": data.get("jira_email"),
         "jira_token": data.get("jira_token"),
         "jira_project": data.get("jira_project"),
         "jql": data.get("jql") or None,
+        # Only non-empty strings; empty/missing list means "no status filter".
+        "statuses": [s.strip() for s in statuses if isinstance(s, str) and s.strip()]
+        if isinstance(statuses, list)
+        else [],
     }
+
+
+class JiraImportStatusesEndpoint(BaseAPIView):
+    """List the Jira project's workflow statuses so the user can pick which to import."""
+
+    @allow_permission([ROLE.ADMIN])
+    def post(self, request, slug, project_id):
+        cfg = _jira_cfg(request.data)
+        if not (cfg["jira_url"] and cfg["jira_email"] and cfg["jira_token"] and cfg["jira_project"]):
+            return Response(
+                {"error": "jira_url, jira_email, jira_token and jira_project are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            statuses = fetch_jira_statuses(
+                jira_url=cfg["jira_url"],
+                jira_email=cfg["jira_email"],
+                jira_token=cfg["jira_token"],
+                jira_project=cfg["jira_project"],
+            )
+        except JiraConfigError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Could not reach Jira: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"statuses": statuses}, status=status.HTTP_200_OK)
 
 
 class JiraImportPreviewEndpoint(BaseAPIView):
@@ -47,6 +83,7 @@ class JiraImportPreviewEndpoint(BaseAPIView):
                     jira_project=cfg["jira_project"],
                     jql=cfg["jql"],
                     limit=PREVIEW_LIMIT,
+                    statuses=cfg["statuses"],
                 )
         except JiraConfigError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -93,7 +130,13 @@ class JiraImportEndpoint(BaseAPIView):
             with_worklogs=with_worklogs,
             with_attachments=with_attachments,
             # config is non-secret display info only — never store the token.
-            config={"jira_url": cfg["jira_url"], "jira_project": cfg["jira_project"], "jql": cfg["jql"], "sample": is_sample},
+            config={
+                "jira_url": cfg["jira_url"],
+                "jira_project": cfg["jira_project"],
+                "jql": cfg["jql"],
+                "statuses": cfg["statuses"],
+                "sample": is_sample,
+            },
         )
 
         if is_sample:
@@ -118,6 +161,7 @@ class JiraImportEndpoint(BaseAPIView):
                 cfg["jql"],
                 with_worklogs,
                 with_attachments,
+                cfg["statuses"],
             )
 
         return Response(JiraImportJobSerializer(job).data, status=status.HTTP_201_CREATED)
