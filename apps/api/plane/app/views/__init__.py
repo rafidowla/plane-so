@@ -249,6 +249,7 @@ from .time_tracking import (
     TimesheetViewSet,
     ResourceCapacityViewSet,
     TimeReportEndpoint,
+    JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
     JiraImportJobDetailEndpoint,

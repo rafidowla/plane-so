@@ -645,6 +645,128 @@ class TestJiraImport:
             ]
         return issue
 
+    def test_statuses_endpoint_lists_statuses(self, session_client, tt, monkeypatch):
+        from plane.app.views.time_tracking import jira_import as jira_views
+
+        monkeypatch.setattr(jira_views, "fetch_jira_statuses", lambda **kw: ["Done", "In Progress", "To Do"])
+        slug, pid, _ = _ids(tt)
+        r = session_client.post(
+            f"/api/workspaces/{slug}/projects/{pid}/jira-import/statuses/",
+            {
+                "jira_url": "https://acme.atlassian.net",
+                "jira_email": "you@acme.com",
+                "jira_token": "tok",
+                "jira_project": "ENG",
+            },
+            format="json",
+        )
+        assert r.status_code == status.HTTP_200_OK
+        assert r.data["statuses"] == ["Done", "In Progress", "To Do"]
+
+    def test_statuses_endpoint_requires_connection_fields(self, session_client, tt):
+        slug, pid, _ = _ids(tt)
+        r = session_client.post(
+            f"/api/workspaces/{slug}/projects/{pid}/jira-import/statuses/",
+            {"jira_url": "https://acme.atlassian.net"},
+            format="json",
+        )
+        assert r.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_statuses_endpoint_forbidden_for_non_admin(self, session_client, tt):
+        slug, pid, _ = _ids(tt)
+        member = _member(tt["workspace"], tt["project"], role=15)
+        session_client.force_authenticate(user=member)
+        r = session_client.post(
+            f"/api/workspaces/{slug}/projects/{pid}/jira-import/statuses/",
+            {
+                "jira_url": "https://acme.atlassian.net",
+                "jira_email": "you@acme.com",
+                "jira_token": "tok",
+                "jira_project": "ENG",
+            },
+            format="json",
+        )
+        assert r.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_preview_passes_status_filter_to_fetch(self, session_client, tt, monkeypatch):
+        from plane.app.views.time_tracking import jira_import as jira_views
+
+        captured = {}
+
+        def fake_fetch(**kwargs):
+            captured.update(kwargs)
+            return []
+
+        monkeypatch.setattr(jira_views, "fetch_jira_issues", fake_fetch)
+        slug, pid, _ = _ids(tt)
+        r = session_client.post(
+            f"/api/workspaces/{slug}/projects/{pid}/jira-import/preview/",
+            {
+                "jira_url": "https://acme.atlassian.net",
+                "jira_email": "you@acme.com",
+                "jira_token": "tok",
+                "jira_project": "ENG",
+                "statuses": ["To Do", "In Progress"],
+            },
+            format="json",
+        )
+        assert r.status_code == status.HTTP_200_OK
+        assert captured["statuses"] == ["To Do", "In Progress"]
+
+    def test_start_passes_status_filter_to_task_and_config(self, session_client, tt, monkeypatch):
+        from plane.app.views.time_tracking import jira_import as jira_views
+
+        captured = {}
+
+        class _FakeTask:
+            @staticmethod
+            def delay(*args):
+                captured["args"] = args
+
+        monkeypatch.setattr(jira_views, "run_jira_import_task", _FakeTask)
+        slug, pid, _ = _ids(tt)
+        r = session_client.post(
+            f"/api/workspaces/{slug}/projects/{pid}/jira-import/",
+            {
+                "jira_url": "https://acme.atlassian.net",
+                "jira_email": "you@acme.com",
+                "jira_token": "tok",
+                "jira_project": "ENG",
+                "statuses": ["To Do"],
+            },
+            format="json",
+        )
+        assert r.status_code == status.HTTP_201_CREATED
+        # statuses is the final positional arg to the task
+        assert captured["args"][-1] == ["To Do"]
+        assert r.data["config"]["statuses"] == ["To Do"]
+        # the token is passed to the task but never persisted in config
+        assert "tok" not in str(r.data["config"])
+
+    def test_no_status_field_means_no_filter(self, session_client, tt, monkeypatch):
+        from plane.app.views.time_tracking import jira_import as jira_views
+
+        captured = {}
+
+        def fake_fetch(**kwargs):
+            captured.update(kwargs)
+            return []
+
+        monkeypatch.setattr(jira_views, "fetch_jira_issues", fake_fetch)
+        slug, pid, _ = _ids(tt)
+        r = session_client.post(
+            f"/api/workspaces/{slug}/projects/{pid}/jira-import/preview/",
+            {
+                "jira_url": "https://acme.atlassian.net",
+                "jira_email": "you@acme.com",
+                "jira_token": "tok",
+                "jira_project": "ENG",
+            },
+            format="json",
+        )
+        assert r.status_code == status.HTTP_200_OK
+        assert captured["statuses"] == []
+
     def test_assignee_matched_by_display_name_when_email_missing(self, tt):
         # Regression guard for the client-reported "many work items unassigned"
         # bug: Jira Cloud commonly omits emailAddress from the API response for

@@ -47,6 +47,11 @@ class Command(BaseCommand):
         parser.add_argument("--jira-token", default=os.environ.get("JIRA_API_TOKEN"))
         parser.add_argument("--jira-project", default=os.environ.get("JIRA_PROJECT_KEY"))
         parser.add_argument("--jql", default=None)
+        parser.add_argument(
+            "--statuses",
+            default=None,
+            help='comma-separated Jira statuses to import (e.g. "To Do,In Progress"); default imports all',
+        )
         parser.add_argument("--limit", type=int, default=0)
         parser.add_argument("--with-worklogs", action="store_true", default=False)
         parser.add_argument(
@@ -84,6 +89,9 @@ class Command(BaseCommand):
                 jira_token=jira_token,
                 jira_project=_opt(options, "jira_project", "JIRA_PROJECT_KEY"),
                 jql=options["jql"],
+                statuses=[s.strip() for s in options["statuses"].split(",") if s.strip()]
+                if options["statuses"]
+                else None,
                 limit=options["limit"],
             )
 

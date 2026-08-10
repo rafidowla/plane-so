@@ -12,7 +12,7 @@ from plane.utils.jira_importer import fetch_jira_issues, run_import
 
 @shared_task
 def run_jira_import_task(
-    job_id, jira_url, jira_email, jira_token, jira_project, jql, with_worklogs, with_attachments=False
+    job_id, jira_url, jira_email, jira_token, jira_project, jql, with_worklogs, with_attachments=False, statuses=None
 ):
     """Run a self-service Jira import in the background and track progress.
 
@@ -30,6 +30,7 @@ def run_jira_import_task(
             jira_token=jira_token,
             jira_project=jira_project,
             jql=jql,
+            statuses=statuses,
         )
         JiraImportJob.objects.filter(id=job_id).update(total=len(issues))
 

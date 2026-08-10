@@ -123,6 +123,7 @@ export type TJiraImportConfig = {
   jira_token?: string;
   jira_project?: string;
   jql?: string;
+  statuses?: string[];
   with_worklogs?: boolean;
   with_attachments?: boolean;
   sample?: boolean;

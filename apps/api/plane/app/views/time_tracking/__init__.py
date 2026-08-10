@@ -8,6 +8,7 @@ from .timesheet import TimesheetViewSet
 from .capacity import ResourceCapacityViewSet
 from .report import TimeReportEndpoint
 from .jira_import import (
+    JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
     JiraImportJobDetailEndpoint,
