@@ -24,6 +24,7 @@ EXTENSION_MIME_OVERRIDES = {
     "sql": "application/x-sql",
     "mov": "video/quicktime",
     "mkv": "video/x-matroska",
+    "wmv": "video/x-ms-wmv",
     "rar": "application/vnd.rar",
 }
 
@@ -31,7 +32,7 @@ EXTENSION_MIME_OVERRIDES = {
 SUPPORTED_ATTACHMENT_EXTENSIONS = (
     ".pdf, .doc, .docx, .txt, .rtf, .csv, .xls, .xlsx, .ppt, .pptx, "
     ".png, .jpg, .jpeg, .gif, .svg, .webp, "
-    ".mp4, .mov, .mkv, .webm, "
+    ".mp4, .mov, .mkv, .webm, .wmv, "
     ".json, .xml, .yaml, .yml, .sql, .log, .md, "
     ".zip, .rar, .7z, .tar, .gz"
 )

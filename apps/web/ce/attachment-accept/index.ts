@@ -38,6 +38,7 @@ export const ATTACHMENT_ACCEPT_EXTENSIONS = [
   "mov",
   "mkv",
   "webm",
+  "wmv",
   // audio
   "mp3",
   "wav",

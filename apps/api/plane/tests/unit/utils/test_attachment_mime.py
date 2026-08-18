@@ -26,6 +26,7 @@ from plane.utils.attachment_mime import EXTENSION_MIME_OVERRIDES, resolve_attach
         ("deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
         ("shot.png", "image/png"),
         ("clip.mp4", "video/mp4"),
+        ("movie.wmv", "video/x-ms-wmv"),
         ("config.json", "application/json"),
         ("archive.zip", "application/zip"),
     ],
@@ -45,6 +46,7 @@ def test_declared_types_pass_through(name, declared):
         ("query.sql", "", "application/x-sql"),
         ("video.mov", "", "video/quicktime"),
         ("movie.mkv", "", "video/x-matroska"),
+        ("movie.wmv", "", "video/x-ms-wmv"),
         ("files.rar", "", "application/vnd.rar"),
         # Declared type wins when it is already allowed.
         ("weird.bin", "image/png", "image/png"),
