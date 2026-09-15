@@ -92,7 +92,20 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
   }, [workspaceSlug, data, router]);
 
   if (error && !isLoading) {
-    return (
+    // FORK: PSR-59 — a 403 means the item exists but the user isn't a project
+    // member; say so instead of claiming it doesn't exist.
+    const accessDenied = (error as { status?: number } | null)?.status === 403;
+    return accessDenied ? (
+      <EmptyState
+        image={resolvedTheme === "dark" ? emptyIssueDark : emptyIssueLight}
+        title="You don't have access to this work item"
+        description="You're not a member of this project, so you can't view this work item. Ask a project admin to add you, or go back to your work items."
+        primaryButton={{
+          text: "Go to my work items",
+          onClick: () => router.push(`/${workspaceSlug}/workspace-views/all-issues/`),
+        }}
+      />
+    ) : (
       <EmptyState
         image={resolvedTheme === "dark" ? emptyIssueDark : emptyIssueLight}
         title={t("issue.empty_state.issue_detail.title")}
