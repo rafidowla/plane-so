@@ -19,6 +19,7 @@ from plane.app.serializers import IssueWorklogSerializer, WorklogTimerSerializer
 from plane.db.models import (
     Project,
     ProjectMember,
+    Issue,
     IssueWorklog,
     WorklogTimer,
     ResourceCapacity,
@@ -210,9 +211,22 @@ class WorklogTimerEndpoint(BaseAPIView):
         # Enforce a single running timer per user across the workspace.
         existing = WorklogTimer.objects.filter(workspace__slug=slug, user=request.user).first()
         if existing:
+            # FORK: PSR-26 — name the ticket holding the running timer so the
+            # user can find and stop it instead of hunting for it.
+            running_issue = Issue.issue_objects.filter(id=existing.issue_id).values(
+                "name", "sequence_id", "project__identifier"
+            ).first()
+            if running_issue:
+                ref = f"{running_issue['project__identifier']}-{running_issue['sequence_id']}"
+                error_message = (
+                    f'You already have a running timer on {ref}: "{running_issue["name"]}". '
+                    "Stop that timer before starting a new one."
+                )
+            else:
+                error_message = "You already have a running timer."
             return Response(
                 {
-                    "error": "You already have a running timer.",
+                    "error": error_message,
                     "timer": WorklogTimerSerializer(existing).data,
                 },
                 status=status.HTTP_400_BAD_REQUEST,

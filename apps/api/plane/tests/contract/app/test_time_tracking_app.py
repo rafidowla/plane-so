@@ -183,8 +183,12 @@ class TestWorklog:
         slug, pid, iid = _ids(tt)
         timer_url = f"/api/workspaces/{slug}/projects/{pid}/issues/{iid}/worklog-timer/"
         assert session_client.post(timer_url, {}, format="json").status_code == status.HTTP_201_CREATED
-        # second start while one is running -> blocked
-        assert session_client.post(timer_url, {}, format="json").status_code == status.HTTP_400_BAD_REQUEST
+        # second start while one is running -> blocked, naming the ticket that
+        # holds the running timer (PSR-26)
+        conflict = session_client.post(timer_url, {}, format="json")
+        assert conflict.status_code == status.HTTP_400_BAD_REQUEST
+        assert "TTP-1" in conflict.json()["error"]
+        assert "Issue 1" in conflict.json()["error"]
         # stop -> creates a worklog, clears the timer
         stop = session_client.delete(timer_url)
         assert stop.status_code == status.HTTP_201_CREATED
