@@ -32,14 +32,16 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
       throw redirect(`/${workspaceSlug}/browse/${data.project_identifier}-${data.sequence_id}`);
     }
 
-    return { error: true, workspaceSlug };
+    return { error: true, accessDenied: false, workspaceSlug };
   } catch (error) {
     // If it's a redirect, rethrow it
     if (error instanceof Response) {
       throw error;
     }
-    // Otherwise return error state
-    return { error: true, workspaceSlug };
+    // FORK: PSR-59 — a 403 means the item exists but the user isn't a project
+    // member; say so instead of claiming it doesn't exist.
+    const accessDenied = (error as { status?: number } | null)?.status === 403;
+    return { error: true, accessDenied, workspaceSlug };
   }
 }
 
@@ -51,15 +53,28 @@ export default function IssueDetailsPage({ loaderData }: Route.ComponentProps) {
   if (loaderData.error) {
     return (
       <div className="flex size-full items-center justify-center">
-        <EmptyState
-          image={resolvedTheme === "dark" ? emptyIssueDark : emptyIssueLight}
-          title={t("issue.empty_state.issue_detail.title")}
-          description={t("issue.empty_state.issue_detail.description")}
-          primaryButton={{
-            text: t("issue.empty_state.issue_detail.primary_button.text"),
-            onClick: () => router.push(`/${loaderData.workspaceSlug}/workspace-views/all-issues/`),
-          }}
-        />
+        {/* FORK: PSR-59 — access-denied copy when the API said 403 */}
+        {loaderData.accessDenied ? (
+          <EmptyState
+            image={resolvedTheme === "dark" ? emptyIssueDark : emptyIssueLight}
+            title="You don't have access to this work item"
+            description="You're not a member of this project, so you can't view this work item. Ask a project admin to add you, or go back to your work items."
+            primaryButton={{
+              text: "Go to my work items",
+              onClick: () => router.push(`/${loaderData.workspaceSlug}/workspace-views/all-issues/`),
+            }}
+          />
+        ) : (
+          <EmptyState
+            image={resolvedTheme === "dark" ? emptyIssueDark : emptyIssueLight}
+            title={t("issue.empty_state.issue_detail.title")}
+            description={t("issue.empty_state.issue_detail.description")}
+            primaryButton={{
+              text: t("issue.empty_state.issue_detail.primary_button.text"),
+              onClick: () => router.push(`/${loaderData.workspaceSlug}/workspace-views/all-issues/`),
+            }}
+          />
+        )}
       </div>
     );
   }

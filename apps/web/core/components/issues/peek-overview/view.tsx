@@ -38,6 +38,8 @@ interface IIssueView {
   embedIssue?: boolean;
   embedRemoveCurrentNotification?: () => void;
   issueOperations: TIssueOperations;
+  // FORK: PSR-59 — HTTP status of the failed fetch, to tell "no access" from "not found"
+  errorStatus?: number;
 }
 
 export const IssueView = observer(function IssueView(props: IIssueView) {
@@ -47,6 +49,7 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
     issueId,
     isLoading,
     isError,
+    errorStatus,
     is_archived,
     disabled = false,
     embedIssue = false,
@@ -146,7 +149,7 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
         >
           {isError ? (
             <div className="relative h-screen w-full overflow-hidden">
-              <IssuePeekOverviewError removeRoutePeekId={removeRoutePeekId} />
+              <IssuePeekOverviewError removeRoutePeekId={removeRoutePeekId} accessDenied={errorStatus === 403} />
             </div>
           ) : (
             isLoading && <IssuePeekOverviewLoader removeRoutePeekId={removeRoutePeekId} />

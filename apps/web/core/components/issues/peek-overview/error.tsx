@@ -15,10 +15,13 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 
 type TIssuePeekOverviewError = {
   removeRoutePeekId: () => void;
+  // FORK: PSR-59 — 403 means the user isn't a project member; show an access
+  // message instead of claiming the work item doesn't exist.
+  accessDenied?: boolean;
 };
 
 export function IssuePeekOverviewError(props: TIssuePeekOverviewError) {
-  const { removeRoutePeekId } = props;
+  const { removeRoutePeekId, accessDenied = false } = props;
   // hooks
   const { isMobile } = usePlatformOS();
 
@@ -33,11 +36,19 @@ export function IssuePeekOverviewError(props: TIssuePeekOverviewError) {
       </div>
 
       <div className="h-full w-full">
-        <EmptyState
-          image={emptyIssue ?? undefined}
-          title="Work item does not exist"
-          description="The work item you are looking for does not exist, has been archived, or has been deleted."
-        />
+        {accessDenied ? (
+          <EmptyState
+            image={emptyIssue ?? undefined}
+            title="You don't have access to this work item"
+            description="You're not a member of this project, so you can't view this work item. Ask a project admin to add you."
+          />
+        ) : (
+          <EmptyState
+            image={emptyIssue ?? undefined}
+            title="Work item does not exist"
+            description="The work item you are looking for does not exist, has been archived, or has been deleted."
+          />
+        )}
       </div>
     </div>
   );

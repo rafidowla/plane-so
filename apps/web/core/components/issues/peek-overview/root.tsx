@@ -58,6 +58,9 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
   );
   // state
   const [error, setError] = useState(false);
+  // FORK: PSR-59 — remember the HTTP status so "no access" and "not found" can
+  // be told apart in the error screen.
+  const [errorStatus, setErrorStatus] = useState<number | undefined>(undefined);
 
   const removeRoutePeekId = useCallback(() => {
     setPeekIssue(undefined);
@@ -69,9 +72,11 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
       fetch: async (workspaceSlug: string, projectId: string, issueId: string) => {
         try {
           setError(false);
+          setErrorStatus(undefined);
           await fetchIssue(workspaceSlug, projectId, issueId);
         } catch (fetchError) {
           setError(true);
+          setErrorStatus((fetchError as { status?: number } | null)?.status);
           console.error("Error fetching the parent issue", fetchError);
         }
       },
@@ -242,6 +247,7 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
       issueId={peekIssue.issueId}
       isLoading={isLoading}
       isError={error}
+      errorStatus={errorStatus}
       is_archived={!!peekIssue.isArchived}
       disabled={!isEditable}
       embedIssue={embedIssue}

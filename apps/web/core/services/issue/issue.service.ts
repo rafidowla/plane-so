@@ -122,7 +122,9 @@ export class IssueService extends APIService {
         return response?.data;
       })
       .catch((error) => {
-        throw error?.response?.data;
+        // FORK: PSR-59 — keep the HTTP status next to the body so the UI can
+        // tell "no access" (403) apart from "does not exist" (404/other).
+        throw { ...error?.response?.data, status: error?.response?.status };
       });
   }
 
@@ -432,7 +434,9 @@ export class IssueService extends APIService {
     return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/meta/`)
       .then((response) => response?.data)
       .catch((error) => {
-        throw error?.response?.data;
+        // FORK: PSR-59 — keep the HTTP status next to the body so the UI can
+        // tell "no access" (403) apart from "does not exist" (404/other).
+        throw { ...error?.response?.data, status: error?.response?.status };
       });
   }
 
