@@ -14,7 +14,10 @@
     "check:types": "react-router typegen && tsc --noEmit",
     "check:format": "oxfmt --check .",
     "fix:lint": "oxlint --fix .",
-    "fix:format": "oxfmt ."
+    "fix:format": "oxfmt .",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "catalog:",
@@ -76,6 +79,7 @@
   "devDependencies": {
     "@plane/tailwind-config": "workspace:*",
     "@plane/typescript-config": "workspace:*",
+    "@playwright/test": "catalog:",
     "@react-router/dev": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@tailwindcss/typography": "catalog:",
