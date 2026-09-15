@@ -99,3 +99,25 @@ export async function openWorkItem(page: Page, projectId: string, issueId: strin
   // project) so the work item is genuinely loaded before asserting.
   await expect(page.getByText("Time tracking", { exact: true })).toBeVisible({ timeout: 30_000 });
 }
+
+/** Set a single-select OPTION property value on an issue (e.g. task-type=Bug). */
+export async function setOptionValue(
+  request: APIRequestContext,
+  projectId: string,
+  issueId: string,
+  propertyName: string,
+  optionName: string
+) {
+  const res = await request.get(`/api/workspaces/${E2E_WS}/projects/${projectId}/work-item-properties/`);
+  expect(res.ok(), `properties list failed: ${res.status()}`).toBeTruthy();
+  const properties = unwrap<{ id: string; name: string; options?: { id: string; name: string }[] }[]>(await res.json());
+  const property = properties.find((p) => p.name === propertyName);
+  if (!property) throw new Error(`property ${propertyName} not found — run scripts/e2e-seed.sh`);
+  const option = (property.options ?? []).find((o) => o.name === optionName);
+  if (!option) throw new Error(`option ${optionName} not found on ${propertyName}`);
+  const setRes = await request.post(
+    `/api/workspaces/${E2E_WS}/projects/${projectId}/work-items/${issueId}/work-item-properties/${property.id}/values/`,
+    { data: { values: [option.id] } }
+  );
+  expect(setRes.ok(), `value set failed: ${setRes.status()} ${await setRes.text()}`).toBeTruthy();
+}

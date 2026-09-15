@@ -23,6 +23,9 @@ from plane.db.models import (
     User, Workspace, WorkspaceMember, Project, ProjectMember,
     ProjectIdentifier, State, Profile,
 )
+from plane.properties.models import (
+    IssueProperty, IssuePropertyOption, ProjectPropertiesFeature,
+)
 
 PASSWORD = make_password(os.environ["E2E_PASSWORD"])
 
@@ -64,6 +67,30 @@ ProjectMember.objects.get_or_create(
 State.objects.get_or_create(
     workspace=ws, project=project,
     defaults={"name": "Todo", "group": "unstarted", "default": True, "created_by": admin},
+)
+
+# Custom properties on for this project + one OPTION property with a "Bug"
+# option, so the PSR-60 chip-placeholder spec has real data to render.
+feature, _ = ProjectPropertiesFeature.objects.get_or_create(
+    project=project, defaults={"workspace": ws, "is_enabled": True},
+)
+feature.is_enabled = True
+feature.save()
+task_type, _ = IssueProperty.objects.get_or_create(
+    project=project, name="task-type",
+    defaults={
+        "workspace": ws, "display_name": "Task Type", "description": "",
+        "property_type": "OPTION", "is_required": False, "default_value": {},
+        "settings": {}, "is_active": True, "is_multi": False,
+        "validation_rules": {}, "logo_props": {}, "sort_order": 1,
+    },
+)
+IssuePropertyOption.objects.get_or_create(
+    property=task_type, name="Bug",
+    defaults={
+        "workspace": ws, "project": project, "description": "",
+        "logo_props": {}, "sort_order": 1, "is_active": True, "is_default": False,
+    },
 )
 
 print("e2e seed ok: users + workspace 'e2e' + project 'E2E' (time tracking on)")

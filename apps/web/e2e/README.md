@@ -2,7 +2,8 @@
 
 Browser tests for the QA flows that used to be checked by hand each round:
 login, long-comment collapse, time-entry delete confirmation, timer conflict
-messaging, and access-denied on shared links.
+messaging, access-denied on shared links (both the /browse URL and the
+peek-overview panel), and the Task Type chip placeholder while values load.
 
 ## Prerequisites (once per machine)
 
