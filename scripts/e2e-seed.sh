@@ -92,6 +92,13 @@ IssuePropertyOption.objects.get_or_create(
         "logo_props": {}, "sort_order": 1, "is_active": True, "is_default": False,
     },
 )
+IssuePropertyOption.objects.get_or_create(
+    property=task_type, name="Chore",
+    defaults={
+        "workspace": ws, "project": project, "description": "",
+        "logo_props": {}, "sort_order": 2, "is_active": True, "is_default": False,
+    },
+)
 
 print("e2e seed ok: users + workspace 'e2e' + project 'E2E' (time tracking on)")
 PY

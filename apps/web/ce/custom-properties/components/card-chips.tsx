@@ -8,7 +8,11 @@ import { useEffect } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // plane imports
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { TIssue } from "@plane/types";
+import { Dropdown } from "@plane/ui";
+// hooks
+import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { EIssuePropertyType } from "@/plane-web/custom-properties";
 import { useProjectCustomProperties } from "@/plane-web/custom-properties";
@@ -20,9 +24,12 @@ type Props = {
 };
 
 /**
- * Read-only Status chips shown on kanban/list cards, keyed off the card's own
- * project (cards can span projects on a board). Fills the CE layout stub;
- * returns `null` when the feature is off so cards match stock Plane.
+ * Status chips shown on kanban/list cards, keyed off the card's own project
+ * (cards can span projects on a board). Fills the CE layout stub; returns
+ * `null` when the feature is off so cards match stock Plane.
+ *
+ * FORK: PSR-34 — project admins/members can click a chip to change the value
+ * inline (same picker as the spreadsheet cell); guests stay read-only.
  */
 export const CustomPropertiesCardChips = observer(function CustomPropertiesCardChips({ issue }: Props) {
   const { workspaceSlug } = useParams();
@@ -30,6 +37,7 @@ export const CustomPropertiesCardChips = observer(function CustomPropertiesCardC
   const pid = issue.project_id ?? undefined;
   const { enabled, properties } = useProjectCustomProperties(ws, pid);
   const valuesStore = usePropertyValues();
+  const { allowPermissions } = useUserPermissions();
 
   useEffect(() => {
     if (enabled && ws && pid && issue.id) valuesStore.enqueueValueFetch(ws, pid, issue.id);
@@ -53,12 +61,64 @@ export const CustomPropertiesCardChips = observer(function CustomPropertiesCardC
     );
   }
 
+  const canEdit =
+    !!ws &&
+    !!pid &&
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT, ws, pid);
+
   const chips = optionProperties
     .map((property) => {
       const selectedId = valuesStore.getValue(issue.id, property.id)[0];
-      if (!selectedId) return null;
-      const option = (property.options ?? []).find((o) => o.id === selectedId);
-      return option ? <StatusChip key={property.id} option={option} /> : null;
+      const options = [...(property.options ?? [])]
+        .filter((o) => o.is_active)
+        // oxlint-disable-next-line unicorn/no-array-sort-mutation -- sorting a fresh copy
+        .sort((a, b) => a.sort_order - b.sort_order);
+      if (!canEdit) {
+        if (!selectedId) return null;
+        const option = options.find((o) => o.id === selectedId);
+        return option ? <StatusChip key={property.id} option={option} /> : null;
+      }
+      const handleChange = (value: string) => {
+        if (!ws || !pid) return;
+        // Re-selecting the current option clears it (single-select toggle).
+        const next = value === selectedId ? [] : [value];
+        void valuesStore.setValue(ws, pid, issue.id, property.id, next);
+      };
+      return (
+        <Dropdown
+          key={property.id}
+          value={selectedId ?? ""}
+          onChange={handleChange}
+          options={options.map((o) => ({ data: o, value: o.id }))}
+          tabIndex={0}
+          keyExtractor={(opt) => opt.value}
+          queryArray={["name"]}
+          placement="bottom-start"
+          inputPlaceholder="Search options"
+          buttonContainerClassName="rounded"
+          buttonContent={(isOpen, value) => {
+            const option = options.find((o) => o.id === value);
+            if (!option) {
+              return (
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-subtle text-[10px] text-tertiary">
+                  +
+                </span>
+              );
+            }
+            return <StatusChip option={option} className={isOpen ? "ring-1 ring-accent-strong" : undefined} />;
+          }}
+          renderItem={({ value, selected }) => {
+            const option = options.find((o) => o.id === value);
+            if (!option) return null;
+            return (
+              <div className="flex w-full items-center gap-2">
+                <StatusChip option={option} />
+                {selected && <span className="text-xs text-tertiary">✓</span>}
+              </div>
+            );
+          }}
+        />
+      );
     })
     .filter(Boolean);
 
