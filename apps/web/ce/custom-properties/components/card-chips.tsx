@@ -37,8 +37,23 @@ export const CustomPropertiesCardChips = observer(function CustomPropertiesCardC
 
   if (!enabled) return null;
 
-  const chips = properties
-    .filter((property) => property.property_type === EIssuePropertyType.OPTION)
+  const optionProperties = properties.filter((property) => property.property_type === EIssuePropertyType.OPTION);
+
+  // FORK: PSR-60 — until the bulk fetch resolves for this issue, hold a
+  // placeholder chip instead of blank space, so Task Type labels don't
+  // disappear-and-reappear after a reload.
+  if (!valuesStore.isValuesKnown(issue.id)) {
+    if (optionProperties.length === 0) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-1" aria-hidden>
+        {optionProperties.map((property) => (
+          <span key={property.id} className="h-4 w-16 animate-pulse rounded-full bg-layer-1" />
+        ))}
+      </div>
+    );
+  }
+
+  const chips = optionProperties
     .map((property) => {
       const selectedId = valuesStore.getValue(issue.id, property.id)[0];
       if (!selectedId) return null;

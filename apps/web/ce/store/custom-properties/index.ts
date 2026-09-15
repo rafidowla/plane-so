@@ -223,6 +223,9 @@ export interface IPropertyValuesStore {
   valuesMap: Record<string, Record<string, string[]>>;
   getIssueValues: (issueId: string) => Record<string, string[]>;
   getValue: (issueId: string, propertyId: string) => string[];
+  // FORK: PSR-60 — true once a bulk fetch has resolved for this issue (even to
+  // an empty map), so chips can hold a placeholder instead of flashing in.
+  isValuesKnown: (issueId: string) => boolean;
   enqueueValueFetch: (workspaceSlug: string, projectId: string, issueId: string) => void;
   fetchBulkValues: (workspaceSlug: string, projectId: string, issueIds: string[]) => Promise<void>;
   setValue: (
@@ -257,6 +260,8 @@ export class PropertyValuesStore implements IPropertyValuesStore {
   getIssueValues = computedFn((issueId: string): Record<string, string[]> => this.valuesMap[issueId] ?? {});
 
   getValue = computedFn((issueId: string, propertyId: string): string[] => this.valuesMap[issueId]?.[propertyId] ?? []);
+
+  isValuesKnown = computedFn((issueId: string): boolean => this.valuesMap[issueId] !== undefined);
 
   enqueueValueFetch = (workspaceSlug: string, projectId: string, issueId: string): void => {
     if (this.requested.has(issueId)) return;
