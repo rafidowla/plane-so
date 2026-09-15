@@ -382,7 +382,13 @@ SESSION_ENGINE = "plane.db.models.session"
 SESSION_COOKIE_AGE = int(os.environ.get("SESSION_COOKIE_AGE", 604800))
 SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "session-id")
 SESSION_COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", None)
-SESSION_SAVE_EVERY_REQUEST = os.environ.get("SESSION_SAVE_EVERY_REQUEST", "0") == "1"
+# FORK: PSR-35 — rolling sessions by default. Stock Plane anchors the 7-day
+# window to the last session WRITE (logins/edits), so an active user who writes
+# nothing for 7 days is hard-logged-out mid-work, which reads as "random
+# logouts". Saving on every request refreshes the window so only 7 days of
+# true inactivity expires a session. Set SESSION_SAVE_EVERY_REQUEST=0 to
+# restore stock behavior.
+SESSION_SAVE_EVERY_REQUEST = os.environ.get("SESSION_SAVE_EVERY_REQUEST", "1") == "1"
 
 # Admin Cookie
 ADMIN_SESSION_COOKIE_NAME = "admin-session-id"
