@@ -11,6 +11,7 @@ import useSWR from "swr";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { AlertModalCore } from "@plane/ui";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
@@ -46,6 +47,9 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
   const { allowPermissions } = useUserPermissions();
   const [isLogOpen, setLogOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // FORK: PSR-37 — confirm before deleting a time-log entry
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // is_time_tracking_enabled is returned by the project API but not on the TProject type.
   const project = getProjectById(projectId) as ({ is_time_tracking_enabled?: boolean } & object) | undefined;
@@ -117,6 +121,15 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     }
   };
 
+  // FORK: PSR-37 — the X only opens the confirmation; nothing is deleted until confirmed
+  const handleDeleteConfirm = async () => {
+    if (!pendingDeleteId) return;
+    setIsDeleting(true);
+    await handleDelete(pendingDeleteId);
+    setIsDeleting(false);
+    setPendingDeleteId(null);
+  };
+
   return (
     <>
       <SidebarPropertyListItem icon={Timer} label="Time tracking" childrenClassName="flex-col items-start">
@@ -165,7 +178,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                     {!disabled && !w.is_locked && canModify && (
                       <button
                         type="button"
-                        onClick={() => handleDelete(w.id)}
+                        onClick={() => setPendingDeleteId(w.id)}
                         className="hover:text-danger shrink-0 text-tertiary"
                         aria-label="Delete time entry"
                       >
@@ -189,6 +202,16 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
         isProjectAdmin={isProjectAdmin}
         currentUserId={currentUser?.id ?? ""}
         onSaved={() => mutateWorklogs()}
+      />
+
+      {/* FORK: PSR-37 — confirm before a time-log entry is permanently deleted */}
+      <AlertModalCore
+        isOpen={pendingDeleteId !== null}
+        handleClose={() => setPendingDeleteId(null)}
+        handleSubmit={handleDeleteConfirm}
+        isSubmitting={isDeleting}
+        title="Delete time entry"
+        content="Are you sure you want to delete this time entry? The logged time will be permanently removed and cannot be recovered."
       />
     </>
   );
