@@ -5,9 +5,10 @@
  */
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
+import { ChevronDown, ChevronUp } from "lucide-react";
 // plane imports
 import type { EditorRefApi } from "@plane/editor";
 import { useHashScroll } from "@plane/hooks";
@@ -61,6 +62,23 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
   const [highlightClassName, setHighlightClassName] = useState("");
   // state
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  // FORK: PSR-57 — long comments collapse behind a Show more toggle
+  const COMMENT_COLLAPSE_HEIGHT = 320;
+  const commentBodyRef = useRef<HTMLDivElement | null>(null);
+  const [isClampable, setIsClampable] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Measure the full content height (ref sits on the inner div, so the clamp
+  // never interferes with scrollHeight). Re-measures when images etc. load.
+  useEffect(() => {
+    const el = commentBodyRef.current;
+    if (!el || isExpanded) return;
+    const measure = () => setIsClampable(el.scrollHeight > COMMENT_COLLAPSE_HEIGHT + 8);
+    measure();
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(el);
+    return () => resizeObserver.disconnect();
+  }, [isExpanded, comment.comment_html]);
   // store hooks
   const { getUserDetails } = useMember();
   // derived values
@@ -169,20 +187,45 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
         />
       ) : (
         <>
-          <LiteTextEditor
-            editable={false}
-            ref={readOnlyEditorRef}
-            id={comment.id}
-            initialValue={comment.comment_html ?? ""}
-            workspaceId={workspaceId}
-            workspaceSlug={workspaceSlug}
-            containerClassName={cn("!py-1 transition-[border-color] duration-500", highlightClassName)}
-            projectId={projectId?.toString()}
-            displayConfig={{
-              fontSize: "small-font",
-            }}
-            parentClassName="border-none"
-          />
+          {/* FORK: PSR-57 — clamp long comments; the inner ref div is measured, the outer div clips */}
+          <div className={cn("relative", !isExpanded && isClampable && "max-h-[320px] overflow-hidden")}>
+            <div ref={commentBodyRef}>
+              <LiteTextEditor
+                editable={false}
+                ref={readOnlyEditorRef}
+                id={comment.id}
+                initialValue={comment.comment_html ?? ""}
+                workspaceId={workspaceId}
+                workspaceSlug={workspaceSlug}
+                containerClassName={cn("!py-1 transition-[border-color] duration-500", highlightClassName)}
+                projectId={projectId?.toString()}
+                displayConfig={{
+                  fontSize: "small-font",
+                }}
+                parentClassName="border-none"
+              />
+            </div>
+            {!isExpanded && isClampable && (
+              <div className="from-custom-background-100 pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t to-transparent" />
+            )}
+          </div>
+          {isClampable && (
+            <button
+              type="button"
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="text-xs text-custom-text-400 hover:text-custom-text-200 flex w-fit items-center gap-1 font-medium transition-colors"
+            >
+              {isExpanded ? (
+                <>
+                  Show less <ChevronUp className="size-3" />
+                </>
+              ) : (
+                <>
+                  Show more <ChevronDown className="size-3" />
+                </>
+              )}
+            </button>
+          )}
           {/* FORK: comment-attachments (#18) */}
           {projectId && (
             <CommentAttachmentList
