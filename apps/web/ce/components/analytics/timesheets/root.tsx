@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * See the LICENSE file for details.
  */
+import { format } from "date-fns"; // local calendar date — toISOString() is UTC and rolls to tomorrow in the evening
 import { useState } from "react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
@@ -28,10 +29,10 @@ const STATUS_STYLES: Record<TTimesheetStatus, string> = {
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return format(d, "yyyy-MM-dd");
 }
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return format(new Date(), "yyyy-MM-dd");
 }
 
 export const Timesheets = observer(function Timesheets() {
