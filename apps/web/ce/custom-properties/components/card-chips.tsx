@@ -87,40 +87,52 @@ export const CustomPropertiesCardChips = observer(function CustomPropertiesCardC
         void valuesStore.setValue(ws, pid, issue.id, property.id, next);
       };
       return (
-        <Select<TIssuePropertyOption>
+        // The old @plane/ui Dropdown swallowed the click (stopPropagation + preventDefault); blocks Select
+        // doesn't, so do it here or the row link underneath opens the work item.
+        // oxlint-disable-next-line jsx_a11y/click-events-have-key-events, jsx_a11y/no-static-element-interactions -- propagation guard only, the Select trigger inside is the interactive element
+        <span
           key={property.id}
-          value={options.find((o) => o.id === selectedId) ?? null}
-          onChange={handleChange}
-          getValues={() => options}
-          getOptionValue={(o) => o.id}
-          getOptionLabel={(o) => o.name}
-          getOptionIcon={(o) => (
-            <span
-              className="h-3 w-3 flex-shrink-0 rounded-sm"
-              style={{ backgroundColor: o.logo_props?.color?.background ?? EMPTY_OPTION_BG }}
-            />
-          )}
-          pinSelected={false}
-          searchPlaceholder="Search options"
+          className="contents"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onFocus={(e) => e.stopPropagation()}
         >
-          <Select.Trigger<TIssuePropertyOption>
-            variant="table-cell"
-            tabIndex={0}
-            className="h-auto w-auto rounded bg-transparent p-0 hover:bg-transparent data-popup-open:ring-1 data-popup-open:ring-accent-strong"
+          <Select<TIssuePropertyOption>
+            value={options.find((o) => o.id === selectedId) ?? null}
+            onChange={handleChange}
+            getValues={() => options}
+            getOptionValue={(o) => o.id}
+            getOptionLabel={(o) => o.name}
+            getOptionIcon={(o) => (
+              <span
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: o.logo_props?.color?.background ?? EMPTY_OPTION_BG }}
+              />
+            )}
+            pinSelected={false}
+            searchPlaceholder="Search options"
           >
-            {(sel) => {
-              const option = sel[0];
-              if (!option) {
-                return (
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-subtle text-[10px] text-tertiary">
-                    +
-                  </span>
-                );
-              }
-              return <StatusChip option={option} />;
-            }}
-          </Select.Trigger>
-        </Select>
+            <Select.Trigger<TIssuePropertyOption>
+              variant="table-cell"
+              tabIndex={0}
+              className="h-auto w-auto rounded bg-transparent p-0 hover:bg-transparent data-popup-open:ring-1 data-popup-open:ring-accent-strong"
+            >
+              {(sel) => {
+                const option = sel[0];
+                if (!option) {
+                  return (
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-subtle text-[10px] text-tertiary">
+                      +
+                    </span>
+                  );
+                }
+                return <StatusChip option={option} />;
+              }}
+            </Select.Trigger>
+          </Select>
+        </span>
       );
     })
     .filter(Boolean);

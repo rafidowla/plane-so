@@ -35,7 +35,16 @@ export const StatusPropertyCell = observer(function StatusPropertyCell(props: TP
   };
 
   return (
-    <div className="h-11 border-b-[0.5px] border-subtle">
+    // Stop the click here: blocks Select (unlike the old @plane/ui Dropdown) lets it reach the row.
+    // oxlint-disable-next-line jsx_a11y/click-events-have-key-events, jsx_a11y/no-static-element-interactions -- propagation guard only, the Select trigger inside is the interactive element
+    <div
+      className="h-11 border-b-[0.5px] border-subtle"
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+      }}
+      onFocus={(e) => e.stopPropagation()}
+    >
       <Select<TIssuePropertyOption>
         value={selected ?? null}
         onChange={handleChange}
