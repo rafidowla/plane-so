@@ -30,7 +30,7 @@ import { CustomErrorComponent } from "./error";
 // eslint-disable-next-line import/no-unassigned-import -- side-effect import: registers font-face CSS
 import "@fontsource-variable/inter";
 import interVariableWoff2 from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
-// FORK: monday-theme — Figtree, applied only under the Monday theme (see [data-theme="monday"] in variables.css).
+// FORK: monday-theme — Figtree, applied only under the Monday theme (see [data-theme="monday"] in packages/tailwind-config/index.css).
 // eslint-disable-next-line import/no-unassigned-import -- side-effect import: registers font-face CSS
 import "@fontsource-variable/figtree";
 // eslint-disable-next-line import/no-unassigned-import -- side-effect import: registers font-face CSS
