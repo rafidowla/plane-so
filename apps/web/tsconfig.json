@@ -2,10 +2,8 @@
   "compilerOptions": {
     "rootDirs": [".", "./.react-router/types"],
     "paths": {
-      "@/*": ["./core/*"],
-      "@/app/*": ["./app/*"],
-      "@/helpers/*": ["./helpers/*"],
-      "@/styles/*": ["./styles/*"],
+      "@/*": ["./*"],
+      // FORK: fork features live in ce/ (upstream removed its own ce/ tree)
       "@/plane-web/*": ["./ce/*"],
       "package.json": ["./package.json"]
     },
