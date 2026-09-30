@@ -21,7 +21,7 @@ import {
   DialogMain,
   DialogTitle,
 } from "@makeplane/propel/components/dialog";
-import { Input } from "@makeplane/propel/components/input";
+import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { setToast } from "@plane/blocks/toast";
 import { cn } from "@plane/utils";
 // local imports
@@ -194,14 +194,16 @@ export const PropertyFormModal = observer(function PropertyFormModal(props: Prop
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-secondary">{t("custom_properties.property_name")}</label>
-                <Input
-                  size="lg"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={t("custom_properties.property_name_placeholder")}
-                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- the dialog opens straight into the name field
-                  autoFocus
-                />
+                <InputGroup size="lg">
+                  <Input
+                    size="lg"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={t("custom_properties.property_name_placeholder")}
+                    // oxlint-disable-next-line jsx-a11y/no-autofocus -- the dialog opens straight into the name field
+                    autoFocus
+                  />
+                </InputGroup>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -223,12 +225,14 @@ export const PropertyFormModal = observer(function PropertyFormModal(props: Prop
                         />
                       </label>
                       <div className="min-w-0 flex-grow">
-                        <Input
-                          size="lg"
-                          value={option.name}
-                          onChange={(e) => updateOptionAt(index, { name: e.target.value })}
-                          placeholder={t("custom_properties.option_name_placeholder")}
-                        />
+                        <InputGroup size="lg">
+                          <Input
+                            size="lg"
+                            value={option.name}
+                            onChange={(e) => updateOptionAt(index, { name: e.target.value })}
+                            placeholder={t("custom_properties.option_name_placeholder")}
+                          />
+                        </InputGroup>
                       </div>
                       <button
                         type="button"

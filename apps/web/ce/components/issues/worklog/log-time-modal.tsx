@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@makeplane/propel/components/dialog";
 import { Field } from "@makeplane/propel/components/field";
-import { Input } from "@makeplane/propel/components/input";
+import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { setToast } from "@plane/blocks/toast";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { asApiError } from "@/plane-web/components/analytics/api-error";
@@ -142,7 +142,9 @@ export function LogTimeModal(props: Props) {
                       name="hours"
                       render={({ field }) => (
                         <Field name={field.name} invalid={Boolean(errors.hours)}>
-                          <Input size="lg" type="number" min={0} {...field} />
+                          <InputGroup size="lg">
+                            <Input size="lg" type="number" min={0} {...field} />
+                          </InputGroup>
                         </Field>
                       )}
                     />
@@ -152,7 +154,11 @@ export function LogTimeModal(props: Props) {
                     <Controller
                       control={control}
                       name="minutes"
-                      render={({ field }) => <Input size="lg" type="number" min={0} max={59} {...field} />}
+                      render={({ field }) => (
+                        <InputGroup size="lg">
+                          <Input size="lg" type="number" min={0} max={59} {...field} />
+                        </InputGroup>
+                      )}
                     />
                   </div>
                   <div className="flex-1">
@@ -163,7 +169,9 @@ export function LogTimeModal(props: Props) {
                       rules={{ required: "Date is required" }}
                       render={({ field }) => (
                         <Field name={field.name} invalid={Boolean(errors.logged_date)}>
-                          <Input size="lg" type="date" {...field} />
+                          <InputGroup size="lg">
+                            <Input size="lg" type="date" {...field} />
+                          </InputGroup>
                         </Field>
                       )}
                     />
@@ -176,7 +184,9 @@ export function LogTimeModal(props: Props) {
                     control={control}
                     name="description"
                     render={({ field }) => (
-                      <Input size="lg" type="text" {...field} placeholder="What did you work on?" />
+                      <InputGroup size="lg">
+                        <Input size="lg" type="text" {...field} placeholder="What did you work on?" />
+                      </InputGroup>
                     )}
                   />
                 </div>

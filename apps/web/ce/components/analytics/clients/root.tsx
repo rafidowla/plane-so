@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 import useSWR from "swr";
 import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
-import { Input } from "@makeplane/propel/components/input";
+import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { Loader } from "@plane/blocks/skeleton";
 import { setToast } from "@plane/blocks/toast";
 import AnalyticsWrapper from "@/components/analytics/analytics-wrapper";
@@ -106,19 +106,36 @@ export const Clients = observer(function Clients() {
           <div>
             <span className="text-xs mb-1 block text-tertiary">Name</span>
             <div className="w-48">
-              <Input size="md" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" />
+              <InputGroup size="md">
+                <Input size="md" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" />
+              </InputGroup>
             </div>
           </div>
           <div>
             <span className="text-xs mb-1 block text-tertiary">Identifier</span>
             <div className="w-32">
-              <Input size="md" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="ACME" />
+              <InputGroup size="md">
+                <Input
+                  size="md"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="ACME"
+                />
+              </InputGroup>
             </div>
           </div>
           <div>
             <span className="text-xs mb-1 block text-tertiary">Default rate</span>
             <div className="w-28">
-              <Input size="md" type="number" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="150" />
+              <InputGroup size="md">
+                <Input
+                  size="md"
+                  type="number"
+                  value={rate}
+                  onChange={(e) => setRate(e.target.value)}
+                  placeholder="150"
+                />
+              </InputGroup>
             </div>
           </div>
           <Button variant="primary" size="sm" stretch="auto" label="Create" onClick={handleCreate} />

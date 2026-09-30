@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { Button } from "@makeplane/propel/components/button";
-import { Input } from "@makeplane/propel/components/input";
+import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { setToast } from "@plane/blocks/toast";
 import AnalyticsWrapper from "@/components/analytics/analytics-wrapper";
 import { useProject } from "@/hooks/store/use-project";
@@ -195,30 +195,43 @@ export const Imports = observer(function Imports() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <span className="text-xs mb-1 block text-tertiary">Jira URL</span>
-              <Input
-                size="md"
-                value={jiraUrl}
-                onChange={handleConnChange(setJiraUrl)}
-                placeholder="https://acme.atlassian.net"
-              />
+              <InputGroup size="md">
+                <Input
+                  size="md"
+                  value={jiraUrl}
+                  onChange={handleConnChange(setJiraUrl)}
+                  placeholder="https://acme.atlassian.net"
+                />
+              </InputGroup>
             </div>
             <div>
               <span className="text-xs mb-1 block text-tertiary">Jira email</span>
-              <Input size="md" value={jiraEmail} onChange={handleConnChange(setJiraEmail)} placeholder="you@acme.com" />
+              <InputGroup size="md">
+                <Input
+                  size="md"
+                  value={jiraEmail}
+                  onChange={handleConnChange(setJiraEmail)}
+                  placeholder="you@acme.com"
+                />
+              </InputGroup>
             </div>
             <div>
               <span className="text-xs mb-1 block text-tertiary">API token</span>
-              <Input
-                size="md"
-                type="password"
-                value={jiraToken}
-                onChange={handleConnChange(setJiraToken)}
-                placeholder="••••••••"
-              />
+              <InputGroup size="md">
+                <Input
+                  size="md"
+                  type="password"
+                  value={jiraToken}
+                  onChange={handleConnChange(setJiraToken)}
+                  placeholder="••••••••"
+                />
+              </InputGroup>
             </div>
             <div>
               <span className="text-xs mb-1 block text-tertiary">Jira project key</span>
-              <Input size="md" value={jiraProject} onChange={handleConnChange(setJiraProject)} placeholder="ENG" />
+              <InputGroup size="md">
+                <Input size="md" value={jiraProject} onChange={handleConnChange(setJiraProject)} placeholder="ENG" />
+              </InputGroup>
             </div>
           </div>
         )}
