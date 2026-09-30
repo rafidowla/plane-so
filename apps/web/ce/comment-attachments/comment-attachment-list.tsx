@@ -6,7 +6,7 @@
 
 // FORK: comment-attachments (#18)
 import { useState } from "react";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { observer } from "mobx-react";
 import { Download, File as FileIcon, FileAudio, FileImage, FileText, FileVideo } from "lucide-react";
 // plane imports
@@ -18,6 +18,13 @@ import { commentAttachmentsService } from "./comment-attachments.service";
 import { CommentAttachmentPreviewModal } from "./comment-attachment-preview-modal";
 
 const COMMENT_ASSETS_KEY = (commentId: string) => `COMMENT_ASSETS_${commentId}`;
+
+/**
+ * Re-fetch a comment's attachment row. The list mounts (and fetches) as soon as
+ * the new comment lands in the store, which is before comment-create.tsx has
+ * bulk-linked the uploaded assets to it — so call this once the link succeeds.
+ */
+export const refreshCommentAttachments = (commentId: string) => mutate(COMMENT_ASSETS_KEY(commentId));
 
 const kindIcon = (fileName: string | undefined) => {
   switch (getPreviewKind(fileName)) {

@@ -19,7 +19,11 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 // services
 import { FileService } from "@/services/file.service";
 // FORK: comment-attachments (#18, #22)
-import { CommentAttachToolbarButton, CommentAttachmentComposer } from "@/plane-web/comment-attachments";
+import {
+  CommentAttachToolbarButton,
+  CommentAttachmentComposer,
+  refreshCommentAttachments,
+} from "@/plane-web/comment-attachments";
 import type { TCommentAttachmentComposerHandle } from "@/plane-web/comment-attachments";
 
 type TCommentCreate = {
@@ -89,6 +93,8 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
         }
         setUploadedAssetIds([]);
         setStagedAttachmentIds([]);
+        // FORK: comment-attachments (#18) — the list under the new comment fetched before the link above
+        void refreshCommentAttachments(comment.id);
       }
     } catch (error) {
       console.error(error);
