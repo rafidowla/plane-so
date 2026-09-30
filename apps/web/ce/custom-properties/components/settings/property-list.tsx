@@ -9,8 +9,8 @@ import { observer } from "mobx-react";
 import { Pencil, Trash2 } from "lucide-react";
 // plane imports
 import { useTranslation } from "@plane/i18n";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { AlertModalCore } from "@plane/ui";
+import { ConfirmDialog } from "@plane/blocks/dialog";
+import { setToast } from "@plane/blocks/toast";
 // local imports
 import type { TIssueProperty } from "@/plane-web/custom-properties";
 import { useProjectCustomProperties } from "@/plane-web/custom-properties";
@@ -43,11 +43,11 @@ export const CustomPropertyList = observer(function CustomPropertyList({ workspa
     setIsDeleteSubmitting(true);
     try {
       await store.deleteProperty(workspaceSlug, projectId, deleting.id);
-      setToast({ type: TOAST_TYPE.SUCCESS, title: t("common.success"), message: t("custom_properties.delete_property") });
+      setToast({ type: "success", title: t("common.success"), message: t("custom_properties.delete_property") });
       setDeleting(null);
     } catch (error: unknown) {
       const message = (error as { error?: string })?.error ?? "Something went wrong.";
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message });
+      setToast({ type: "error", title: "Error", message });
     } finally {
       setIsDeleteSubmitting(false);
     }
@@ -66,7 +66,7 @@ export const CustomPropertyList = observer(function CustomPropertyList({ workspa
       </div>
 
       {properties.length === 0 ? (
-        <p className="rounded-md border border-dashed border-subtle p-4 text-xs text-tertiary">
+        <p className="text-xs rounded-md border border-dashed border-subtle p-4 text-tertiary">
           {t("custom_properties.no_properties")}
         </p>
       ) : (
@@ -74,10 +74,10 @@ export const CustomPropertyList = observer(function CustomPropertyList({ workspa
           {properties.map((property) => (
             <li key={property.id} className="flex items-center justify-between gap-4 p-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{property.display_name || property.name}</p>
+                <p className="text-sm truncate font-medium">{property.display_name || property.name}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {(property.options ?? [])
-                    .slice()
+                  {[...(property.options ?? [])]
+                    // oxlint-disable-next-line unicorn/no-array-sort -- sorting a fresh copy; toSorted needs the es2023 lib
                     .sort((a, b) => a.sort_order - b.sort_order)
                     .map((option) => (
                       <span
@@ -123,7 +123,7 @@ export const CustomPropertyList = observer(function CustomPropertyList({ workspa
         />
       )}
 
-      <AlertModalCore
+      <ConfirmDialog
         isOpen={!!deleting}
         handleClose={() => setDeleting(null)}
         handleSubmit={handleDelete}

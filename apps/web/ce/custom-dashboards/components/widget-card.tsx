@@ -7,7 +7,9 @@
 import { type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, MoreHorizontal, Pencil, RefreshCw, Trash2 } from "lucide-react";
 // plane imports
-import { CustomMenu, Loader } from "@plane/ui";
+import { Loader } from "@plane/blocks/skeleton";
+import { Icon } from "@makeplane/propel/components/icon";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
 import { cn } from "@plane/utils";
 // local imports
 import { DASHBOARD_WIDGET_TYPE_LABELS } from "@/plane-web/custom-dashboards";
@@ -66,47 +68,40 @@ export function WidgetCard(props: Props) {
           )}
         </div>
         {adminActions && (
-          <CustomMenu
-            customButton={
-              <span className="grid size-6 place-items-center rounded text-tertiary hover:bg-layer-2 hover:text-primary">
-                <MoreHorizontal className="size-4" />
-              </span>
-            }
-            placement="bottom-end"
-            closeOnSelect
-          >
-            <CustomMenu.MenuItem onClick={adminActions.onEdit} className="flex items-center gap-2">
-              <Pencil className="size-3.5" />
-              Edit config
-            </CustomMenu.MenuItem>
-            <CustomMenu.MenuItem onClick={adminActions.onToggleEnabled} className="flex items-center gap-2">
-              {widget.is_enabled ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-              {widget.is_enabled ? "Disable" : "Enable"}
-            </CustomMenu.MenuItem>
-            <CustomMenu.MenuItem
-              onClick={adminActions.onMoveUp}
-              disabled={!adminActions.canMoveUp}
-              className="flex items-center gap-2"
+          <Menu>
+            <MenuTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Widget actions"
+                  className="grid size-6 place-items-center rounded text-tertiary hover:bg-layer-2 hover:text-primary"
+                />
+              }
             >
-              <ArrowUp className="size-3.5" />
-              Move up
-            </CustomMenu.MenuItem>
-            <CustomMenu.MenuItem
-              onClick={adminActions.onMoveDown}
-              disabled={!adminActions.canMoveDown}
-              className="flex items-center gap-2"
-            >
-              <ArrowDown className="size-3.5" />
-              Move down
-            </CustomMenu.MenuItem>
-            <CustomMenu.MenuItem
-              onClick={adminActions.onDelete}
-              className="flex items-center gap-2 text-danger-primary"
-            >
-              <Trash2 className="size-3.5" />
-              Delete
-            </CustomMenu.MenuItem>
-          </CustomMenu>
+              <MoreHorizontal className="size-4" />
+            </MenuTrigger>
+            <MenuContent side="bottom" align="end">
+              <MenuItem onClick={adminActions.onEdit} icon={<Icon icon={Pencil} />} label="Edit config" />
+              <MenuItem
+                onClick={adminActions.onToggleEnabled}
+                icon={<Icon icon={widget.is_enabled ? EyeOff : Eye} />}
+                label={widget.is_enabled ? "Disable" : "Enable"}
+              />
+              <MenuItem
+                onClick={adminActions.onMoveUp}
+                disabled={!adminActions.canMoveUp}
+                icon={<Icon icon={ArrowUp} />}
+                label="Move up"
+              />
+              <MenuItem
+                onClick={adminActions.onMoveDown}
+                disabled={!adminActions.canMoveDown}
+                icon={<Icon icon={ArrowDown} />}
+                label="Move down"
+              />
+              <MenuItem onClick={adminActions.onDelete} variant="danger" icon={<Icon icon={Trash2} />} label="Delete" />
+            </MenuContent>
+          </Menu>
         )}
       </div>
 

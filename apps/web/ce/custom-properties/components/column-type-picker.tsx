@@ -4,11 +4,11 @@
  * See the LICENSE file for details.
  */
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { observer } from "mobx-react";
-import { Menu } from "@headlessui/react";
 import { Plus } from "lucide-react";
 // plane imports
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
 import { useTranslation } from "@plane/i18n";
 import { cn } from "@plane/utils";
 // local imports
@@ -43,12 +43,17 @@ export const ColumnTypePicker = observer(function ColumnTypePicker(props: Props)
 
   return (
     <>
-      <Menu as="div" className="relative inline-block text-left">
-        <Menu.Button
-          className={cn(
-            "flex items-center gap-1 rounded text-xs text-secondary hover:text-primary focus:outline-none",
-            triggerClassName
-          )}
+      <Menu>
+        <MenuTrigger
+          render={
+            <button
+              type="button"
+              className={cn(
+                "text-xs flex items-center gap-1 rounded text-secondary hover:text-primary focus:outline-none",
+                triggerClassName
+              )}
+            />
+          }
         >
           {triggerContent ?? (
             <span className="flex items-center gap-1">
@@ -56,37 +61,24 @@ export const ColumnTypePicker = observer(function ColumnTypePicker(props: Props)
               {t("custom_properties.add_property")}
             </span>
           )}
-        </Menu.Button>
-        <Menu.Items
-          className={cn(
-            "absolute z-30 mt-1 max-h-72 w-48 overflow-y-auto rounded-md border border-subtle bg-layer-1 py-1 shadow-lg focus:outline-none",
-            menuPlacement === "right" ? "right-0" : "left-0"
-          )}
-        >
+        </MenuTrigger>
+        <MenuContent side="bottom" align={menuPlacement === "right" ? "end" : "start"}>
           {PROPERTY_TYPE_META.map((meta) => (
-            <Menu.Item key={meta.type} as={Fragment} disabled={!meta.enabled}>
-              {({ active }) => (
-                <button
-                  type="button"
-                  onClick={() => handlePick(meta.enabled, meta.type)}
-                  disabled={!meta.enabled}
-                  className={cn(
-                    "flex w-full items-center justify-between px-3 py-1.5 text-left text-13",
-                    meta.enabled ? "text-primary" : "cursor-default text-tertiary",
-                    active && meta.enabled ? "bg-layer-2" : ""
-                  )}
-                >
-                  <span>{t(meta.i18n_label)}</span>
-                  {!meta.enabled && (
-                    <span className="rounded bg-layer-2 px-1.5 py-0.5 text-[10px] uppercase text-tertiary">
-                      {t("custom_properties.soon")}
-                    </span>
-                  )}
-                </button>
-              )}
-            </Menu.Item>
+            <MenuItem
+              key={meta.type}
+              label={t(meta.i18n_label)}
+              disabled={!meta.enabled}
+              onClick={() => handlePick(meta.enabled, meta.type)}
+              trailing={
+                !meta.enabled ? (
+                  <span className="rounded bg-layer-2 px-1.5 py-0.5 text-[10px] text-tertiary uppercase">
+                    {t("custom_properties.soon")}
+                  </span>
+                ) : undefined
+              }
+            />
           ))}
-        </Menu.Items>
+        </MenuContent>
       </Menu>
 
       <PropertyFormModal

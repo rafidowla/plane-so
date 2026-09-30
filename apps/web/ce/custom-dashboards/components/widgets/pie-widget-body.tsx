@@ -6,7 +6,7 @@
 
 import { useMemo } from "react";
 // plane imports
-import { PieChart } from "@plane/propel/charts/pie-chart";
+import { PieChart } from "@plane/blocks/charts/pie-chart";
 // local imports
 import type { TChartDatum } from "@/plane-web/custom-dashboards";
 import { buildPieCells } from "../colors";

@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { observer } from "mobx-react";
 import useSWR from "swr";
-import { Loader } from "@plane/ui";
+import { Loader } from "@plane/blocks/skeleton";
 import { generateWorkItemLink } from "@plane/utils";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { hrs } from "./root";

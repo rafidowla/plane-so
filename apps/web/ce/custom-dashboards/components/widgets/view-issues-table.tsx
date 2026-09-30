@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import useSWR from "swr";
 // plane imports
-import { PriorityIcon, StateGroupIcon } from "@plane/propel/icons";
+import { PriorityIcon, StateGroupIcon } from "@plane/blocks/icons";
 import type { TIssuePriorities, TStateGroups } from "@plane/types";
 import { cn } from "@plane/utils";
 // hooks
@@ -54,7 +54,7 @@ const IssueRow = observer(function IssueRow(props: { issue: TViewListIssue }) {
       </td>
       <td className="py-2">
         <span className="text-xs flex items-center gap-1.5 text-secondary">
-          <PriorityIcon priority={issue.priority as TIssuePriorities} size={14} withContainer />
+          <PriorityIcon priority={issue.priority as TIssuePriorities} className="size-3.5" />
           <span className="capitalize">{issue.priority}</span>
         </span>
       </td>

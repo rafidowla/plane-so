@@ -10,9 +10,19 @@ import { Check, Plus, Trash2 } from "lucide-react";
 // plane imports
 import { LABEL_COLOR_OPTIONS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { EModalWidth, Input, ModalCore } from "@plane/ui";
+import { Button } from "@makeplane/propel/components/button";
+import {
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+  DialogHeading,
+  DialogMain,
+  DialogTitle,
+} from "@makeplane/propel/components/dialog";
+import { Input } from "@makeplane/propel/components/input";
+import { setToast } from "@plane/blocks/toast";
 import { cn } from "@plane/utils";
 // local imports
 import { EIssuePropertyType } from "@/plane-web/custom-properties";
@@ -20,6 +30,8 @@ import type { TIssueProperty } from "@/plane-web/custom-properties";
 import { useCustomProperties } from "../hooks/use-custom-properties";
 
 type OptionDraft = {
+  /** Stable React key — the option id when it exists, a client-generated one for unsaved rows. */
+  key: string;
   id?: string;
   name: string;
   color: string;
@@ -35,13 +47,17 @@ type Props = {
   property?: TIssueProperty | null;
 };
 
+let draftKeyCounter = 0;
+const newDraftKey = (): string => `new-${++draftKeyCounter}`;
+
 const colorForIndex = (i: number): string => LABEL_COLOR_OPTIONS[i % LABEL_COLOR_OPTIONS.length];
 
 const draftFromProperty = (property: TIssueProperty): OptionDraft[] =>
-  (property.options ?? [])
-    .slice()
+  [...(property.options ?? [])]
+    // oxlint-disable-next-line unicorn/no-array-sort -- sorting a fresh copy; toSorted needs the es2023 lib
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((o) => ({
+      key: o.id,
       id: o.id,
       name: o.name,
       color: o.logo_props?.color?.background ?? colorForIndex(0),
@@ -66,20 +82,22 @@ export const PropertyFormModal = observer(function PropertyFormModal(props: Prop
     } else {
       setDisplayName("");
       setOptions([
-        { name: "", color: colorForIndex(0), is_default: true },
-        { name: "", color: colorForIndex(1), is_default: false },
+        { key: newDraftKey(), name: "", color: colorForIndex(0), is_default: true },
+        { key: newDraftKey(), name: "", color: colorForIndex(1), is_default: false },
       ]);
     }
   }, [isOpen, property]);
 
   const addOption = () =>
-    setOptions((prev) => [...prev, { name: "", color: colorForIndex(prev.length), is_default: prev.length === 0 }]);
+    setOptions((prev) => [
+      ...prev,
+      { key: newDraftKey(), name: "", color: colorForIndex(prev.length), is_default: prev.length === 0 },
+    ]);
 
   const updateOptionAt = (index: number, patch: Partial<OptionDraft>) =>
     setOptions((prev) => prev.map((o, i) => (i === index ? { ...o, ...patch } : o)));
 
-  const setDefaultAt = (index: number) =>
-    setOptions((prev) => prev.map((o, i) => ({ ...o, is_default: i === index })));
+  const setDefaultAt = (index: number) => setOptions((prev) => prev.map((o, i) => ({ ...o, is_default: i === index })));
 
   const removeOptionAt = (index: number) =>
     setOptions((prev) => {
@@ -92,12 +110,12 @@ export const PropertyFormModal = observer(function PropertyFormModal(props: Prop
   const submit = async () => {
     const name = displayName.trim();
     if (!name) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: t("custom_properties.name_required") });
+      setToast({ type: "error", title: "Error", message: t("custom_properties.name_required") });
       return;
     }
     const cleanOptions = options.map((o) => ({ ...o, name: o.name.trim() })).filter((o) => o.name.length > 0);
     if (cleanOptions.length === 0) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: t("custom_properties.options_required") });
+      setToast({ type: "error", title: "Error", message: t("custom_properties.options_required") });
       return;
     }
 
@@ -111,6 +129,7 @@ export const PropertyFormModal = observer(function PropertyFormModal(props: Prop
         const keptIds = new Set(cleanOptions.filter((o) => o.id).map((o) => o.id));
         // deletions
         for (const opt of property.options ?? []) {
+          // oxlint-disable-next-line no-await-in-loop -- sequential on purpose: the server assigns/validates options one at a time
           if (!keptIds.has(opt.id)) await store.deleteOption(workspaceSlug, projectId, property.id, opt.id);
         }
         // creates + updates
@@ -123,8 +142,10 @@ export const PropertyFormModal = observer(function PropertyFormModal(props: Prop
             sort_order: (i + 1) * 1000,
           };
           if (o.id && existingIds.has(o.id)) {
+            // oxlint-disable-next-line no-await-in-loop -- sequential on purpose (see above)
             await store.updateOption(workspaceSlug, projectId, property.id, o.id, payload);
           } else {
+            // oxlint-disable-next-line no-await-in-loop -- sequential on purpose (see above)
             await store.createOption(workspaceSlug, projectId, property.id, payload);
           }
         }
@@ -145,108 +166,134 @@ export const PropertyFormModal = observer(function PropertyFormModal(props: Prop
         });
       }
       setToast({
-        type: TOAST_TYPE.SUCCESS,
+        type: "success",
         title: t("common.success"),
         message: isEdit ? t("custom_properties.edit_property") : t("custom_properties.new_property"),
       });
       handleClose();
     } catch (error: unknown) {
       const message = (error as { error?: string })?.error ?? "Something went wrong.";
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message });
+      setToast({ type: "error", title: "Error", message });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <ModalCore isOpen={isOpen} handleClose={handleClose} width={EModalWidth.XL}>
-      <div className="flex flex-col gap-4 p-5">
-        <h3 className="text-lg font-medium">
-          {isEdit ? t("custom_properties.edit_property") : t("custom_properties.new_property")}
-        </h3>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-secondary">{t("custom_properties.property_name")}</label>
-          <Input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder={t("custom_properties.property_name_placeholder")}
-            className="w-full"
-            autoFocus
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium text-secondary">{t("custom_properties.options")}</label>
-          <div className="flex flex-col gap-2">
-            {options.map((option, index) => (
-              <div key={option.id ?? `new-${index}`} className="flex items-center gap-2">
-                <label
-                  className="relative size-6 flex-shrink-0 cursor-pointer rounded border border-subtle"
-                  style={{ backgroundColor: option.color }}
-                  title="Pick colour"
-                >
-                  <input
-                    type="color"
-                    value={option.color}
-                    onChange={(e) => updateOptionAt(index, { color: e.target.value })}
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                  />
-                </label>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent size="sm">
+        <DialogMain>
+          <DialogHeader>
+            <DialogHeading>
+              <DialogTitle>
+                {isEdit ? t("custom_properties.edit_property") : t("custom_properties.new_property")}
+              </DialogTitle>
+            </DialogHeading>
+          </DialogHeader>
+          <DialogBody tabIndex={0}>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-secondary">{t("custom_properties.property_name")}</label>
                 <Input
-                  value={option.name}
-                  onChange={(e) => updateOptionAt(index, { name: e.target.value })}
-                  placeholder={t("custom_properties.option_name_placeholder")}
-                  className="flex-grow"
+                  size="lg"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={t("custom_properties.property_name_placeholder")}
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- the dialog opens straight into the name field
+                  autoFocus
                 />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-secondary">{t("custom_properties.options")}</label>
+                <div className="flex flex-col gap-2">
+                  {options.map((option, index) => (
+                    <div key={option.key} className="flex items-center gap-2">
+                      <label
+                        className="relative size-6 flex-shrink-0 cursor-pointer rounded border border-subtle"
+                        style={{ backgroundColor: option.color }}
+                        title="Pick colour"
+                        aria-label="Pick colour"
+                      >
+                        <input
+                          type="color"
+                          value={option.color}
+                          onChange={(e) => updateOptionAt(index, { color: e.target.value })}
+                          className="absolute inset-0 cursor-pointer opacity-0"
+                        />
+                      </label>
+                      <div className="min-w-0 flex-grow">
+                        <Input
+                          size="lg"
+                          value={option.name}
+                          onChange={(e) => updateOptionAt(index, { name: e.target.value })}
+                          placeholder={t("custom_properties.option_name_placeholder")}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDefaultAt(index)}
+                        className={cn(
+                          "text-xs flex items-center gap-1 rounded px-2 py-1 transition-colors",
+                          option.is_default
+                            ? "bg-accent-primary/10 text-accent-primary"
+                            : "text-tertiary hover:bg-layer-2"
+                        )}
+                        title={t("custom_properties.set_default")}
+                      >
+                        {option.is_default && <Check className="size-3" />}
+                        {t("custom_properties.default_badge")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeOptionAt(index)}
+                        className="rounded p-1 text-tertiary hover:bg-layer-2 hover:text-danger-primary"
+                        title="Remove"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
                 <button
                   type="button"
-                  onClick={() => setDefaultAt(index)}
-                  className={cn(
-                    "flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors",
-                    option.is_default ? "bg-accent-primary/10 text-accent-primary" : "text-tertiary hover:bg-layer-2"
-                  )}
-                  title={t("custom_properties.set_default")}
+                  onClick={addOption}
+                  className="text-xs mt-1 flex w-fit items-center gap-1 text-accent-primary hover:underline"
                 >
-                  {option.is_default && <Check className="size-3" />}
-                  {t("custom_properties.default_badge")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeOptionAt(index)}
-                  className="rounded p-1 text-tertiary hover:bg-layer-2 hover:text-danger-primary"
-                  title="Remove"
-                >
-                  <Trash2 className="size-3.5" />
+                  <Plus className="size-3.5" />
+                  {t("custom_properties.add_option")}
                 </button>
               </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={addOption}
-            className="mt-1 flex w-fit items-center gap-1 text-xs text-accent-primary hover:underline"
-          >
-            <Plus className="size-3.5" />
-            {t("custom_properties.add_option")}
-          </button>
-        </div>
-
-        <div className="mt-2 flex items-center justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={handleClose} disabled={isSubmitting}>
-            {t("common.cancel")}
-          </Button>
-          <Button variant="primary" size="sm" onClick={submit} loading={isSubmitting}>
-            {isEdit
-              ? isSubmitting
-                ? t("custom_properties.saving")
-                : t("custom_properties.save_changes")
-              : isSubmitting
-                ? t("custom_properties.creating")
-                : t("custom_properties.create")}
-          </Button>
-        </div>
-      </div>
-    </ModalCore>
+            </div>
+          </DialogBody>
+        </DialogMain>
+        <DialogActions>
+          <Button
+            variant="secondary"
+            size="sm"
+            stretch="auto"
+            label={t("common.cancel")}
+            onClick={handleClose}
+            disabled={isSubmitting}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            stretch="auto"
+            label={
+              isEdit
+                ? isSubmitting
+                  ? t("custom_properties.saving")
+                  : t("custom_properties.save_changes")
+                : isSubmitting
+                  ? t("custom_properties.creating")
+                  : t("custom_properties.create")
+            }
+            onClick={() => void submit()}
+            loading={isSubmitting}
+          />
+        </DialogActions>
+      </DialogContent>
+    </Dialog>
   );
 });

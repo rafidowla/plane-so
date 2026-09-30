@@ -6,13 +6,14 @@
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Input } from "@plane/ui";
+import { Button } from "@makeplane/propel/components/button";
+import { Input } from "@makeplane/propel/components/input";
+import { setToast } from "@plane/blocks/toast";
 import AnalyticsWrapper from "@/components/analytics/analytics-wrapper";
 import { useProject } from "@/hooks/store/use-project";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUserPermissions } from "@/hooks/store/user";
+import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import type { TJiraImportJob, TJiraPreview } from "@/plane-web/components/issues/worklog/types";
 
@@ -75,11 +76,11 @@ export const Imports = observer(function Imports() {
       const list = await timeTrackingService.getJiraStatuses(workspaceSlug, projectId, cfg());
       setJiraStatuses(list);
       setCheckedStatuses(list); // everything checked by default
-    } catch (err: any) {
+    } catch (err) {
       setToast({
-        type: TOAST_TYPE.ERROR,
+        type: "error",
         title: "Could not load statuses",
-        message: err?.error ?? "Check your Jira details.",
+        message: asApiError(err).error ?? "Check your Jira details.",
       });
     } finally {
       setLoadingStatuses(false);
@@ -102,8 +103,12 @@ export const Imports = observer(function Imports() {
     try {
       const res = await timeTrackingService.previewJiraImport(workspaceSlug, projectId, cfg());
       setPreview(res);
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Preview failed", message: err?.error ?? "Check your Jira details." });
+    } catch (err) {
+      setToast({
+        type: "error",
+        title: "Preview failed",
+        message: asApiError(err).error ?? "Check your Jira details.",
+      });
     } finally {
       setPreviewing(false);
     }
@@ -120,11 +125,11 @@ export const Imports = observer(function Imports() {
           setImporting(false);
           if (j.status === "completed")
             setToast({
-              type: TOAST_TYPE.SUCCESS,
+              type: "success",
               title: "Import complete",
               message: `${j.result?.created ?? 0} work items imported.`,
             });
-          else setToast({ type: TOAST_TYPE.ERROR, title: "Import failed", message: j.error || "See details." });
+          else setToast({ type: "error", title: "Import failed", message: j.error || "See details." });
         }
       } catch {
         /* keep polling */
@@ -140,9 +145,9 @@ export const Imports = observer(function Imports() {
       setJob(j);
       if (j.status === "completed" || j.status === "failed") setImporting(false);
       else pollJob(j.id);
-    } catch (err: any) {
+    } catch (err) {
       setImporting(false);
-      setToast({ type: TOAST_TYPE.ERROR, title: "Could not start import", message: err?.error ?? "Try again." });
+      setToast({ type: "error", title: "Could not start import", message: asApiError(err).error ?? "Try again." });
     }
   };
 
@@ -191,39 +196,29 @@ export const Imports = observer(function Imports() {
             <div>
               <span className="text-xs mb-1 block text-tertiary">Jira URL</span>
               <Input
+                size="md"
                 value={jiraUrl}
                 onChange={handleConnChange(setJiraUrl)}
                 placeholder="https://acme.atlassian.net"
-                className="w-full"
               />
             </div>
             <div>
               <span className="text-xs mb-1 block text-tertiary">Jira email</span>
-              <Input
-                value={jiraEmail}
-                onChange={handleConnChange(setJiraEmail)}
-                placeholder="you@acme.com"
-                className="w-full"
-              />
+              <Input size="md" value={jiraEmail} onChange={handleConnChange(setJiraEmail)} placeholder="you@acme.com" />
             </div>
             <div>
               <span className="text-xs mb-1 block text-tertiary">API token</span>
               <Input
+                size="md"
                 type="password"
                 value={jiraToken}
                 onChange={handleConnChange(setJiraToken)}
                 placeholder="••••••••"
-                className="w-full"
               />
             </div>
             <div>
               <span className="text-xs mb-1 block text-tertiary">Jira project key</span>
-              <Input
-                value={jiraProject}
-                onChange={handleConnChange(setJiraProject)}
-                placeholder="ENG"
-                className="w-full"
-              />
+              <Input size="md" value={jiraProject} onChange={handleConnChange(setJiraProject)} placeholder="ENG" />
             </div>
           </div>
         )}
@@ -234,11 +229,11 @@ export const Imports = observer(function Imports() {
               <Button
                 variant="secondary"
                 size="sm"
+                stretch="auto"
+                label={loadingStatuses ? "Loading…" : jiraStatuses ? "Reload statuses" : "Load statuses"}
                 onClick={handleLoadStatuses}
                 disabled={!canLoadStatuses || loadingStatuses}
-              >
-                {loadingStatuses ? "Loading…" : jiraStatuses ? "Reload statuses" : "Load statuses"}
-              </Button>
+              />
               <span className="text-xs text-tertiary">
                 Optional — pick which Jira statuses to import (e.g. skip Done/Closed to leave old tickets behind).
               </span>
@@ -286,12 +281,22 @@ export const Imports = observer(function Imports() {
         </label>
 
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={handlePreview} disabled={!canRun || previewing}>
-            {previewing ? "Previewing…" : "Preview"}
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleStart} disabled={!canRun || importing}>
-            {importing ? "Importing…" : "Start import"}
-          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            stretch="auto"
+            label={previewing ? "Previewing…" : "Preview"}
+            onClick={handlePreview}
+            disabled={!canRun || previewing}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            stretch="auto"
+            label={importing ? "Importing…" : "Start import"}
+            onClick={handleStart}
+            disabled={!canRun || importing}
+          />
         </div>
       </div>
 

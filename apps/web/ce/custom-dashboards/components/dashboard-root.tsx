@@ -10,9 +10,10 @@ import { Plus } from "lucide-react";
 import useSWR from "swr";
 // plane imports
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Spinner } from "@plane/ui";
+import { Button } from "@makeplane/propel/components/button";
+import { Icon } from "@makeplane/propel/components/icon";
+import { Spinner } from "@plane/blocks/spinner";
+import { setToast } from "@plane/blocks/toast";
 import { cn } from "@plane/utils";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
@@ -103,16 +104,16 @@ export const DashboardRoot = observer(function DashboardRoot(props: Props) {
     try {
       await updateWidget(workspaceSlug, widget.id, { is_enabled: !widget.is_enabled });
     } catch {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: "Couldn't update the widget." });
+      setToast({ type: "error", title: "Error", message: "Couldn't update the widget." });
     }
   };
 
   const handleDelete = async (widget: TDashboardWidget) => {
     try {
       await deleteWidget(workspaceSlug, widget.id);
-      setToast({ type: TOAST_TYPE.SUCCESS, title: "Success", message: "Widget deleted." });
+      setToast({ type: "success", title: "Success", message: "Widget deleted." });
     } catch {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: "Couldn't delete the widget." });
+      setToast({ type: "error", title: "Error", message: "Couldn't delete the widget." });
     }
   };
 
@@ -123,7 +124,7 @@ export const DashboardRoot = observer(function DashboardRoot(props: Props) {
     try {
       await reorderWidget(workspaceSlug, allWidgets[index].id, newSortOrder);
     } catch {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: "Couldn't reorder the widget." });
+      setToast({ type: "error", title: "Error", message: "Couldn't reorder the widget." });
     }
   };
 
@@ -155,9 +156,14 @@ export const DashboardRoot = observer(function DashboardRoot(props: Props) {
       <div className="mb-5 flex items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-primary">Dashboard</h2>
         {isAdmin && (
-          <Button variant="primary" size="sm" onClick={openCreate} prependIcon={<Plus className="size-4" />}>
-            Add widget
-          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            stretch="auto"
+            onClick={openCreate}
+            icon={<Icon icon={Plus} />}
+            label="Add widget"
+          />
         )}
       </div>
 
@@ -166,9 +172,14 @@ export const DashboardRoot = observer(function DashboardRoot(props: Props) {
           {isAdmin ? (
             <>
               <p className="text-sm text-tertiary">No widgets yet. Add your first one to build the dashboard.</p>
-              <Button variant="primary" size="sm" onClick={openCreate} prependIcon={<Plus className="size-4" />}>
-                Add widget
-              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                stretch="auto"
+                onClick={openCreate}
+                icon={<Icon icon={Plus} />}
+                label="Add widget"
+              />
             </>
           ) : (
             <p className="text-sm text-tertiary">No dashboard configured yet.</p>

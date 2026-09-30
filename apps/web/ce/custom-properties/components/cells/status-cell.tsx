@@ -6,7 +6,7 @@
 
 import { observer } from "mobx-react";
 // plane imports
-import { Dropdown } from "@plane/ui";
+import { Select } from "@plane/blocks/select";
 // local imports
 import type { TIssuePropertyOption } from "@/plane-web/custom-properties";
 import { EMPTY_OPTION_BG as EMPTY_BG, textColorFor } from "../../utils/contrast";
@@ -16,7 +16,7 @@ import type { TPropertyCellProps } from "./registry";
  * Monday-style status cell: the option's colour fills the entire cell and the
  * label text flips between white and near-black for whichever clears the higher
  * contrast ratio. Clicking opens the option picker (positioning/keyboard/close
- * handled by the shared `@plane/ui` Dropdown, so we don't fork a popover).
+ * handled by the shared `@plane/blocks` Select, so we don't fork a popover).
  */
 const activeSortedOptions = (options: TIssuePropertyOption[] | undefined): TIssuePropertyOption[] =>
   (options ?? []).filter((o) => o.is_active).sort((a, b) => a.sort_order - b.sort_order);
@@ -27,7 +27,7 @@ export const StatusPropertyCell = observer(function StatusPropertyCell(props: TP
   const options = activeSortedOptions(property.options);
   const selectedId = values[0] ?? "";
 
-  const dropdownOptions = options.map((o) => ({ data: o, value: o.id }));
+  const selected = options.find((o) => o.id === selectedId);
 
   const handleChange = (value: string) => {
     // Re-selecting the current option clears it (single-select toggle).
@@ -36,49 +36,47 @@ export const StatusPropertyCell = observer(function StatusPropertyCell(props: TP
 
   return (
     <div className="h-11 border-b-[0.5px] border-subtle">
-      <Dropdown
-        value={selectedId}
+      <Select<TIssuePropertyOption>
+        value={selected ?? null}
         onChange={handleChange}
-        options={dropdownOptions}
+        getValues={() => options}
+        getOptionValue={(o) => o.id}
+        getOptionLabel={(o) => o.name}
+        getOptionIcon={(o) => (
+          <span
+            className="h-3 w-3 flex-shrink-0 rounded-sm"
+            style={{ backgroundColor: o.logo_props?.color?.background ?? EMPTY_BG }}
+          />
+        )}
+        pinSelected={false}
+        searchPlaceholder="Search options"
         disabled={disabled}
-        keyExtractor={(opt) => opt.value}
-        queryArray={["name"]}
-        placement="bottom-start"
-        inputPlaceholder="Search options"
-        buttonContainerClassName="h-full w-full"
-        buttonClassName="h-full w-full rounded-none p-0 text-left"
-        buttonContent={(_isOpen, value) => {
-          const opt = options.find((o) => o.id === value);
-          if (!opt) {
+      >
+        <Select.Trigger<TIssuePropertyOption>
+          variant="table-cell"
+          className="h-full w-full rounded-none bg-transparent p-0 text-left hover:bg-transparent"
+        >
+          {(sel) => {
+            const opt = sel[0];
+            if (!opt) {
+              return (
+                <div className="flex h-full w-full items-center px-page-x text-13 text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
+                  +
+                </div>
+              );
+            }
+            const bg = opt.logo_props?.color?.background ?? EMPTY_BG;
             return (
-              <div className="flex h-full w-full items-center px-page-x text-13 text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
-                +
+              <div
+                className="flex h-full w-full items-center px-page-x"
+                style={{ backgroundColor: bg, color: textColorFor(bg) }}
+              >
+                <span className="truncate text-13 font-medium">{opt.name}</span>
               </div>
             );
-          }
-          const bg = opt.logo_props?.color?.background ?? EMPTY_BG;
-          return (
-            <div
-              className="flex h-full w-full items-center px-page-x"
-              style={{ backgroundColor: bg, color: textColorFor(bg) }}
-            >
-              <span className="truncate text-13 font-medium">{opt.name}</span>
-            </div>
-          );
-        }}
-        renderItem={({ value, selected }) => {
-          const opt = options.find((o) => o.id === value);
-          if (!opt) return null;
-          const bg = opt.logo_props?.color?.background ?? EMPTY_BG;
-          return (
-            <div className="flex w-full items-center gap-2">
-              <span className="h-3 w-3 flex-shrink-0 rounded-sm" style={{ backgroundColor: bg }} />
-              <span className="flex-grow truncate">{opt.name}</span>
-              {selected && <span className="text-xs text-tertiary">✓</span>}
-            </div>
-          );
-        }}
-      />
+          }}
+        </Select.Trigger>
+      </Select>
     </div>
   );
 });

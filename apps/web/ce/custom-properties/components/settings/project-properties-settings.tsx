@@ -8,8 +8,8 @@ import { observer } from "mobx-react";
 import useSWR from "swr";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { ToggleSwitch } from "@plane/ui";
+import { Switch } from "@makeplane/propel/components/switch";
+import { setToast } from "@plane/blocks/toast";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useCustomProperties } from "@/plane-web/custom-properties/hooks/use-custom-properties";
 import { CustomPropertyList } from "./property-list";
@@ -19,7 +19,10 @@ type Props = {
   projectId: string;
 };
 
-export const ProjectPropertiesSettings = observer(function ProjectPropertiesSettings({ workspaceSlug, projectId }: Props) {
+export const ProjectPropertiesSettings = observer(function ProjectPropertiesSettings({
+  workspaceSlug,
+  projectId,
+}: Props) {
   const { t } = useTranslation();
   const store = useCustomProperties();
   const { allowPermissions } = useUserPermissions();
@@ -39,7 +42,7 @@ export const ProjectPropertiesSettings = observer(function ProjectPropertiesSett
       await store.toggleFeature(workspaceSlug, projectId, !isEnabled);
     } catch (error: unknown) {
       const message = (error as { error?: string })?.error ?? "Could not update the setting.";
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message });
+      setToast({ type: "error", title: "Error", message });
     }
   };
 
@@ -49,12 +52,18 @@ export const ProjectPropertiesSettings = observer(function ProjectPropertiesSett
         <h4 className="text-sm font-medium">{t("project_settings.features.custom_properties.toggle_title")}</h4>
         <p className="text-xs text-tertiary">{t("project_settings.features.custom_properties.toggle_description")}</p>
         {!instanceEnabled && (
-          <p className="text-xs mt-1 text-amber-600">
+          <p className="text-xs text-amber-600 mt-1">
             {t("project_settings.features.custom_properties.instance_disabled")}
           </p>
         )}
       </div>
-      <ToggleSwitch value={isEnabled} onChange={handleToggle} disabled={!isAdmin || !instanceEnabled} />
+      <Switch
+        size="sm"
+        checked={isEnabled}
+        onCheckedChange={() => void handleToggle()}
+        disabled={!isAdmin || !instanceEnabled}
+        aria-label={t("project_settings.features.custom_properties.toggle_title")}
+      />
     </div>
   );
 });

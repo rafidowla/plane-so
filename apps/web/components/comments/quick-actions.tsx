@@ -142,31 +142,31 @@ export const CommentQuickActions = observer(function CommentQuickActions(props: 
           defaultValue: "Are you sure you want to delete this comment? This action cannot be undone.",
         })}
       />
-    <Menu>
-      <MenuTrigger
-        render={
-          <IconButton
-            icon={<Icon icon={MoreHorizontalOutline} />}
-            aria-label={t("common.options")}
-            variant="ghost"
-            size="xs"
-          />
-        }
-      />
-      <MenuContent side="bottom" align="end">
-        {MENU_ITEMS.map((item) => (
-          <MenuItem
-            key={item.key}
-            variant={resolveItemVariant(item)}
-            label={item.title ?? ""}
-            description={item.description}
-            icon={item.icon ? <Icon icon={item.icon} /> : undefined}
-            disabled={item.disabled}
-            onClick={() => item.action()}
-          />
-        ))}
-      </MenuContent>
-    </Menu>
+      <Menu>
+        <MenuTrigger
+          render={
+            <IconButton
+              icon={<Icon icon={MoreHorizontalOutline} />}
+              aria-label={t("common.options")}
+              variant="ghost"
+              size="xs"
+            />
+          }
+        />
+        <MenuContent side="bottom" align="end">
+          {MENU_ITEMS.map((item) => (
+            <MenuItem
+              key={item.key}
+              variant={resolveItemVariant(item)}
+              label={item.title ?? ""}
+              description={item.description}
+              icon={item.icon ? <Icon icon={item.icon} /> : undefined}
+              disabled={item.disabled}
+              onClick={() => item.action()}
+            />
+          ))}
+        </MenuContent>
+      </Menu>
     </>
   );
 });

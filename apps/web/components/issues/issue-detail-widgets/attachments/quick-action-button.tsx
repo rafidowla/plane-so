@@ -65,7 +65,7 @@ export const IssueAttachmentActionButton = observer(function IssueAttachmentActi
         // FORK: attachment file types (#24) — reject unsupported types with a clear message
         if (!isAcceptedAttachmentFile(currentFile.name)) {
           setToast({
-            type: TOAST_TYPE.ERROR,
+            type: "error",
             title: "Unsupported file type",
             message: `${currentFile.name} can't be attached. Supported files: ${ATTACHMENT_ACCEPT_LABEL}`,
           });

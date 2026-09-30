@@ -7,12 +7,13 @@ import { Fragment, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
+import { Button } from "@makeplane/propel/components/button";
+import { Icon } from "@makeplane/propel/components/icon";
+import { Loader } from "@plane/blocks/skeleton";
 import { EStartOfTheWeek } from "@plane/types";
-import { Button } from "@plane/propel/button";
-import { Loader } from "@plane/ui";
 import { cn, generateWorkItemLink } from "@plane/utils";
 import AnalyticsWrapper from "@/components/analytics/analytics-wrapper";
-import { MemberDropdown } from "@/components/dropdowns/member/dropdown";
+import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { useUserProfile } from "@/hooks/store/user";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
@@ -119,19 +120,15 @@ export const TimeReport = observer(function TimeReport() {
           onChange={(e) => handleEndDateChange(e.target.value)}
           className="text-sm rounded border border-subtle bg-transparent px-2 py-1"
         />
-        <MemberDropdown
+        <MemberSelect
           value={selectedUserIds}
           onChange={setSelectedUserIds}
           multiple
-          buttonVariant="border-with-text"
-          showUserDetails
+          variant="select-md"
           placeholder="All members"
         />
         <a href={timeTrackingService.timeReportCsvUrl(workspaceSlug, params)} target="_blank" rel="noreferrer">
-          <Button variant="secondary" size="sm">
-            <Download className="mr-1 size-3" />
-            Export CSV
-          </Button>
+          <Button variant="secondary" size="sm" stretch="auto" icon={<Icon icon={Download} />} label="Export CSV" />
         </a>
       </div>
 

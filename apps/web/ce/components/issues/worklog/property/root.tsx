@@ -9,12 +9,14 @@ import { Play, Square, Plus, Timer, X } from "lucide-react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { AlertModalCore } from "@plane/ui";
+import { Button } from "@makeplane/propel/components/button";
+import { Icon } from "@makeplane/propel/components/icon";
+import { ConfirmDialog } from "@plane/blocks/dialog";
+import { setToast } from "@plane/blocks/toast";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { LogTimeModal } from "../log-time-modal";
 
@@ -97,8 +99,8 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     try {
       await timeTrackingService.startTimer(workspaceSlug, projectId, issueId);
       mutateTimer();
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Cannot start timer", message: err?.error ?? "Try again." });
+    } catch (err) {
+      setToast({ type: "error", title: "Cannot start timer", message: asApiError(err).error ?? "Try again." });
     }
   };
 
@@ -106,9 +108,9 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     try {
       await timeTrackingService.stopTimer(workspaceSlug, projectId, issueId);
       await Promise.all([mutateTimer(), mutateWorklogs()]);
-      setToast({ type: TOAST_TYPE.SUCCESS, title: "Time logged", message: "Timer stopped and time recorded." });
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Cannot stop timer", message: err?.error ?? "Try again." });
+      setToast({ type: "success", title: "Time logged", message: "Timer stopped and time recorded." });
+    } catch (err) {
+      setToast({ type: "error", title: "Cannot stop timer", message: asApiError(err).error ?? "Try again." });
     }
   };
 
@@ -116,8 +118,8 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     try {
       await timeTrackingService.deleteWorklog(workspaceSlug, projectId, issueId, id);
       mutateWorklogs();
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Cannot delete", message: err?.error ?? "Try again." });
+    } catch (err) {
+      setToast({ type: "error", title: "Cannot delete", message: asApiError(err).error ?? "Try again." });
     }
   };
 
@@ -138,22 +140,34 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
           {canSeeDetails && !disabled && (
             <div className="flex flex-wrap items-center gap-2">
               {runningHere ? (
-                <Button variant="secondary" size="sm" onClick={handleStop}>
-                  <Square className="mr-1 size-3" />
-                  Stop {fmtElapsed(elapsed)}
-                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  stretch="auto"
+                  icon={<Icon icon={Square} />}
+                  label={`Stop ${fmtElapsed(elapsed)}`}
+                  onClick={handleStop}
+                />
               ) : (
-                <Button variant="secondary" size="sm" onClick={handleStart}>
-                  <Play className="mr-1 size-3" />
-                  Start
-                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  stretch="auto"
+                  icon={<Icon icon={Play} />}
+                  label="Start"
+                  onClick={handleStart}
+                />
               )}
               {/* Manual entry is a PM/admin function; members self-track with the timer. */}
               {isProjectAdmin && (
-                <Button variant="secondary" size="sm" onClick={() => setLogOpen(true)}>
-                  <Plus className="mr-1 size-3" />
-                  Log time
-                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  stretch="auto"
+                  icon={<Icon icon={Plus} />}
+                  label="Log time"
+                  onClick={() => setLogOpen(true)}
+                />
               )}
             </div>
           )}
@@ -205,7 +219,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
       />
 
       {/* FORK: PSR-37 — confirm before a time-log entry is permanently deleted */}
-      <AlertModalCore
+      <ConfirmDialog
         isOpen={pendingDeleteId !== null}
         handleClose={() => setPendingDeleteId(null)}
         handleSubmit={handleDeleteConfirm}

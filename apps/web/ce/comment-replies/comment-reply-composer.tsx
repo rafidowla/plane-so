@@ -8,10 +8,10 @@ import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { useForm } from "react-hook-form";
 // plane imports
+import { TickOutline, CloseOutline } from "@makeplane/propel/icons";
 import { EIssueCommentAccessSpecifier } from "@plane/constants";
 import type { EditorRefApi } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
-import { CheckIcon, CloseIcon } from "@plane/propel/icons";
 import type { TCommentsOperations, TIssueComment } from "@plane/types";
 import { cn, isCommentEmpty } from "@plane/utils";
 // components
@@ -147,7 +147,7 @@ export const CommentReplyComposer = observer(function CommentReplyComposer(props
               isDisabled ? "" : "hover:bg-success-subtle-1"
             )}
           >
-            <CheckIcon className="size-4 text-success-primary" />
+            <TickOutline className="size-4 text-success-primary" />
           </button>
         )}
         <button
@@ -160,7 +160,7 @@ export const CommentReplyComposer = observer(function CommentReplyComposer(props
           )}
           onClick={onDone}
         >
-          <CloseIcon className="size-4 text-danger-primary" />
+          <CloseOutline className="size-4 text-danger-primary" />
         </button>
       </div>
     </form>

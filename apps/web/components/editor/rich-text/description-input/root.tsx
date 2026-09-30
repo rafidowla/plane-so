@@ -9,9 +9,9 @@ import { debounce } from "lodash-es";
 import { observer } from "mobx-react";
 import { Controller, useForm } from "react-hook-form";
 // plane imports
+import { Button } from "@makeplane/propel/components/button";
 import type { EditorRefApi, TExtensions } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
-import { Button } from "@plane/propel/button";
 import type { EFileAssetType, TNameDescriptionLoader } from "@plane/types";
 import { getDescriptionPlaceholderI18n } from "@plane/utils";
 // components
@@ -345,12 +345,14 @@ export const DescriptionInput = observer(function DescriptionInput(props: Props)
       {/* FORK: description-save-cancel (#16) — explicit Save/Cancel bar */}
       {saveMode === "explicit" && hasUnsaved && !disabled && (
         <div className="flex items-center justify-end gap-2 px-2 pb-2">
-          <Button variant="secondary" size="sm" onClick={handleExplicitCancel}>
-            {t("common.cancel")}
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleExplicitSave}>
-            {t("save")}
-          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            stretch="auto"
+            label={t("common.cancel")}
+            onClick={handleExplicitCancel}
+          />
+          <Button variant="primary" size="sm" stretch="auto" label={t("save")} onClick={handleExplicitSave} />
         </div>
       )}
     </>

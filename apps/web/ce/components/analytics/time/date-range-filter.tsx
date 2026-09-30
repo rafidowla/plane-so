@@ -5,7 +5,7 @@
  */
 import { Calendar } from "lucide-react";
 import { endOfMonth, endOfWeek, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from "date-fns";
-import { CustomSearchSelect } from "@plane/ui";
+import { Select } from "@plane/blocks/select";
 import { renderFormattedPayloadDate } from "@plane/utils";
 
 export type TDateRangePreset =
@@ -20,7 +20,9 @@ export type TDateRangePreset =
   | "last_30"
   | "custom";
 
-const PRESET_OPTIONS: { value: TDateRangePreset; label: string }[] = [
+type TPresetOption = { value: TDateRangePreset; label: string };
+
+const PRESET_OPTIONS: TPresetOption[] = [
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
   { value: "this_week", label: "This week" },
@@ -77,24 +79,25 @@ type Props = {
   onChange: (preset: TDateRangePreset) => void;
 };
 
+const isPreset = (value: string): value is TDateRangePreset => PRESET_OPTIONS.some((option) => option.value === value);
+
 export function DateRangeFilter({ preset, onChange }: Props) {
-  const options = PRESET_OPTIONS.map((option) => ({
-    value: option.value,
-    query: option.label,
-    content: <span className="flex-grow truncate">{option.label}</span>,
-  }));
+  const selectedOption = PRESET_OPTIONS.find((option) => option.value === preset) ?? null;
 
   return (
-    <CustomSearchSelect
-      value={[preset]}
-      onChange={onChange}
-      options={options}
-      label={
-        <div className="flex items-center gap-2 p-1">
-          <Calendar className="h-4 w-4" />
-          {PRESET_OPTIONS.find((opt) => opt.value === preset)?.label ?? "Custom range"}
-        </div>
-      }
-    />
+    <Select<TPresetOption>
+      getValues={() => PRESET_OPTIONS}
+      value={selectedOption}
+      onChange={(value) => {
+        if (isPreset(value)) onChange(value);
+      }}
+      getOptionValue={(option) => option.value}
+      getOptionLabel={(option) => option.label}
+      pinSelected={false}
+    >
+      <Select.Trigger<TPresetOption> variant="select-md" prependIcon={<Calendar aria-hidden="true" />}>
+        {(selected) => <span className="truncate">{selected[0]?.label ?? "Custom range"}</span>}
+      </Select.Trigger>
+    </Select>
   );
 }

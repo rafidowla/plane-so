@@ -9,8 +9,8 @@ import React, { useImperativeHandle, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { File as FileIcon, Loader, Paperclip, X } from "lucide-react";
 // plane imports
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Tooltip } from "@plane/propel/tooltip";
+import { Tooltip } from "@makeplane/propel/components/tooltip";
+import { setToast } from "@plane/blocks/toast";
 import { convertBytesToSize } from "@plane/utils";
 // hooks
 import { useFileSize } from "@/hooks/use-file-size";
@@ -73,7 +73,7 @@ export const CommentAttachmentComposer = observer(
         // FORK: attachment file types (#24) — same accept rules as task attachments
         if (!isAcceptedAttachmentFile(file.name)) {
           setToast({
-            type: TOAST_TYPE.ERROR,
+            type: "error",
             title: "Unsupported file type",
             message: `${file.name} can't be attached. Supported files: ${ATTACHMENT_ACCEPT_LABEL}`,
           });
@@ -81,7 +81,7 @@ export const CommentAttachmentComposer = observer(
         }
         if (file.size > maxFileSize) {
           setToast({
-            type: TOAST_TYPE.ERROR,
+            type: "error",
             title: "File too large",
             message: `${file.name} exceeds the ${convertBytesToSize(maxFileSize)} limit.`,
           });
@@ -103,7 +103,7 @@ export const CommentAttachmentComposer = observer(
         } catch {
           setStagedAssets((prev) => prev.filter((asset) => asset.assetId !== tempId));
           setToast({
-            type: TOAST_TYPE.ERROR,
+            type: "error",
             title: "Upload failed",
             message: `${file.name} couldn't be attached. Please try again.`,
           });
@@ -180,7 +180,7 @@ export const CommentAttachmentComposer = observer(
 export function CommentAttachToolbarButton(props: { onClick: () => void; disabled?: boolean }) {
   const { onClick, disabled = false } = props;
   return (
-    <Tooltip tooltipContent="Attach files">
+    <Tooltip label="Attach files">
       <button
         type="button"
         disabled={disabled}

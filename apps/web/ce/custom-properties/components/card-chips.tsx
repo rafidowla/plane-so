@@ -10,13 +10,15 @@ import { useParams } from "next/navigation";
 // plane imports
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { TIssue } from "@plane/types";
-import { Dropdown } from "@plane/ui";
+// plane blocks
+import { Select } from "@plane/blocks/select";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
 // local imports
-import { EIssuePropertyType } from "@/plane-web/custom-properties";
-import { useProjectCustomProperties } from "@/plane-web/custom-properties";
+import type { TIssuePropertyOption } from "@/plane-web/custom-properties";
+import { EIssuePropertyType, useProjectCustomProperties } from "@/plane-web/custom-properties";
 import { usePropertyValues } from "../hooks/use-property-values";
+import { EMPTY_OPTION_BG } from "../utils/contrast";
 import { StatusChip } from "./status-chip";
 
 type Props = {
@@ -85,39 +87,40 @@ export const CustomPropertiesCardChips = observer(function CustomPropertiesCardC
         void valuesStore.setValue(ws, pid, issue.id, property.id, next);
       };
       return (
-        <Dropdown
+        <Select<TIssuePropertyOption>
           key={property.id}
-          value={selectedId ?? ""}
+          value={options.find((o) => o.id === selectedId) ?? null}
           onChange={handleChange}
-          options={options.map((o) => ({ data: o, value: o.id }))}
-          tabIndex={0}
-          keyExtractor={(opt) => opt.value}
-          queryArray={["name"]}
-          placement="bottom-start"
-          inputPlaceholder="Search options"
-          buttonContainerClassName="rounded"
-          buttonContent={(isOpen, value) => {
-            const option = options.find((o) => o.id === value);
-            if (!option) {
-              return (
-                <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-subtle text-[10px] text-tertiary">
-                  +
-                </span>
-              );
-            }
-            return <StatusChip option={option} className={isOpen ? "ring-1 ring-accent-strong" : undefined} />;
-          }}
-          renderItem={({ value, selected }) => {
-            const option = options.find((o) => o.id === value);
-            if (!option) return null;
-            return (
-              <div className="flex w-full items-center gap-2">
-                <StatusChip option={option} />
-                {selected && <span className="text-xs text-tertiary">✓</span>}
-              </div>
-            );
-          }}
-        />
+          getValues={() => options}
+          getOptionValue={(o) => o.id}
+          getOptionLabel={(o) => o.name}
+          getOptionIcon={(o) => (
+            <span
+              className="h-3 w-3 flex-shrink-0 rounded-sm"
+              style={{ backgroundColor: o.logo_props?.color?.background ?? EMPTY_OPTION_BG }}
+            />
+          )}
+          pinSelected={false}
+          searchPlaceholder="Search options"
+        >
+          <Select.Trigger<TIssuePropertyOption>
+            variant="table-cell"
+            tabIndex={0}
+            className="h-auto w-auto rounded bg-transparent p-0 hover:bg-transparent data-popup-open:ring-1 data-popup-open:ring-accent-strong"
+          >
+            {(sel) => {
+              const option = sel[0];
+              if (!option) {
+                return (
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-subtle text-[10px] text-tertiary">
+                    +
+                  </span>
+                );
+              }
+              return <StatusChip option={option} />;
+            }}
+          </Select.Trigger>
+        </Select>
       );
     })
     .filter(Boolean);

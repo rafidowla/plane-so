@@ -7,7 +7,7 @@
 import { useMemo } from "react";
 import useSWR from "swr";
 // plane imports
-import { BarChart } from "@plane/propel/charts/bar-chart";
+import { BarChart } from "@plane/blocks/charts/bar-chart";
 import type { TBarItem } from "@plane/types";
 // local imports
 import { customDashboardsService } from "@/plane-web/custom-dashboards";

@@ -6,7 +6,7 @@
 
 import { observer } from "mobx-react";
 // plane imports
-import { Dropdown } from "@plane/ui";
+import { Select } from "@plane/blocks/select";
 // local imports
 import type { TIssuePropertyOption } from "@/plane-web/custom-properties";
 import { EMPTY_OPTION_BG } from "../../utils/contrast";
@@ -28,38 +28,34 @@ export const StatusPropertyInput = observer(function StatusPropertyInput(props: 
   const selectedId = values[0] ?? "";
   const selected = options.find((o) => o.id === selectedId);
 
-  const dropdownOptions = options.map((o) => ({ data: o, value: o.id }));
-
   const handleChange = (value: string) => {
+    // Re-selecting the current option clears it (single-select toggle).
     void onChange(value === selectedId ? [] : [value]);
   };
 
   return (
-    <Dropdown
-      value={selectedId}
+    <Select<TIssuePropertyOption>
+      value={selected ?? null}
       onChange={handleChange}
-      options={dropdownOptions}
+      getValues={() => options}
+      getOptionValue={(o) => o.id}
+      getOptionLabel={(o) => o.name}
+      getOptionIcon={(o) => (
+        <span
+          className="h-3 w-3 flex-shrink-0 rounded-sm"
+          style={{ backgroundColor: o.logo_props?.color?.background ?? EMPTY_OPTION_BG }}
+        />
+      )}
+      pinSelected={false}
+      searchPlaceholder="Search options"
       disabled={disabled}
-      keyExtractor={(opt) => opt.value}
-      queryArray={["name"]}
-      placement="bottom-start"
-      inputPlaceholder="Search options"
-      buttonContainerClassName="w-full"
-      buttonClassName="w-full rounded border border-subtle px-2 py-1 text-left hover:bg-layer-2"
-      buttonContent={() =>
-        selected ? <StatusChip option={selected} /> : <span className="text-xs text-tertiary">Empty</span>
-      }
-      renderItem={({ value }) => {
-        const opt = options.find((o) => o.id === value);
-        if (!opt) return null;
-        const bg = opt.logo_props?.color?.background ?? EMPTY_OPTION_BG;
-        return (
-          <div className="flex w-full items-center gap-2">
-            <span className="h-3 w-3 flex-shrink-0 rounded-sm" style={{ backgroundColor: bg }} />
-            <span className="flex-grow truncate">{opt.name}</span>
-          </div>
-        );
-      }}
-    />
+    >
+      <Select.Trigger<TIssuePropertyOption>
+        variant="table-cell"
+        className="h-auto w-full rounded border border-subtle px-2 py-1 text-left hover:bg-layer-2"
+      >
+        {(sel) => (sel[0] ? <StatusChip option={sel[0]} /> : <span className="text-xs text-tertiary">Empty</span>)}
+      </Select.Trigger>
+    </Select>
   );
 });

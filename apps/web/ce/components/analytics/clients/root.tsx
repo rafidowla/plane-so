@@ -7,12 +7,15 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Input, Loader } from "@plane/ui";
+import { Button } from "@makeplane/propel/components/button";
+import { Icon } from "@makeplane/propel/components/icon";
+import { Input } from "@makeplane/propel/components/input";
+import { Loader } from "@plane/blocks/skeleton";
+import { setToast } from "@plane/blocks/toast";
 import AnalyticsWrapper from "@/components/analytics/analytics-wrapper";
 import { useProject } from "@/hooks/store/use-project";
 import { useWorkspace } from "@/hooks/store/use-workspace";
+import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 
 export const Clients = observer(function Clients() {
@@ -37,7 +40,7 @@ export const Clients = observer(function Clients() {
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Name required", message: "Enter a client name." });
+      setToast({ type: "error", title: "Name required", message: "Enter a client name." });
       return;
     }
     try {
@@ -46,17 +49,18 @@ export const Clients = observer(function Clients() {
         identifier: identifier.trim(),
         ...(rate ? { default_billable_rate: rate } : {}),
       });
-      setToast({ type: TOAST_TYPE.SUCCESS, title: "Client created", message: `${name} added.` });
+      setToast({ type: "success", title: "Client created", message: `${name} added.` });
       setName("");
       setIdentifier("");
       setRate("");
       setShowForm(false);
       mutate();
-    } catch (err: any) {
+    } catch (err) {
+      const apiError = asApiError(err);
       setToast({
-        type: TOAST_TYPE.ERROR,
+        type: "error",
         title: "Error",
-        message: err?.error ?? err?.name?.[0] ?? "Could not create.",
+        message: apiError.error ?? apiError.name?.[0] ?? "Could not create.",
       });
     }
   };
@@ -64,20 +68,22 @@ export const Clients = observer(function Clients() {
   const handleDelete = async (id: string, clientName: string) => {
     try {
       await timeTrackingService.deleteClient(workspaceSlug, id);
-      setToast({ type: TOAST_TYPE.SUCCESS, title: "Deleted", message: `${clientName} removed.` });
+      setToast({ type: "success", title: "Deleted", message: `${clientName} removed.` });
       mutate();
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: err?.error ?? "Could not delete." });
+    } catch (err) {
+      const apiError = asApiError(err);
+      setToast({ type: "error", title: "Error", message: apiError.error ?? "Could not delete." });
     }
   };
 
   const handleAssign = async (projectId: string, clientId: string) => {
     try {
       await timeTrackingService.setProjectClient(workspaceSlug, projectId, clientId || null);
-      setToast({ type: TOAST_TYPE.SUCCESS, title: "Updated", message: "Project assignment saved." });
+      setToast({ type: "success", title: "Updated", message: "Project assignment saved." });
       mutate();
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: err?.error ?? "Could not assign." });
+    } catch (err) {
+      const apiError = asApiError(err);
+      setToast({ type: "error", title: "Error", message: apiError.error ?? "Could not assign." });
     }
   };
 
@@ -85,40 +91,37 @@ export const Clients = observer(function Clients() {
     <AnalyticsWrapper i18nTitle="">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-20 font-bold">Clients</h1>
-        <Button variant="primary" size="sm" onClick={() => setShowForm((s) => !s)}>
-          <Plus className="mr-1 size-3" />
-          Add client
-        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          stretch="auto"
+          icon={<Icon icon={Plus} />}
+          label="Add client"
+          onClick={() => setShowForm((s) => !s)}
+        />
       </div>
 
       {showForm && (
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-md border border-subtle p-3">
           <div>
             <span className="text-xs mb-1 block text-tertiary">Name</span>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" className="w-48" />
+            <div className="w-48">
+              <Input size="md" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" />
+            </div>
           </div>
           <div>
             <span className="text-xs mb-1 block text-tertiary">Identifier</span>
-            <Input
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="ACME"
-              className="w-32"
-            />
+            <div className="w-32">
+              <Input size="md" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="ACME" />
+            </div>
           </div>
           <div>
             <span className="text-xs mb-1 block text-tertiary">Default rate</span>
-            <Input
-              type="number"
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-              placeholder="150"
-              className="w-28"
-            />
+            <div className="w-28">
+              <Input size="md" type="number" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="150" />
+            </div>
           </div>
-          <Button variant="primary" size="sm" onClick={handleCreate}>
-            Create
-          </Button>
+          <Button variant="primary" size="sm" stretch="auto" label="Create" onClick={handleCreate} />
         </div>
       )}
 
@@ -178,7 +181,7 @@ export const Clients = observer(function Clients() {
           </thead>
           <tbody>
             {(workspaceProjectIds ?? []).map((pid) => {
-              const project = getProjectById(pid) as any;
+              const project = getProjectById(pid);
               if (!project) return null;
               return (
                 <tr key={pid} className="border-t border-subtle">

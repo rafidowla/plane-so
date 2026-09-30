@@ -7,8 +7,9 @@
 // FORK: custom-properties — Task Type chip in the create-modal header (improvement #20)
 import { observer } from "mobx-react";
 // plane imports
-import { Dropdown } from "@plane/ui";
+import { Select } from "@plane/blocks/select";
 // local imports
+import type { TIssuePropertyOption } from "@/plane-web/custom-properties";
 import { useProjectCustomProperties } from "@/plane-web/custom-properties";
 import { useCreatePropertyStaging } from "../hooks/use-create-property-staging";
 import { EMPTY_OPTION_BG } from "../utils/contrast";
@@ -51,39 +52,38 @@ export const TaskTypeHeaderSelect = observer(function TaskTypeHeaderSelect(props
 
   return (
     <div className="h-7">
-      <Dropdown
-        value={selectedId}
-        onChange={(value: string) => void handleChange(taskTypeProperty.id, value === selectedId ? [] : [value])}
-        options={options.map((o) => ({ data: o, value: o.id }))}
+      <Select<TIssuePropertyOption>
+        value={selected ?? null}
+        onChange={(value) => void handleChange(taskTypeProperty.id, value === selectedId ? [] : [value])}
+        getValues={() => options}
+        getOptionValue={(o) => o.id}
+        getOptionLabel={(o) => o.name}
+        getOptionIcon={(o) => (
+          <span
+            className="h-3 w-3 flex-shrink-0 rounded-sm"
+            style={{ backgroundColor: o.logo_props?.color?.background ?? EMPTY_OPTION_BG }}
+          />
+        )}
+        pinSelected={false}
+        searchPlaceholder="Search options"
         disabled={disabled}
-        keyExtractor={(opt) => opt.value}
-        queryArray={["name"]}
-        placement="bottom-start"
-        inputPlaceholder="Search options"
-        buttonContainerClassName="h-full"
-        buttonClassName="flex h-full items-center gap-1.5 rounded-sm border-[0.5px] border-strong px-2 py-0.5 text-left text-xs hover:bg-layer-2"
-        buttonContent={() =>
-          selected ? (
-            <>
-              <span className="shrink-0 text-tertiary">{placeholder}:</span>
-              <StatusChip option={selected} />
-            </>
-          ) : (
-            <span className="flex-grow truncate text-tertiary">{placeholder}</span>
-          )
-        }
-        renderItem={({ value }) => {
-          const opt = options.find((o) => o.id === value);
-          if (!opt) return null;
-          const bg = opt.logo_props?.color?.background ?? EMPTY_OPTION_BG;
-          return (
-            <div className="flex w-full items-center gap-2">
-              <span className="h-3 w-3 flex-shrink-0 rounded-sm" style={{ backgroundColor: bg }} />
-              <span className="flex-grow truncate">{opt.name}</span>
-            </div>
-          );
-        }}
-      />
+      >
+        <Select.Trigger<TIssuePropertyOption>
+          variant="table-cell"
+          className="text-xs h-full w-auto gap-1.5 rounded-sm border-[0.5px] border-strong px-2 py-0.5 text-left hover:bg-layer-2"
+        >
+          {(sel) =>
+            sel[0] ? (
+              <>
+                <span className="shrink-0 text-tertiary">{placeholder}:</span>
+                <StatusChip option={sel[0]} />
+              </>
+            ) : (
+              <span className="flex-grow truncate text-tertiary">{placeholder}</span>
+            )
+          }
+        </Select.Trigger>
+      </Select>
     </div>
   );
 });

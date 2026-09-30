@@ -8,9 +8,9 @@ import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, File as FileIcon, X, ZoomIn, ZoomOut } from "lucide-react";
 // plane imports
+import { Dialog, DialogContent } from "@makeplane/propel/components/dialog";
 import type { TIssueServiceType } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
-import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 import { cn, convertBytesToSize, getFileURL } from "@plane/utils";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
@@ -90,141 +90,145 @@ export const AttachmentPreviewModalHost = observer(function AttachmentPreviewMod
     "grid size-7 flex-shrink-0 place-items-center rounded text-secondary hover:bg-layer-2 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent";
 
   return (
-    <ModalCore
-      isOpen={!!activeId}
-      handleClose={() => setActiveId(null)}
-      position={EModalPosition.CENTER}
-      width={EModalWidth.VIXL}
-      className="flex h-[85vh] flex-col overflow-hidden"
+    <Dialog
+      open={!!activeId}
+      onOpenChange={(open) => {
+        if (!open) setActiveId(null);
+      }}
     >
-      {/* header */}
-      <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-subtle px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-sm font-medium">{fileName}</p>
-          <span className="flex-shrink-0 text-xs text-placeholder">
-            {convertBytesToSize(attachment.attributes?.size ?? 0)}
-          </span>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-1">
-          {attachmentIds.length > 1 && (
-            <>
-              <button type="button" className={iconButtonClass} onClick={() => handleNavigate(-1)} title="Previous">
-                <ChevronLeft className="size-4" />
-              </button>
-              <span className="px-1 text-xs text-tertiary">
-                {index + 1} / {attachmentIds.length}
+      <DialogContent size="xl" aria-label={fileName}>
+        <div className="flex h-[75vh] flex-col overflow-hidden">
+          {/* header */}
+          <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-subtle px-4 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="text-sm truncate font-medium">{fileName}</p>
+              <span className="text-xs flex-shrink-0 text-placeholder">
+                {convertBytesToSize(attachment.attributes?.size ?? 0)}
               </span>
-              <button type="button" className={iconButtonClass} onClick={() => handleNavigate(1)} title="Next">
-                <ChevronRight className="size-4" />
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-1">
+              {attachmentIds.length > 1 && (
+                <>
+                  <button type="button" className={iconButtonClass} onClick={() => handleNavigate(-1)} title="Previous">
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <span className="text-xs px-1 text-tertiary">
+                    {index + 1} / {attachmentIds.length}
+                  </span>
+                  <button type="button" className={iconButtonClass} onClick={() => handleNavigate(1)} title="Next">
+                    <ChevronRight className="size-4" />
+                  </button>
+                  <span className="mx-1 h-4 w-px bg-layer-2" />
+                </>
+              )}
+              {canZoom && (
+                <>
+                  <button
+                    type="button"
+                    className={iconButtonClass}
+                    onClick={() => setZoom(ZOOM_STEPS[Math.max(0, (zoomIndex === -1 ? 2 : zoomIndex) - 1)])}
+                    disabled={zoomIndex <= 0}
+                    title="Zoom out"
+                  >
+                    <ZoomOut className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs rounded px-1 text-tertiary hover:bg-layer-2"
+                    onClick={() => setZoom(1)}
+                    title="Reset zoom"
+                  >
+                    {Math.round(zoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    className={iconButtonClass}
+                    onClick={() =>
+                      setZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, (zoomIndex === -1 ? 2 : zoomIndex) + 1)])
+                    }
+                    disabled={zoomIndex === ZOOM_STEPS.length - 1}
+                    title="Zoom in"
+                  >
+                    <ZoomIn className="size-4" />
+                  </button>
+                  <span className="mx-1 h-4 w-px bg-layer-2" />
+                </>
+              )}
+              {inlineURL && (
+                <button
+                  type="button"
+                  className={iconButtonClass}
+                  onClick={() => window.open(inlineURL, "_blank")}
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="size-4" />
+                </button>
+              )}
+              {downloadURL && (
+                <button
+                  type="button"
+                  className={iconButtonClass}
+                  onClick={() => window.open(downloadURL, "_blank")}
+                  title="Download"
+                >
+                  <Download className="size-4" />
+                </button>
+              )}
+              <button type="button" className={iconButtonClass} onClick={() => setActiveId(null)} title="Close">
+                <X className="size-4" />
               </button>
-              <span className="mx-1 h-4 w-px bg-layer-2" />
-            </>
-          )}
-          {canZoom && (
-            <>
-              <button
-                type="button"
-                className={iconButtonClass}
-                onClick={() => setZoom(ZOOM_STEPS[Math.max(0, (zoomIndex === -1 ? 2 : zoomIndex) - 1)])}
-                disabled={zoomIndex <= 0}
-                title="Zoom out"
-              >
-                <ZoomOut className="size-4" />
-              </button>
-              <button
-                type="button"
-                className="rounded px-1 text-xs text-tertiary hover:bg-layer-2"
-                onClick={() => setZoom(1)}
-                title="Reset zoom"
-              >
-                {Math.round(zoom * 100)}%
-              </button>
-              <button
-                type="button"
-                className={iconButtonClass}
-                onClick={() =>
-                  setZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, (zoomIndex === -1 ? 2 : zoomIndex) + 1)])
-                }
-                disabled={zoomIndex === ZOOM_STEPS.length - 1}
-                title="Zoom in"
-              >
-                <ZoomIn className="size-4" />
-              </button>
-              <span className="mx-1 h-4 w-px bg-layer-2" />
-            </>
-          )}
-          {inlineURL && (
-            <button
-              type="button"
-              className={iconButtonClass}
-              onClick={() => window.open(inlineURL, "_blank")}
-              title="Open in new tab"
-            >
-              <ExternalLink className="size-4" />
-            </button>
-          )}
-          {downloadURL && (
-            <button
-              type="button"
-              className={iconButtonClass}
-              onClick={() => window.open(downloadURL, "_blank")}
-              title="Download"
-            >
-              <Download className="size-4" />
-            </button>
-          )}
-          <button type="button" className={iconButtonClass} onClick={() => setActiveId(null)} title="Close">
-            <X className="size-4" />
-          </button>
-        </div>
-      </div>
+            </div>
+          </div>
 
-      {/* body */}
-      <div className="flex-1 overflow-hidden bg-layer-1">
-        {kind === "image" && inlineURL && (
-          <div className="flex h-full w-full overflow-auto p-2">
-            <img
-              src={inlineURL}
-              alt={fileName}
-              className={cn("m-auto rounded-sm", zoom === 1 && "max-h-full max-w-full object-contain")}
-              style={zoom !== 1 ? { width: `${zoom * 100}%`, maxWidth: "none" } : undefined}
-            />
-          </div>
-        )}
-        {(kind === "pdf" || kind === "text") && inlineURL && (
-          <iframe src={inlineURL} title={fileName} className="h-full w-full border-0 bg-white" />
-        )}
-        {kind === "video" && inlineURL && (
-          <div className="flex h-full w-full items-center justify-center bg-black p-2">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <video src={inlineURL} controls autoPlay={false} preload="metadata" className="max-h-full max-w-full">
-              Your browser can&apos;t play this video format.
-            </video>
-          </div>
-        )}
-        {kind === "audio" && inlineURL && (
-          <div className="flex h-full w-full items-center justify-center p-6">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <audio src={inlineURL} controls preload="metadata" className="w-full max-w-lg" />
-          </div>
-        )}
-        {(!kind || !inlineURL) && (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-tertiary">
-            <FileIcon className="size-10" strokeWidth={1.5} />
-            <p className="text-sm">Preview isn&apos;t available for this file type.</p>
-            {downloadURL && (
-              <button
-                type="button"
-                className="flex items-center gap-1.5 rounded-md border border-subtle px-3 py-1.5 text-sm text-secondary hover:bg-layer-2"
-                onClick={() => window.open(downloadURL, "_blank")}
-              >
-                <Download className="size-3.5" />
-                Download to view
-              </button>
+          {/* body */}
+          <div className="flex-1 overflow-hidden bg-layer-1">
+            {kind === "image" && inlineURL && (
+              <div className="flex h-full w-full overflow-auto p-2">
+                <img
+                  src={inlineURL}
+                  alt={fileName}
+                  className={cn("m-auto rounded-sm", zoom === 1 && "max-h-full max-w-full object-contain")}
+                  style={zoom !== 1 ? { width: `${zoom * 100}%`, maxWidth: "none" } : undefined}
+                />
+              </div>
+            )}
+            {(kind === "pdf" || kind === "text") && inlineURL && (
+              // oxlint-disable-next-line react/iframe-missing-sandbox -- FORK: attachment-preview. A sandbox disables the browser's built-in PDF viewer; the asset endpoints already refuse to serve script-capable MIME types inline (settings.SCRIPT_CAPABLE_MIME_TYPES).
+              <iframe src={inlineURL} title={fileName} className="h-full w-full border-0 bg-white" />
+            )}
+            {kind === "video" && inlineURL && (
+              <div className="flex h-full w-full items-center justify-center bg-black p-2">
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <video src={inlineURL} controls autoPlay={false} preload="metadata" className="max-h-full max-w-full">
+                  Your browser can&apos;t play this video format.
+                </video>
+              </div>
+            )}
+            {kind === "audio" && inlineURL && (
+              <div className="flex h-full w-full items-center justify-center p-6">
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <audio src={inlineURL} controls preload="metadata" className="w-full max-w-lg" />
+              </div>
+            )}
+            {(!kind || !inlineURL) && (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-tertiary">
+                <FileIcon className="size-10" strokeWidth={1.5} />
+                <p className="text-sm">Preview isn&apos;t available for this file type.</p>
+                {downloadURL && (
+                  <button
+                    type="button"
+                    className="text-sm flex items-center gap-1.5 rounded-md border border-subtle px-3 py-1.5 text-secondary hover:bg-layer-2"
+                    onClick={() => window.open(downloadURL, "_blank")}
+                  >
+                    <Download className="size-3.5" />
+                    Download to view
+                  </button>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
-    </ModalCore>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 });

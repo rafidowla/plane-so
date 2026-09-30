@@ -7,13 +7,14 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Loader } from "@plane/ui";
+import { Button } from "@makeplane/propel/components/button";
+import { Loader } from "@plane/blocks/skeleton";
+import { setToast } from "@plane/blocks/toast";
 import { cn } from "@plane/utils";
 import AnalyticsWrapper from "@/components/analytics/analytics-wrapper";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUserPermissions } from "@/hooks/store/user";
+import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import type { TTimesheetStatus } from "@/plane-web/components/issues/worklog/types";
 
@@ -51,10 +52,10 @@ export const Timesheets = observer(function Timesheets() {
   const handleSubmit = async () => {
     try {
       await timeTrackingService.submitTimesheet(workspaceSlug, periodStart, periodEnd);
-      setToast({ type: TOAST_TYPE.SUCCESS, title: "Submitted", message: "Timesheet submitted for approval." });
+      setToast({ type: "success", title: "Submitted", message: "Timesheet submitted for approval." });
       mutate();
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: err?.error ?? "Could not submit." });
+    } catch (err) {
+      setToast({ type: "error", title: "Error", message: asApiError(err).error ?? "Could not submit." });
     }
   };
 
@@ -62,13 +63,13 @@ export const Timesheets = observer(function Timesheets() {
     try {
       await timeTrackingService.reviewTimesheet(workspaceSlug, id, action);
       setToast({
-        type: TOAST_TYPE.SUCCESS,
+        type: "success",
         title: action === "approve" ? "Approved" : "Rejected",
         message: `Timesheet ${action === "approve" ? "approved and locked" : "rejected"}.`,
       });
       mutate();
-    } catch (err: any) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error", message: err?.error ?? "Could not update." });
+    } catch (err) {
+      setToast({ type: "error", title: "Error", message: asApiError(err).error ?? "Could not update." });
     }
   };
 
@@ -95,9 +96,7 @@ export const Timesheets = observer(function Timesheets() {
             className="text-sm rounded border border-subtle bg-transparent px-2 py-1"
           />
         </div>
-        <Button variant="primary" size="sm" onClick={handleSubmit}>
-          Submit my timesheet
-        </Button>
+        <Button variant="primary" size="sm" stretch="auto" label="Submit my timesheet" onClick={handleSubmit} />
       </div>
 
       {isLoading ? (
@@ -136,12 +135,20 @@ export const Timesheets = observer(function Timesheets() {
                     <td className="px-4 py-2 text-right">
                       {ts.status === "submitted" ? (
                         <div className="flex justify-end gap-2">
-                          <Button variant="primary" size="sm" onClick={() => handleReview(ts.id, "approve")}>
-                            Approve
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => handleReview(ts.id, "reject")}>
-                            Reject
-                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            stretch="auto"
+                            label="Approve"
+                            onClick={() => handleReview(ts.id, "approve")}
+                          />
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            stretch="auto"
+                            label="Reject"
+                            onClick={() => handleReview(ts.id, "reject")}
+                          />
                         </div>
                       ) : (
                         <span className="text-tertiary">—</span>

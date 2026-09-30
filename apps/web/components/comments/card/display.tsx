@@ -144,7 +144,12 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
         </div>
       )}
       <div className="relative mb-3 flex w-full items-center gap-2">
-        <Avatar alt={displayName} fallback={displayName?.[0]?.toUpperCase()} size="2xs" src={avatarUrl ? getFileURL(avatarUrl) : undefined} />
+        <Avatar
+          alt={displayName}
+          fallback={displayName?.[0]?.toUpperCase()}
+          size="2xs"
+          src={avatarUrl ? getFileURL(avatarUrl) : undefined}
+        />
         <div className="flex flex-1 flex-wrap items-center gap-1">
           <div className="text-caption-sm-medium">{displayName}</div>
           {externalAuthorName && <div className="text-caption-sm-regular text-tertiary">(via Jira)</div>}

@@ -5,10 +5,22 @@
  */
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Button } from "@plane/propel/button";
-import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { Input, ModalCore } from "@plane/ui";
-import { MemberDropdown } from "@/components/dropdowns/member/dropdown";
+import { Button } from "@makeplane/propel/components/button";
+import {
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+  DialogHeading,
+  DialogMain,
+  DialogTitle,
+} from "@makeplane/propel/components/dialog";
+import { Field } from "@makeplane/propel/components/field";
+import { Input } from "@makeplane/propel/components/input";
+import { setToast } from "@plane/blocks/toast";
+import { MemberSelect } from "@/components/dropdowns/member/member-select";
+import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 
 type Props = {
@@ -60,7 +72,7 @@ export function LogTimeModal(props: Props) {
   const onSubmit = async (data: TForm) => {
     const duration = Number(data.hours || 0) * 60 + Number(data.minutes || 0);
     if (duration <= 0) {
-      setToast({ type: TOAST_TYPE.ERROR, title: "Invalid duration", message: "Enter a duration greater than zero." });
+      setToast({ type: "error", title: "Invalid duration", message: "Enter a duration greater than zero." });
       return;
     }
     try {
@@ -72,128 +84,155 @@ export function LogTimeModal(props: Props) {
         is_billable: data.is_billable,
         ...(isProjectAdmin && loggedBy && loggedBy !== currentUserId ? { logged_by: loggedBy } : {}),
       });
-      setToast({ type: TOAST_TYPE.SUCCESS, title: "Time logged", message: "Your time entry was saved." });
+      setToast({ type: "success", title: "Time logged", message: "Your time entry was saved." });
       onSaved();
       handleClose();
-    } catch (err: any) {
+    } catch (err) {
       setToast({
-        type: TOAST_TYPE.ERROR,
+        type: "error",
         title: "Error",
-        message: err?.error ?? "Could not save the time entry.",
+        message: asApiError(err).error ?? "Could not save the time entry.",
       });
     }
   };
 
   return (
-    <ModalCore isOpen={isOpen} handleClose={handleClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+    >
       {/*
         data-prevent-outside-click keeps the issue peek overview open while this
         modal is being used. The modal is portaled to <body> (outside the peek
         panel), so without this marker a click into any field reads as an
         "outside click" and collapses the peek, taking the modal with it.
       */}
-      <form onSubmit={handleSubmit(onSubmit)} data-prevent-outside-click>
-        <div className="space-y-4 p-5">
-          <h3 className="text-lg font-medium">Log time</h3>
-
-          {isProjectAdmin && (
-            <div>
-              <span className="text-sm mb-1 block text-tertiary">Resource</span>
-              <MemberDropdown
-                value={loggedBy}
-                onChange={(val) => setLoggedBy(val)}
-                projectId={projectId}
-                multiple={false}
-                placeholder="Select resource"
-                buttonVariant="border-with-text"
-              />
-              <p className="text-xs mt-1 text-tertiary">Admins/PMs can log time on behalf of another resource.</p>
-            </div>
-          )}
-
-          <div className="flex items-end gap-3">
-            <div className="w-24">
-              <span className="text-sm mb-1 block text-tertiary">Hours</span>
-              <Controller
-                control={control}
-                name="hours"
-                render={({ field }) => (
-                  <Input type="number" min={0} {...field} hasError={Boolean(errors.hours)} className="w-full" />
+      <DialogContent size="sm" data-prevent-outside-click>
+        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+          <DialogMain>
+            <DialogHeader>
+              <DialogHeading>
+                <DialogTitle>Log time</DialogTitle>
+              </DialogHeading>
+            </DialogHeader>
+            <DialogBody tabIndex={0}>
+              <div className="space-y-4">
+                {isProjectAdmin && (
+                  <div>
+                    <span className="text-sm mb-1 block text-tertiary">Resource</span>
+                    <MemberSelect
+                      value={loggedBy}
+                      onChange={(val) => setLoggedBy(val)}
+                      projectId={projectId}
+                      multiple={false}
+                      placeholder="Select resource"
+                      variant="select-md"
+                    />
+                    <p className="text-xs mt-1 text-tertiary">Admins/PMs can log time on behalf of another resource.</p>
+                  </div>
                 )}
-              />
-            </div>
-            <div className="w-24">
-              <span className="text-sm mb-1 block text-tertiary">Minutes</span>
-              <Controller
-                control={control}
-                name="minutes"
-                render={({ field }) => <Input type="number" min={0} max={59} {...field} className="w-full" />}
-              />
-            </div>
-            <div className="flex-1">
-              <span className="text-sm mb-1 block text-tertiary">Date</span>
-              <Controller
-                control={control}
-                name="logged_date"
-                rules={{ required: "Date is required" }}
-                render={({ field }) => (
-                  <Input type="date" {...field} hasError={Boolean(errors.logged_date)} className="w-full" />
-                )}
-              />
-            </div>
-          </div>
 
-          <div>
-            <span className="text-sm mb-1 block text-tertiary">Description</span>
-            <Controller
-              control={control}
-              name="description"
-              render={({ field }) => (
-                <Input type="text" {...field} placeholder="What did you work on?" className="w-full" />
-              )}
+                <div className="flex items-end gap-3">
+                  <div className="w-24">
+                    <span className="text-sm mb-1 block text-tertiary">Hours</span>
+                    <Controller
+                      control={control}
+                      name="hours"
+                      render={({ field }) => (
+                        <Field name={field.name} invalid={Boolean(errors.hours)}>
+                          <Input size="lg" type="number" min={0} {...field} />
+                        </Field>
+                      )}
+                    />
+                  </div>
+                  <div className="w-24">
+                    <span className="text-sm mb-1 block text-tertiary">Minutes</span>
+                    <Controller
+                      control={control}
+                      name="minutes"
+                      render={({ field }) => <Input size="lg" type="number" min={0} max={59} {...field} />}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-sm mb-1 block text-tertiary">Date</span>
+                    <Controller
+                      control={control}
+                      name="logged_date"
+                      rules={{ required: "Date is required" }}
+                      render={({ field }) => (
+                        <Field name={field.name} invalid={Boolean(errors.logged_date)}>
+                          <Input size="lg" type="date" {...field} />
+                        </Field>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-sm mb-1 block text-tertiary">Description</span>
+                  <Controller
+                    control={control}
+                    name="description"
+                    render={({ field }) => (
+                      <Input size="lg" type="text" {...field} placeholder="What did you work on?" />
+                    )}
+                  />
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <span className="text-sm mb-1 block text-tertiary">Work type</span>
+                    <Controller
+                      control={control}
+                      name="work_type"
+                      render={({ field }) => (
+                        <select
+                          {...field}
+                          className="text-sm w-full rounded border border-subtle bg-transparent px-2 py-1.5"
+                        >
+                          <option value="">—</option>
+                          {WORK_TYPES.map((w) => (
+                            <option key={w} value={w}>
+                              {w.charAt(0).toUpperCase() + w.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    />
+                  </div>
+                  <span className="text-sm flex items-center gap-2 pt-5">
+                    <Controller
+                      control={control}
+                      name="is_billable"
+                      render={({ field }) => (
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                        />
+                      )}
+                    />
+                    Billable
+                  </span>
+                </div>
+              </div>
+            </DialogBody>
+          </DialogMain>
+          <DialogActions>
+            <Button variant="secondary" size="md" stretch="auto" label="Cancel" onClick={handleClose} type="button" />
+            <Button
+              variant="primary"
+              size="md"
+              stretch="auto"
+              type="submit"
+              loading={isSubmitting}
+              label={isSubmitting ? "Saving" : "Log time"}
             />
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <span className="text-sm mb-1 block text-tertiary">Work type</span>
-              <Controller
-                control={control}
-                name="work_type"
-                render={({ field }) => (
-                  <select {...field} className="text-sm w-full rounded border border-subtle bg-transparent px-2 py-1.5">
-                    <option value="">—</option>
-                    {WORK_TYPES.map((w) => (
-                      <option key={w} value={w}>
-                        {w.charAt(0).toUpperCase() + w.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              />
-            </div>
-            <span className="text-sm flex items-center gap-2 pt-5">
-              <Controller
-                control={control}
-                name="is_billable"
-                render={({ field }) => (
-                  <input type="checkbox" checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />
-                )}
-              />
-              Billable
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-subtle px-5 py-4">
-          <Button variant="secondary" size="sm" onClick={handleClose} type="button">
-            Cancel
-          </Button>
-          <Button variant="primary" size="sm" type="submit" loading={isSubmitting}>
-            {isSubmitting ? "Saving" : "Log time"}
-          </Button>
-        </div>
-      </form>
-    </ModalCore>
+          </DialogActions>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
