@@ -142,7 +142,11 @@ services:
 
   plane-minio:
     container_name: plane-minio
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # FORK: minio-image — quay.io/minio/minio and Docker Hub minio/minio no longer allow anonymous pulls.
+    # Chainguard publishes only :latest for free, so pin the multi-arch index digest. It ships sh, minio and mc,
+    # but defaults to uid 65532; run as root like the old image so existing root-owned volumes/tmpfs stay writable.
+    image: cgr.dev/chainguard/minio:latest@sha256:4692462f35d97d7e82c30371d82f057703c5d9489bcae726010594c812f2d285
+    user: root
     restart: always
     command: server /export --console-address ":9090"
     volumes:

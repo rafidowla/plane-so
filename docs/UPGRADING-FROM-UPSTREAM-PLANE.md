@@ -102,9 +102,11 @@ most edits 1–12 lines. Keep this list handy during a merge:
 > - React 19 / React Router 8; web and admin serve via Caddy instead of nginx
 >   (the edge proxy still honours `FILE_SIZE_LIMIT`).
 > - Upstream pinned MinIO to `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`,
->   which now returns 401 for anonymous pulls. Tests here ran with a local
->   `minio/minio:latest` override — check your deploy's storage image before
->   rolling out.
+>   which (like Docker Hub `minio/minio`) no longer allows anonymous pulls. The
+>   fork switched all four compose files to a digest-pinned
+>   `cgr.dev/chainguard/minio` running as root (FORK comments there). Expect a
+>   conflict on those `image:` lines in future syncs — keep ours unless upstream
+>   has moved to a pullable image.
 > - Gate used: `check:types` for web/admin/space, web `check:lint`, web build,
 >   `@plane/blocks` tests, and the full API pytest suite + `makemigrations --check`.
 
