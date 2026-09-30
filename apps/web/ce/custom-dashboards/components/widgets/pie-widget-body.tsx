@@ -41,6 +41,10 @@ export function PieWidgetBody(props: Props) {
         cells={cells}
         innerRadius={55}
         outerRadius={85}
+        // Explicit: blocks PieChart forwards these as props, and under React 19 an undefined prop no longer
+        // falls back to recharts' defaultProps, so the sector angles come out NaN and nothing is drawn.
+        paddingAngle={0}
+        cornerRadius={0}
         showLabel={false}
         centerLabel={centerLabelText ? { text: centerLabelText, fill: "var(--text-color-primary)" } : undefined}
       />
