@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * See the LICENSE file for details.
  */
+import { format } from "date-fns"; // local calendar date — toISOString() is UTC and rolls to tomorrow in the evening
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@plane/propel/button";
@@ -34,7 +35,7 @@ type TForm = {
 const WORK_TYPES = ["development", "qa", "design", "meeting", "review", "other"];
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return format(new Date(), "yyyy-MM-dd");
 }
 
 export function LogTimeModal(props: Props) {
