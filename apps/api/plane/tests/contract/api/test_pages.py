@@ -9,11 +9,13 @@ These are the endpoints the stock Plane MCP connector's ``page`` and ``workitem_
 page, work-item page and work item type routes this edition answers with a 400 and a way forward.
 """
 
+import base64
 import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -77,6 +79,15 @@ LIST_FIELDS = {
 }
 DETAIL_FIELDS = LIST_FIELDS | {"description_html", "description_stripped"}
 METHODS = ["get", "post", "put", "patch", "delete"]
+EDITOR_UNAVAILABLE = (
+    "The page editor service is unavailable, so a page that has already been opened in the editor can't be "
+    "updated right now. Try again later."
+)
+# What the live server answers for page-content/replace: the document after the change, html and json
+# as the editor normalises them.
+LIVE_BINARY = b"yjs-doc-after-replace"
+LIVE_HTML = '<p class="editor-paragraph-block">new body</p>'
+LIVE_JSON = {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "new body"}]}]}
 
 
 @pytest.fixture(autouse=True)
@@ -85,6 +96,38 @@ def transaction_task(monkeypatch):
     mock = MagicMock()
     monkeypatch.setattr("plane.api.views.page.page_transaction", mock)
     return mock
+
+
+def _live_response(status_code=200, **overrides):
+    response = MagicMock()
+    response.status_code = status_code
+    response.json.return_value = {
+        "description_binary": base64.b64encode(LIVE_BINARY).decode(),
+        "description_html": LIVE_HTML,
+        "description_json": LIVE_JSON,
+        "loaded": False,
+        **overrides,
+    }
+    return response
+
+
+@pytest.fixture(autouse=True)
+def live_post(monkeypatch, settings):
+    """A configured live server whose page-content/replace call is a mock: no test reaches the network."""
+    settings.LIVE_URL = "http://live.test/live/"
+    settings.LIVE_SERVER_SECRET_KEY = "live-secret"
+    mock = MagicMock(return_value=_live_response())
+    monkeypatch.setattr("plane.utils.page_live_sync.requests.post", mock)
+    return mock
+
+
+def _opened_in_editor(page, html="<p>body</p>"):
+    """Give the page the editor document it gets once someone has opened it."""
+    Page.objects.filter(id=page.id).update(
+        description_binary=b"yjs-doc", description_json={"type": "doc"}, description_html=html
+    )
+    page.refresh_from_db()
+    return page
 
 
 def _client_for(user, token):
@@ -481,34 +524,32 @@ class TestGuest:
 class TestUpdatePage:
     @pytest.mark.django_db
     @pytest.mark.parametrize("method", ["put", "patch"])
-    def test_update_html_resets_the_editor_document_and_records_versions(
-        self, api_key_client, world, transaction_task, method
+    def test_update_of_a_page_never_opened_in_the_editor_stores_the_html_directly(
+        self, api_key_client, world, transaction_task, live_post, method
     ):
         page = world.mine_public
-        Page.objects.filter(id=page.id).update(description_binary=b"yjs-doc", description_json={"type": "doc"})
 
         response = getattr(api_key_client, method)(
-            _page_url(world.alp, page.id), {"description_html": "<p>new body</p>"}, format="json"
+            _page_url(world.alp, page.id), {"name": "Renamed", "description_html": "<p>new body</p>"}, format="json"
         )
 
         assert response.status_code == status.HTTP_200_OK
         assert set(response.data) == DETAIL_FIELDS
         assert response.data["description_html"] == "<p>new body</p>"
         assert response.data["description_stripped"] == "new body"
+        live_post.assert_not_called()
 
         page.refresh_from_db()
         assert page.description_html == "<p>new body</p>"
         assert page.description_stripped == "new body"
+        # Still no editor document: the editor builds it from the html on first open.
         assert page.description_binary is None
         assert page.description_json == {}
-        assert page.name == "mine public"
+        assert page.name == "Renamed"
         assert page.updated_by_id == world.me.id
 
         versions = list(PageVersion.objects.filter(page=page).order_by("last_saved_at", "created_at"))
         assert [version.description_html for version in versions] == ["<p>body</p>", "<p>new body</p>"]
-        # The outgoing content is kept whole, editor document included, so it can be restored.
-        assert bytes(versions[0].description_binary) == b"yjs-doc"
-        assert versions[0].description_json == {"type": "doc"}
         assert versions[0].description_stripped == "body"
         assert versions[1].description_binary is None
         assert versions[1].owned_by_id == world.me.id
@@ -517,6 +558,185 @@ class TestUpdatePage:
             old_description_html="<p>body</p>",
             page_id=str(page.id),
         )
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize("method", ["put", "patch"])
+    def test_update_of_a_page_opened_in_the_editor_goes_through_the_live_server(
+        self, api_key_client, world, transaction_task, live_post, method
+    ):
+        page = _opened_in_editor(world.mine_public)
+
+        response = getattr(api_key_client, method)(
+            _page_url(world.alp, page.id),
+            {"name": "Renamed", "description_html": "<p>new body</p>", "color": "#123456"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert set(response.data) == DETAIL_FIELDS
+        # The body stored and returned is the editor's normalised form of what was sent.
+        assert response.data["description_html"] == LIVE_HTML
+        assert response.data["description_stripped"] == "new body"
+        assert response.data["name"] == "Renamed"
+
+        live_post.assert_called_once()
+        args, kwargs = live_post.call_args
+        assert args == ("http://live.test/live/page-content/replace/",)
+        assert kwargs["headers"] == {"live-server-secret-key": "live-secret"}
+        assert kwargs["timeout"] == 10
+        assert kwargs["json"] == {
+            "page_id": str(page.id),
+            "description_binary": base64.b64encode(b"yjs-doc").decode(),
+            "description_html": "<p>new body</p>",
+            "name": "Renamed",
+        }
+
+        page.refresh_from_db()
+        assert bytes(page.description_binary) == LIVE_BINARY
+        assert page.description_html == LIVE_HTML
+        assert page.description_json == LIVE_JSON
+        assert page.description_stripped == "new body"
+        assert page.name == "Renamed"
+        assert page.color == "#123456"
+        assert page.updated_by_id == world.me.id
+
+        versions = list(PageVersion.objects.filter(page=page).order_by("last_saved_at", "created_at"))
+        assert [version.description_html for version in versions] == ["<p>body</p>", LIVE_HTML]
+        # The outgoing content is kept whole, editor document included, so it can be restored.
+        assert bytes(versions[0].description_binary) == b"yjs-doc"
+        assert versions[0].description_json == {"type": "doc"}
+        assert versions[0].description_stripped == "body"
+        assert bytes(versions[1].description_binary) == LIVE_BINARY
+        assert versions[1].description_json == LIVE_JSON
+        assert versions[1].owned_by_id == world.me.id
+        transaction_task.delay.assert_called_once_with(
+            new_description_html=LIVE_HTML,
+            old_description_html="<p>body</p>",
+            page_id=str(page.id),
+        )
+
+    @pytest.mark.django_db
+    def test_name_only_change_of_a_page_opened_in_the_editor_goes_through_the_live_server(
+        self, api_key_client, world, transaction_task, live_post
+    ):
+        page = _opened_in_editor(world.mine_public)
+        # A rename changes the document's title, not its body.
+        live_post.return_value = _live_response(description_html="<p>body</p>", description_json={"type": "doc"})
+
+        # The html sent is what is stored already, so only the name is a change.
+        response = api_key_client.patch(
+            _page_url(world.alp, page.id), {"name": "Renamed", "description_html": "<p>body</p>"}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["name"] == "Renamed"
+        live_post.assert_called_once()
+        assert live_post.call_args.kwargs["json"] == {
+            "page_id": str(page.id),
+            "description_binary": base64.b64encode(b"yjs-doc").decode(),
+            "name": "Renamed",
+        }
+        page.refresh_from_db()
+        assert page.name == "Renamed"
+        assert bytes(page.description_binary) == LIVE_BINARY
+        assert page.description_html == "<p>body</p>"
+        # The body did not change, so there is nothing to version.
+        assert not PageVersion.objects.filter(page=page).exists()
+        transaction_task.delay.assert_not_called()
+
+    @pytest.mark.django_db
+    def test_update_without_a_body_or_name_change_leaves_the_editor_document_alone(
+        self, api_key_client, world, transaction_task, live_post
+    ):
+        page = _opened_in_editor(world.mine_public)
+
+        response = api_key_client.patch(
+            _page_url(world.alp, page.id),
+            {"name": "mine public", "description_html": "<p>body</p>", "color": "#abcdef"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        live_post.assert_not_called()
+        page.refresh_from_db()
+        assert page.color == "#abcdef"
+        assert bytes(page.description_binary) == b"yjs-doc"
+        assert page.description_json == {"type": "doc"}
+        assert not PageVersion.objects.filter(page=page).exists()
+        transaction_task.delay.assert_not_called()
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            "live_url_unset",
+            "secret_unset",
+            "timeout",
+            "connection_error",
+            "server_error",
+            "unauthorized",
+            "bad_request",
+            "empty_document",
+            "not_json",
+        ],
+    )
+    def test_live_server_unavailable_answers_503_and_changes_nothing(
+        self, api_key_client, world, transaction_task, live_post, settings, failure
+    ):
+        page = _opened_in_editor(world.mine_public)
+        if failure == "live_url_unset":
+            settings.LIVE_URL = None
+        elif failure == "secret_unset":
+            settings.LIVE_SERVER_SECRET_KEY = ""
+        elif failure == "timeout":
+            live_post.side_effect = requests.Timeout("timed out")
+        elif failure == "connection_error":
+            live_post.side_effect = requests.ConnectionError("refused")
+        elif failure == "server_error":
+            live_post.return_value = _live_response(500)
+        elif failure == "unauthorized":
+            live_post.return_value = _live_response(401)
+        elif failure == "bad_request":
+            live_post.return_value = _live_response(400)
+        elif failure == "empty_document":
+            live_post.return_value = _live_response(description_binary="")
+        elif failure == "not_json":
+            live_post.return_value.json.side_effect = ValueError("not json")
+
+        for body in (
+            {"name": "Renamed", "description_html": "<p>new body</p>", "color": "#123456"},
+            {"name": "Renamed"},
+        ):
+            response = api_key_client.patch(_page_url(world.alp, page.id), body, format="json")
+
+            assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+            assert response.data == {"error": EDITOR_UNAVAILABLE}
+            page.refresh_from_db()
+            assert page.name == "mine public"
+            assert page.color == ""
+            assert page.description_html == "<p>body</p>"
+            assert bytes(page.description_binary) == b"yjs-doc"
+            assert page.description_json == {"type": "doc"}
+        assert not PageVersion.objects.filter(page=page).exists()
+        transaction_task.delay.assert_not_called()
+        if failure in ("live_url_unset", "secret_unset"):
+            live_post.assert_not_called()
+
+    @pytest.mark.django_db
+    def test_live_server_outage_does_not_block_pages_never_opened_in_the_editor(
+        self, api_key_client, world, live_post, settings
+    ):
+        settings.LIVE_URL = None
+
+        response = api_key_client.patch(
+            _page_url(world.alp, world.mine_public.id),
+            {"name": "Renamed", "description_html": "<p>new body</p>"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["description_html"] == "<p>new body</p>"
+        live_post.assert_not_called()
 
     @pytest.mark.django_db
     def test_repeated_updates_add_one_version_each(self, api_key_client, world):
@@ -538,26 +758,6 @@ class TestUpdatePage:
         assert versions.first().description_html == "<p>v21</p>"
 
     @pytest.mark.django_db
-    def test_name_only_or_unchanged_html_leaves_the_editor_document_alone(
-        self, api_key_client, world, transaction_task
-    ):
-        page = world.mine_public
-        Page.objects.filter(id=page.id).update(description_binary=b"yjs-doc", description_json={"type": "doc"})
-
-        response = api_key_client.patch(
-            _page_url(world.alp, page.id), {"name": "Renamed", "description_html": "<p>body</p>"}, format="json"
-        )
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["name"] == "Renamed"
-        page.refresh_from_db()
-        assert page.name == "Renamed"
-        assert bytes(page.description_binary) == b"yjs-doc"
-        assert page.description_json == {"type": "doc"}
-        assert not PageVersion.objects.filter(page=page).exists()
-        transaction_task.delay.assert_not_called()
-
-    @pytest.mark.django_db
     def test_update_sanitises_html(self, api_key_client, world):
         response = api_key_client.patch(
             _page_url(world.alp, world.mine_public.id),
@@ -573,7 +773,10 @@ class TestUpdatePage:
             assert unsafe not in stored
 
     @pytest.mark.django_db
-    def test_update_refused_when_locked(self, api_key_client, world):
+    @pytest.mark.parametrize("opened", [False, True])
+    def test_update_refused_when_locked(self, api_key_client, world, live_post, opened):
+        if opened:
+            _opened_in_editor(world.mine_public)
         Page.objects.filter(id=world.mine_public.id).update(is_locked=True)
         url = _page_url(world.alp, world.mine_public.id)
 
@@ -582,6 +785,7 @@ class TestUpdatePage:
         assert "locked" in response.data["error"]
         world.mine_public.refresh_from_db()
         assert world.mine_public.description_html == "<p>body</p>"
+        live_post.assert_not_called()
 
         # Unlocking is the one edit a locked page takes.
         unlocked = api_key_client.patch(url, {"is_locked": False, "name": "Open again"}, format="json")
@@ -590,7 +794,10 @@ class TestUpdatePage:
         assert unlocked.data["name"] == "Open again"
 
     @pytest.mark.django_db
-    def test_update_refused_when_archived(self, api_key_client, world):
+    @pytest.mark.parametrize("opened", [False, True])
+    def test_update_refused_when_archived(self, api_key_client, world, live_post, opened):
+        if opened:
+            _opened_in_editor(world.mine_public)
         _archive(world.mine_public)
 
         response = api_key_client.patch(_page_url(world.alp, world.mine_public.id), {"name": "nope"}, format="json")
@@ -599,6 +806,7 @@ class TestUpdatePage:
         assert "archived" in response.data["error"]
         world.mine_public.refresh_from_db()
         assert world.mine_public.name == "mine public"
+        live_post.assert_not_called()
 
     @pytest.mark.django_db
     def test_non_owner_cannot_edit_a_private_page(self, u2_client, world):

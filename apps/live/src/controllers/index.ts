@@ -7,6 +7,13 @@
 import { CollaborationController } from "./collaboration.controller";
 import { DocumentController } from "./document.controller";
 import { HealthController } from "./health.controller";
+import { PageContentController } from "./page-content.controller"; // FORK: PSR-86
 import { PdfExportController } from "./pdf-export.controller";
 
-export const CONTROLLERS = [CollaborationController, DocumentController, HealthController, PdfExportController];
+export const CONTROLLERS = [
+  CollaborationController,
+  DocumentController,
+  HealthController,
+  PageContentController, // FORK: PSR-86
+  PdfExportController,
+];

@@ -21,6 +21,9 @@ import { CONTROLLERS } from "@/controllers";
 import { env } from "@/env";
 // hocuspocus server
 import { HocusPocusServerManager } from "@/hocuspocus";
+// FORK: PSR-86
+import { requireSecretKey } from "@/lib/auth-middleware";
+import { PAGE_CONTENT_BODY_LIMIT } from "@/lib/page-content-replace";
 // redis
 import { redisManager } from "@/redis";
 
@@ -61,6 +64,13 @@ export class Server {
     this.app.use(compression({ level: env.COMPRESSION_LEVEL, threshold: env.COMPRESSION_THRESHOLD }));
     // Logging middleware
     this.app.use(loggerMiddleware);
+    // FORK: PSR-86 -- page-content/replace carries a whole Yjs document: check the secret key first, then
+    // parse a body larger than the default limit (the parser below skips an already parsed body).
+    this.app.use(
+      `${env.LIVE_BASE_PATH}/page-content`,
+      requireSecretKey,
+      express.json({ limit: PAGE_CONTENT_BODY_LIMIT })
+    );
     // Body parsing middleware
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));

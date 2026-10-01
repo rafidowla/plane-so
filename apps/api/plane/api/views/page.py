@@ -28,16 +28,24 @@ Visibility and business rules mirror the app's ``PageViewSet`` / ``PagesDescript
   ``?archived=true`` is passed.
 
 Editor storage. A page keeps ``description_html`` next to ``description_binary``, the Yjs document the
-live editor works on. The live server rebuilds the binary from the html whenever the binary is empty
-(``apps/live/src/extensions/database.ts``), so this module never calls the live server:
+live editor works on. The binary stays empty until the page is first opened in the editor; the live
+server then builds it from the html (``apps/live/src/extensions/database.ts``). From that moment the
+browsers that opened the page hold the document's Yjs history, so the binary must never be thrown away
+and rebuilt: an unrelated history merges with theirs and duplicates or reverts the content.
 
 - create stores the sanitised html and leaves the binary empty.
-- an update that changes the html stores the new html, resets ``description_binary`` to empty and
-  ``description_json`` to the model default so the editor regenerates from the html on next open, and
-  records ``PageVersion`` rows: one for the outgoing content if the latest version does not already
-  hold it (so it stays restorable), and one for the new content. Versions are written here, in the
-  request, rather than through ``track_page_version``: each API update is a deliberate whole-body
-  replacement, so it is never folded into a recent version the way editor autosaves are.
+- an update of ``description_html`` and/or ``name`` on a page whose binary is still empty stores them
+  directly.
+- the same update on a page that has a binary goes through the live server
+  (``plane/utils/page_live_sync.py``), which applies it as a transaction on the existing document --
+  the one it has open, if any, so connected editors see it at once -- and returns the binary, html and
+  json to store. The html stored and returned is then the editor's normalised form of what was sent.
+  If the live server is not configured or does not answer, nothing is changed and the update answers
+  HTTP 503.
+- a changed body records ``PageVersion`` rows: one for the outgoing content if the latest version does
+  not already hold it (so it stays restorable), and one for the new content. Versions are written here,
+  in the request, rather than through ``track_page_version``: each API update is a deliberate
+  whole-body replacement, so it is never folded into a recent version the way editor autosaves are.
 
 Not available on this edition (workspace pages, work-item pages, work item types / epics): every
 method answers HTTP 400 ``{"error": <what to do instead>}`` so the connector surfaces one clear message
@@ -71,6 +79,7 @@ from plane.utils.openapi import (
     create_paginated_response,
 )
 from plane.utils.order_queryset import PAGE_ORDER_BY_ALLOWLIST, sanitize_order_by
+from plane.utils.page_live_sync import PageLiveSyncUnavailable, replace_page_content
 
 EMPTY_HTML = "<p></p>"
 MAX_PAGE_VERSIONS = 20
@@ -100,6 +109,10 @@ ARCHIVE_OWNER_OR_ADMIN = "Only the owner or admin can archive the page"
 UNARCHIVE_OWNER_OR_ADMIN = "Only the owner or admin can un archive the page"
 DELETE_NEEDS_ARCHIVE = "The page should be archived before deleting"
 DELETE_OWNER_OR_ADMIN = "Only admin or owner can delete the page"
+EDITOR_UNAVAILABLE = (
+    "The page editor service is unavailable, so a page that has already been opened in the editor can't be "
+    "updated right now. Try again later."
+)
 
 PAID_ONLY_FIELDS = ("collection_id", "collection")
 COMMON_FIELDS = (
@@ -290,7 +303,7 @@ def _record_versions(page, previous, user_id):
         owned_by_id=user_id,
         last_saved_at=timezone.now(),
         description_html=page.description_html,
-        description_binary=None,
+        description_binary=page.description_binary,
         description_json=page.description_json,
     ).save(created_by_id=user_id)
     stale = list(
@@ -453,9 +466,12 @@ class ProjectPageDetailAPIEndpoint(BaseAPIView):
         tags=["Pages"],
         summary="Update project page",
         description=(
-            "Change only the fields sent. A new description_html replaces the whole body, resets the "
-            "editor's stored document so it is rebuilt from the html, and records page versions so the "
-            "previous body stays restorable. A locked or archived page is refused."
+            "Change only the fields sent. A new description_html replaces the whole body and records page "
+            "versions so the previous body stays restorable. On a page that has been opened in the editor, "
+            "a body or name change is applied to the editor's document through the collaboration server, "
+            "so open editors show it at once and the returned description_html is the editor's normalised "
+            "form; if that server is unavailable the update is refused with 503 and nothing changes. A "
+            "locked or archived page is refused."
         ),
         parameters=[WORKSPACE_SLUG_PARAMETER, PROJECT_ID_PARAMETER, PAGE_ID_PARAMETER],
         request=PageWriteSerializer,
@@ -466,6 +482,7 @@ class ProjectPageDetailAPIEndpoint(BaseAPIView):
             403: FORBIDDEN_RESPONSE,
             404: NOT_FOUND_RESPONSE,
             409: OpenApiResponse(description="A page with the same external id and source already exists"),
+            503: OpenApiResponse(description="The page editor service is unavailable; nothing was changed"),
         },
     )
     def patch(self, request, slug, project_id, page_id):
@@ -506,15 +523,31 @@ class ProjectPageDetailAPIEndpoint(BaseAPIView):
             "updated_at": page.updated_at,
             "updated_by_id": page.updated_by_id,
         }
-        html_changed = "description_html" in fields and fields["description_html"] != page.description_html
+        html_sent = "description_html" in fields and fields["description_html"] != page.description_html
+        name_sent = "name" in fields and fields["name"] != page.name
+
+        changes = dict(fields)
+        if bytes(page.description_binary or b"") and (html_sent or name_sent):
+            # Opened in the editor before: the change has to land on the existing Yjs document.
+            try:
+                document = replace_page_content(
+                    page.id,
+                    page.description_binary,
+                    description_html=fields["description_html"] if html_sent else None,
+                    name=fields["name"] if name_sent else None,
+                )
+            except PageLiveSyncUnavailable:
+                return _error(EDITOR_UNAVAILABLE, status.HTTP_503_SERVICE_UNAVAILABLE)
+            for field in ("description_binary", "description_html", "description_json"):
+                changes[field] = document[field]
+        elif html_sent:
+            # Never opened in the editor: it builds its document from the html on first open.
+            changes["description_json"] = {}
+        html_changed = changes.get("description_html", page.description_html) != page.description_html
 
         with transaction.atomic():
-            for field, value in fields.items():
+            for field, value in changes.items():
                 setattr(page, field, value)
-            if html_changed:
-                # Empty binary = "rebuild from description_html" for the live editor.
-                page.description_binary = None
-                page.description_json = {}
             page.updated_by = request.user
             page.save(disable_auto_set_user=True)
             if html_changed:
@@ -541,6 +574,8 @@ class ProjectPageDetailAPIEndpoint(BaseAPIView):
             401: UNAUTHORIZED_RESPONSE,
             403: FORBIDDEN_RESPONSE,
             404: NOT_FOUND_RESPONSE,
+            409: OpenApiResponse(description="A page with the same external id and source already exists"),
+            503: OpenApiResponse(description="The page editor service is unavailable; nothing was changed"),
         },
     )
     def put(self, request, slug, project_id, page_id):

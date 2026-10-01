@@ -18,6 +18,7 @@ export * from "@/constants/common";
 // helpers
 export * from "@/helpers/common";
 export * from "@/helpers/yjs-utils";
+export * from "@/helpers/yjs-replace"; // FORK: PSR-86
 
 export { CORE_EXTENSIONS } from "@/constants/extension";
 export { ADDITIONAL_EXTENSIONS } from "@/constants/extensions";
