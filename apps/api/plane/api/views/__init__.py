@@ -36,6 +36,15 @@ from .issue import (
 # FORK: PSR-85 — workspace-wide work item list/count with PQL filtering
 from .work_item_query import WorkspaceWorkItemCountEndpoint, WorkspaceWorkItemListEndpoint
 
+# FORK: PSR-83 — dependencies, built-in custom relations and relation definitions for the MCP connector
+from .work_item_relations import (
+    WorkItemCustomRelationDetailEndpoint,
+    WorkItemCustomRelationListCreateEndpoint,
+    WorkItemDependencyDetailEndpoint,
+    WorkItemDependencyListCreateEndpoint,
+    WorkItemRelationDefinitionEndpoint,
+)
+
 from .cycle import (
     CycleListCreateAPIEndpoint,
     CycleListLiteAPIEndpoint,

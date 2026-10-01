@@ -20,6 +20,11 @@ from plane.api.views import (
     IssueRelationListCreateAPIEndpoint,
     WorkspaceWorkItemCountEndpoint,  # FORK: PSR-85
     WorkspaceWorkItemListEndpoint,  # FORK: PSR-85
+    WorkItemDependencyListCreateEndpoint,  # FORK: PSR-83
+    WorkItemDependencyDetailEndpoint,  # FORK: PSR-83
+    WorkItemCustomRelationListCreateEndpoint,  # FORK: PSR-83
+    WorkItemCustomRelationDetailEndpoint,  # FORK: PSR-83
+    WorkItemRelationDefinitionEndpoint,  # FORK: PSR-83
 )
 
 # Deprecated url patterns
@@ -164,6 +169,38 @@ new_url_patterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/relations/",
         IssueRelationListCreateAPIEndpoint.as_view(http_method_names=["get", "post"]),
         name="work-item-relation-list",
+    ),
+    # FORK: PSR-83 — routes the stock Plane MCP connector's workitem_relation tool calls.
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/dependencies/",
+        WorkItemDependencyListCreateEndpoint.as_view(http_method_names=["get", "post"]),
+        name="work-item-dependency-list",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/dependencies/<uuid:related_id>/",
+        WorkItemDependencyDetailEndpoint.as_view(http_method_names=["delete"]),
+        name="work-item-dependency-detail",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/work-item-relations/",
+        WorkItemCustomRelationListCreateEndpoint.as_view(http_method_names=["get", "post"]),
+        name="work-item-custom-relation-list",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/work-item-relations/"
+        "<uuid:related_id>/",
+        WorkItemCustomRelationDetailEndpoint.as_view(http_method_names=["delete"]),
+        name="work-item-custom-relation-detail",
+    ),
+    path(
+        "workspaces/<str:slug>/work-item-relation-definitions/",
+        WorkItemRelationDefinitionEndpoint.as_view(http_method_names=["get", "post"]),
+        name="work-item-relation-definition-list",
+    ),
+    path(
+        "workspaces/<str:slug>/work-item-relation-definitions/<str:pk>/",
+        WorkItemRelationDefinitionEndpoint.as_view(http_method_names=["patch", "delete"]),
+        name="work-item-relation-definition-detail",
     ),
 ]
 
