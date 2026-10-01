@@ -42,7 +42,9 @@ def track_page_version(page_id, existing_instance, user_id):
             ):
                 page_version.description_html = page.description_html
                 page_version.description_binary = page.description_binary
-                page_version.description_json = page.description
+                # FORK: PSR-86 — upstream still reads page.description, which #8230 renamed to description_json;
+                # the AttributeError was swallowed below, so no page versions were being recorded.
+                page_version.description_json = page.description_json
                 page_version.description_stripped = page.description_stripped
                 page_version.sub_pages_data = sub_pages
                 page_version.save(
@@ -60,7 +62,7 @@ def track_page_version(page_id, existing_instance, user_id):
                 PageVersion.objects.create(
                     page_id=page_id,
                     workspace_id=page.workspace_id,
-                    description_json=page.description,
+                    description_json=page.description_json,  # FORK: PSR-86 (see above)
                     description_html=page.description_html,
                     description_binary=page.description_binary,
                     description_stripped=page.description_stripped,
