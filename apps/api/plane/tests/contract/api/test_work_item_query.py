@@ -218,6 +218,42 @@ class TestProjectListPQL:
 
 
 @pytest.mark.contract
+class TestProjectListGuestScope:
+    """A guest without guest_view_all_features only sees their own work items in the project list."""
+
+    def test_restricted_guest_sees_only_own(self, api_key_client, world):
+        r = api_key_client.get(project_url(world, world.gst))
+        assert r.status_code == status.HTTP_200_OK, r.data
+        assert names(r) == {"six guest own"}
+        assert r.data["total_count"] == 1
+
+    def test_restricted_guest_pql_still_scoped(self, api_key_client, world):
+        r = api_key_client.get(project_url(world, world.gst), {"pql": 'priority = "low"'})
+        assert r.status_code == status.HTTP_200_OK, r.data
+        assert names(r) == {"six guest own"}
+        assert r.data["total_count"] == 1
+
+    def test_guest_view_all_features_sees_all(self, api_key_client, world):
+        Project.objects.filter(id=world.gst.id).update(guest_view_all_features=True)
+        r = api_key_client.get(project_url(world, world.gst))
+        assert names(r) == {"six guest own", "seven guest other"}
+        assert r.data["total_count"] == 2
+
+    def test_external_id_lookup_respects_guest_scope(self, api_key_client, world):
+        Issue.objects.filter(id=world.i6.id).update(external_id="EXT-6", external_source="jira")
+        Issue.objects.filter(id=world.i7.id).update(external_id="EXT-7", external_source="jira")
+        own = api_key_client.get(project_url(world, world.gst), {"external_id": "EXT-6", "external_source": "jira"})
+        assert own.status_code == status.HTTP_200_OK
+        assert own.data["name"] == "six guest own"
+        other = api_key_client.get(project_url(world, world.gst), {"external_id": "EXT-7", "external_source": "jira"})
+        assert other.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_member_role_unaffected(self, api_key_client, world):
+        r = api_key_client.get(project_url(world, world.alp))
+        assert names(r) == {"one capex", "two", "three"}
+
+
+@pytest.mark.contract
 class TestWorkspaceList:
     def test_spans_member_projects_with_visibility(self, api_key_client, world):
         r = api_key_client.get(ws_url())

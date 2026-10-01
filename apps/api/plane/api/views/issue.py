@@ -291,7 +291,19 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
 
     # FORK: PSR-85 — which issues this list covers; WorkspaceWorkItemListEndpoint overrides it.
     def get_scope_q(self):
-        return Q(project_id=self.kwargs.get("project_id"))
+        scope = Q(project_id=self.kwargs.get("project_id"))
+        # FORK: PSR-85 — guests only see their own work items unless the project allows guests to view
+        # everything; same rule the app's views and the workspace-wide list/count apply.
+        is_restricted_guest = ProjectMember.objects.filter(
+            project_id=self.kwargs.get("project_id"),
+            member=self.request.user,
+            is_active=True,
+            role=ROLE.GUEST.value,
+            project__guest_view_all_features=False,
+        ).exists()
+        if is_restricted_guest:
+            scope &= Q(created_by=self.request.user)
+        return scope
 
     @work_item_docs(
         operation_id="list_work_items",
@@ -338,7 +350,7 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
         external_source = request.GET.get("external_source")
 
         if external_id and external_source:
-            issue = Issue.objects.get(
+            issue = Issue.objects.filter(self.get_scope_q()).get(  # FORK: PSR-85 — guest scope applies here too
                 external_id=external_id,
                 external_source=external_source,
                 workspace__slug=slug,
