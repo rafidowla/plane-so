@@ -159,6 +159,8 @@ from plane.utils.openapi import (
     WORKSPACE_NOT_FOUND_RESPONSE,
 )
 from plane.bgtasks.work_item_link_task import crawl_work_item_link_title
+from plane.api.pql import PQLContext, PQLParamError, compile_request_filters  # FORK: PSR-85
+from plane.utils.openapi.pql_parameters import FILTERS_PARAMETER, PQL_PARAMETER  # FORK: PSR-85
 
 
 def user_has_issue_permission(user_id, project_id, issue=None, allowed_roles=None, allow_creator=True):
@@ -276,7 +278,7 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
             )
-            .filter(project_id=self.kwargs.get("project_id"))
+            .filter(self.get_scope_q())  # FORK: PSR-85 — overridable scope (workspace-wide list)
             .filter(workspace__slug=self.kwargs.get("slug"))
             .select_related("project")
             .select_related("workspace")
@@ -286,6 +288,10 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             .prefetch_related("labels")
             .order_by(self.kwargs.get("order_by", "-created_at"))
         ).distinct()
+
+    # FORK: PSR-85 — which issues this list covers; WorkspaceWorkItemListEndpoint overrides it.
+    def get_scope_q(self):
+        return Q(project_id=self.kwargs.get("project_id"))
 
     @work_item_docs(
         operation_id="list_work_items",
@@ -299,6 +305,8 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             ORDER_BY_PARAMETER,
             FIELDS_PARAMETER,
             EXPAND_PARAMETER,
+            PQL_PARAMETER,  # FORK: PSR-85
+            FILTERS_PARAMETER,  # FORK: PSR-85
         ],
         responses={
             200: create_paginated_response(
@@ -318,19 +326,13 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
         Supports filtering, ordering, and field selection through query parameters.
         """
 
-        unsupported_filters = [param for param in ("pql", "filters") if request.GET.get(param)]
-        if unsupported_filters:
-            return Response(
-                {
-                    "pql": (
-                        "PQL and structured filters are not supported on this Plane edition. "
-                        "Remove the pql/filters parameter and filter results client-side, or use "
-                        "a Plane edition that supports work item query filtering."
-                    ),
-                    "unsupported_parameters": unsupported_filters,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+        # FORK: PSR-85 — evaluate ?pql= / ?filters= instead of rejecting them.
+        try:
+            filter_q = compile_request_filters(
+                request.GET, PQLContext(workspace_slug=slug, user=request.user, project_id=project_id)
             )
+        except PQLParamError as exc:
+            return Response(exc.as_response_body(), status=status.HTTP_400_BAD_REQUEST)
 
         external_id = request.GET.get("external_id")
         external_source = request.GET.get("external_source")
@@ -347,6 +349,13 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
                 status=status.HTTP_200_OK,
             )
 
+        # FORK: PSR-85 — the list body below is shared with WorkspaceWorkItemListEndpoint.
+        return self.list_work_items(request, filter_q)
+
+    def list_work_items(self, request, filter_q):  # FORK: PSR-85
+        """Annotate, order and paginate ``get_queryset()`` narrowed by ``filter_q``."""
+        slug = self.kwargs.get("slug")  # FORK: PSR-85
+
         # Custom ordering for priority and state
         priority_order = ["urgent", "high", "medium", "low", "none"]
         state_order = ["backlog", "unstarted", "started", "completed", "cancelled"]
@@ -362,6 +371,7 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
 
         issue_queryset = (
             self.get_queryset()
+            .filter(filter_q)  # FORK: PSR-85
             .annotate(
                 cycle_id=Subquery(
                     CycleIssue.objects.filter(issue=OuterRef("id"), deleted_at__isnull=True).values("cycle_id")[:1]
@@ -384,7 +394,8 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             )
         )
 
-        total_issue_queryset = Issue.issue_objects.filter(project_id=project_id, workspace__slug=slug)
+        # FORK: PSR-85 — scope via get_scope_q() and count only issues matching pql/filters.
+        total_issue_queryset = Issue.issue_objects.filter(self.get_scope_q(), workspace__slug=slug).filter(filter_q)
 
         # Priority Ordering
         if order_by_param == "priority" or order_by_param == "-priority":

@@ -33,6 +33,9 @@ from .issue import (
     IssueRelationListCreateAPIEndpoint,
 )
 
+# FORK: PSR-85 — workspace-wide work item list/count with PQL filtering
+from .work_item_query import WorkspaceWorkItemCountEndpoint, WorkspaceWorkItemListEndpoint
+
 from .cycle import (
     CycleListCreateAPIEndpoint,
     CycleListLiteAPIEndpoint,

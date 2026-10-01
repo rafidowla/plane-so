@@ -18,6 +18,8 @@ from plane.api.views import (
     WorkspaceIssueAPIEndpoint,
     IssueSearchEndpoint,
     IssueRelationListCreateAPIEndpoint,
+    WorkspaceWorkItemCountEndpoint,  # FORK: PSR-85
+    WorkspaceWorkItemListEndpoint,  # FORK: PSR-85
 )
 
 # Deprecated url patterns
@@ -86,6 +88,18 @@ old_url_patterns = [
 
 # New url patterns with work-items as the prefix
 new_url_patterns = [
+    # FORK: PSR-85 — workspace-wide list/count; literal segments, so they can't collide with
+    # "work-items/search/" or "work-items/<project_identifier>-<issue_identifier>/" (needs a "-").
+    path(
+        "workspaces/<str:slug>/work-items/count/",
+        WorkspaceWorkItemCountEndpoint.as_view(http_method_names=["get"]),
+        name="workspace-work-item-count",
+    ),
+    path(
+        "workspaces/<str:slug>/work-items/",
+        WorkspaceWorkItemListEndpoint.as_view(http_method_names=["get"]),
+        name="workspace-work-items",
+    ),
     path(
         "workspaces/<str:slug>/work-items/search/",
         IssueSearchEndpoint.as_view(http_method_names=["get"]),

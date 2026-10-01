@@ -17,12 +17,15 @@ Usage::
 from plane.api.pql.compiler import SUPPORTED_FIELDS, PQLContext, compile_pql
 from plane.api.pql.errors import PQLError
 from plane.api.pql.filters import ALLOWED_FILTER_KEYS, compile_filters
+from plane.api.pql.request import PQLParamError, compile_request_filters
 
 __all__ = [
     "ALLOWED_FILTER_KEYS",
     "PQLContext",
     "PQLError",
+    "PQLParamError",
     "SUPPORTED_FIELDS",
     "compile_filters",
     "compile_pql",
+    "compile_request_filters",
 ]
