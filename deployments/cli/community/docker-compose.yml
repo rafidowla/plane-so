@@ -58,6 +58,11 @@ x-app-env: &app-env
   API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-60/minute}
   MINIO_ENDPOINT_SSL: ${MINIO_ENDPOINT_SSL:-0}
   LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
+  # FORK: PSR-86 — the API calls the live server to apply page updates made through the public API
+  # (POST <LIVE_BASE_URL><LIVE_BASE_PATH>/page-content/replace). Without these it answers 503 for pages
+  # that have been opened in the editor.
+  LIVE_BASE_URL: ${LIVE_BASE_URL:-http://live:3000}
+  LIVE_BASE_PATH: ${LIVE_BASE_PATH:-/live}
   WEBHOOK_ALLOWED_IPS: ${WEBHOOK_ALLOWED_IPS:-}
   WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
 
