@@ -101,12 +101,10 @@ most edits 1–12 lines. Keep this list handy during a merge:
 >   `packages/tailwind-config/index.css`.
 > - React 19 / React Router 8; web and admin serve via Caddy instead of nginx
 >   (the edge proxy still honours `FILE_SIZE_LIMIT`).
-> - Upstream pinned MinIO to `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`,
->   which (like Docker Hub `minio/minio`) no longer allows anonymous pulls. The
->   fork switched all four compose files to a digest-pinned
->   `cgr.dev/chainguard/minio` running as root (FORK comments there). Expect a
->   conflict on those `image:` lines in future syncs — keep ours unless upstream
->   has moved to a pullable image.
+> - MinIO image: upstream's `quay.io/minio/minio` pin stopped allowing anonymous pulls, so the fork
+>   briefly used a digest-pinned `cgr.dev/chainguard/minio`. Upstream then moved to
+>   `docker.io/pgsty/minio:RELEASE.2026-08-04T00-00-00Z` (#9727); the 2026-10-01 sync adopted that and
+>   dropped the fork's workaround, so the compose `image:` lines match upstream again.
 > - Gate used: `check:types` for web/admin/space, web `check:lint`, web build,
 >   `@plane/blocks` tests, and the full API pytest suite + `makemigrations --check`.
 
