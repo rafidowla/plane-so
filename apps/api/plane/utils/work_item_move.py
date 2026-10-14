@@ -225,6 +225,11 @@ class _Analysis:
         self.detached_children = (
             [c for c in self.subtree if c.parent_id == issue.id] if self.mode == SUB_ITEMS_DETACH else []
         )
+        # FORK: archived sub-items in the sub-tree move silently with it (the move only updates the
+        # project/sequence/state columns, so ``archived_at`` is preserved). Surface them in the preview.
+        self.archived_moving_sub_items = (
+            [c for c in self.subtree if c.archived_at is not None] if self.mode == SUB_ITEMS_MOVE else []
+        )
         # FORK: security — the intake rule applies to every item that moves, not just the
         # root: a pending intake sub-item would otherwise leave intake (and its triage
         # state) without being accepted.
@@ -334,6 +339,8 @@ class _Analysis:
             warnings.append("PARENT_DETACHED")
         if self.detached_children:
             warnings.append("SUB_ITEMS_DETACHED")
+        if self.archived_moving_sub_items:
+            warnings.append("ARCHIVED_SUB_ITEMS_MOVE")
         if any(g["match"] == STATE_MATCH_NONE for g in self.state_groups.values()):
             warnings.append("NO_TARGET_STATE")
 
@@ -350,6 +357,12 @@ class _Analysis:
             "sub_items": [
                 {"id": str(c.id), "name": c.name, "identifier": identifier_of(source, c.sequence_id)}
                 for c in self.subtree
+            ],
+            # FORK: archived sub-items that travel with the item (move-together mode only). They are
+            # allowed to move and stay archived in the target; the dialog warns before confirm.
+            "archived_sub_items": [
+                {"id": str(c.id), "name": c.name, "identifier": identifier_of(source, c.sequence_id)}
+                for c in self.archived_moving_sub_items
             ],
             "parent": (
                 {"id": str(parent.id), "name": parent.name, "identifier": identifier_of(source, parent.sequence_id)}

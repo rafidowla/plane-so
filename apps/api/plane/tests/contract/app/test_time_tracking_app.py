@@ -121,6 +121,111 @@ class TestWorklog:
         assert wl.logged_by_id == member.id  # the resource
         assert wl.created_by_id == tt["user"].id  # who entered it (audit)
 
+    # FORK: security — manual worklog create is scoped to the project in the URL.
+    def _foreign_issue(self, tt, workspace=None, identifier="HID"):
+        workspace = workspace or tt["workspace"]
+        project = Project.objects.create(
+            workspace=workspace, name="Hidden", identifier=identifier, created_by=tt["user"],
+            is_time_tracking_enabled=True,
+        )
+        state = State.objects.create(workspace=workspace, project=project, name="Todo", group="unstarted", default=True)
+        issue = Issue(workspace=workspace, project=project, name="Hidden item", state=state)
+        issue.save(created_by_id=tt["user"].id)
+        return issue
+
+    def test_create_on_work_item_of_another_project_is_404(self, session_client, tt):
+        slug, pid, _ = _ids(tt)
+        hidden = self._foreign_issue(tt)
+
+        r = session_client.post(
+            _wl_url(slug, pid, hidden.id), {"duration": 30, "logged_date": "2026-06-22"}, format="json"
+        )
+
+        assert r.status_code == status.HTTP_404_NOT_FOUND
+        assert not IssueWorklog.objects.filter(issue=hidden).exists()
+
+    def test_create_on_work_item_of_another_workspace_is_404(self, session_client, tt):
+        from plane.db.models import Workspace
+
+        slug, pid, _ = _ids(tt)
+        other_ws = Workspace.objects.create(name="Other WS", slug="other-ws-tt", owner=tt["user"])
+        hidden = self._foreign_issue(tt, workspace=other_ws, identifier="OWS")
+
+        r = session_client.post(
+            _wl_url(slug, pid, hidden.id), {"duration": 30, "logged_date": "2026-06-22"}, format="json"
+        )
+
+        assert r.status_code == status.HTTP_404_NOT_FOUND
+        assert not IssueWorklog.objects.filter(issue=hidden).exists()
+
+    def test_create_on_unknown_work_item_is_404(self, session_client, tt):
+        slug, pid, _ = _ids(tt)
+        r = session_client.post(
+            _wl_url(slug, pid, uuid.uuid4()), {"duration": 30, "logged_date": "2026-06-22"}, format="json"
+        )
+        assert r.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_log_on_behalf_of_non_project_member_is_400(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        # a workspace member who is not in this project, and a member of a different project only
+        outsider = _ws_member(tt["workspace"])
+        elsewhere = _member(tt["workspace"], self._foreign_issue(tt).project)
+        for who in (outsider, elsewhere):
+            r = session_client.post(
+                _wl_url(slug, pid, iid),
+                {"duration": 60, "logged_date": "2026-06-22", "logged_by": str(who.id)},
+                format="json",
+            )
+            assert r.status_code == status.HTTP_400_BAD_REQUEST, r.data
+        assert not IssueWorklog.objects.filter(issue_id=iid).exists()
+
+    def test_log_on_behalf_of_deactivated_member_is_400(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        member = _member(tt["workspace"], tt["project"])
+        ProjectMember.objects.filter(project=tt["project"], member=member).update(is_active=False)
+        r = session_client.post(
+            _wl_url(slug, pid, iid),
+            {"duration": 60, "logged_date": "2026-06-22", "logged_by": str(member.id)},
+            format="json",
+        )
+        assert r.status_code == status.HTTP_400_BAD_REQUEST
+        assert not IssueWorklog.objects.filter(issue_id=iid).exists()
+
+    @pytest.mark.parametrize("bad", ["not-a-uuid", "00000000-0000-0000-0000-000000000000"])
+    def test_log_on_behalf_of_unknown_user_is_400(self, session_client, tt, bad):
+        slug, pid, iid = _ids(tt)
+        r = session_client.post(
+            _wl_url(slug, pid, iid), {"duration": 60, "logged_date": "2026-06-22", "logged_by": bad}, format="json"
+        )
+        assert r.status_code == status.HTTP_400_BAD_REQUEST
+        assert not IssueWorklog.objects.filter(issue_id=iid).exists()
+
+    def test_update_cannot_move_entry_to_another_issue_or_user(self, session_client, tt):
+        """partial_update ignores `issue`/`logged_by` (read-only) and only reaches entries of this item."""
+        slug, pid, iid = _ids(tt)
+        outsider = _ws_member(tt["workspace"])
+        hidden = self._foreign_issue(tt)
+        created = session_client.post(
+            _wl_url(slug, pid, iid), {"duration": 30, "logged_date": "2026-06-22"}, format="json"
+        )
+        assert created.status_code == status.HTTP_201_CREATED
+        wl_id = created.data["id"]
+
+        r = session_client.patch(
+            _wl_url(slug, pid, iid, wl_id),
+            {"duration": 45, "issue": str(hidden.id), "logged_by": str(outsider.id), "project": str(hidden.project_id)},
+            format="json",
+        )
+
+        assert r.status_code == status.HTTP_200_OK, r.data
+        wl = IssueWorklog.objects.get(id=wl_id)
+        assert wl.duration == 45
+        assert str(wl.issue_id) == iid and wl.project_id == tt["project"].id and wl.logged_by_id == tt["user"].id
+        # and the entry is unreachable through another work item's URL
+        other = _second_issue(tt)
+        res = session_client.patch(_wl_url(slug, pid, other.id, wl_id), {"duration": 1}, format="json")
+        assert res.status_code == status.HTTP_404_NOT_FOUND
+
     def test_member_cannot_log_on_behalf(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         member = _member(tt["workspace"], tt["project"])

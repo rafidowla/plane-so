@@ -50,6 +50,7 @@ export type TMoveWarning =
   | "PROPERTIES_DROPPED"
   | "CYCLE_CLEARED"
   | "MODULES_CLEARED"
+  | "ARCHIVED_SUB_ITEMS_MOVE"
   | "ESTIMATE_CLEARED"
   | "PARENT_DETACHED"
   | "SUB_ITEMS_DETACHED";
@@ -61,6 +62,8 @@ export type TMovePlan = {
   next_identifier: string;
   sub_items_mode: TMoveSubItemsMode;
   sub_items: TMoveWorkItemRef[];
+  /** Archived sub-items that will move too (move-together mode only); they stay archived in the target. */
+  archived_sub_items: TMoveWorkItemRef[];
   parent: TMoveWorkItemRef | null;
   states: TMoveStateRow[];
   target_states: TMoveState[];

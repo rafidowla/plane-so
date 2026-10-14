@@ -452,6 +452,7 @@
     "sections": {
       "states": "State mapping",
       "sub_items": "Sub-work items",
+      "archived_sub_items": "Archived sub-work items",
       "kept": "Kept in the new project",
       "dropped": "Not carried over",
       "worklogs": "Time tracking",
@@ -460,6 +461,10 @@
     "sub_items_description": "{count, plural, one {This work item has # sub-work item in the same project.} other {This work item has # sub-work items in the same project.}}",
     "sub_items_move": "Move them together with this work item",
     "sub_items_detach": "Leave them in {project} and detach them from this work item",
+    "archived_sub_items": {
+      "warning": "{count, plural, one {# archived sub-work item will move too: {items}.} other {# archived sub-work items will move too: {items}.}}",
+      "stay_archived": "They stay archived in the new project."
+    },
     "kept": {
       "labels": "Labels",
       "assignees": "Assignees",

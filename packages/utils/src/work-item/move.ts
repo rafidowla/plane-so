@@ -108,6 +108,18 @@ export const summarizeMoveDrops = (plan: TMovePlan): TMoveDropRow[] => {
   return rows;
 };
 
+/**
+ * FORK: archived sub-items that travel with the item. They are allowed to move (and stay archived in the target),
+ * but the dialog warns before confirm. Empty unless the plan is in "move together" mode.
+ */
+export const getArchivedMovingSubItems = (
+  plan: Pick<TMovePlan, "archived_sub_items"> | null | undefined
+): TMovePlan["archived_sub_items"] => plan?.archived_sub_items ?? [];
+
+/** `PSR-4 Child` labels for the archived sub-items warning, in plan order. */
+export const formatArchivedSubItemLabels = (plan: Pick<TMovePlan, "archived_sub_items"> | null | undefined): string[] =>
+  getArchivedMovingSubItems(plan).map((item) => `${item.identifier} ${item.name}`.trim());
+
 /** Same idea for the draft project switcher: what the mapping call removed from the form. */
 export const summarizeDraftDrops = (mapping: Pick<TDraftProjectMapping, "dropped">): TMoveDropRow[] => {
   const { dropped } = mapping;

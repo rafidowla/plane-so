@@ -9,9 +9,11 @@ import {
   buildDraftProjectMappingPayload,
   buildMoveStateMap,
   canMoveWorkItem,
+  formatArchivedSubItemLabels,
   formatMoveConfirmLabel,
   formatMoveDuration,
   getCanonicalWorkItemIdentifier,
+  getArchivedMovingSubItems,
   getDraftFormValuesFromMapping,
   getMovedWorkItemHref,
   getMovedWorkItemIds,
@@ -35,6 +37,7 @@ const makePlan = (overrides: Partial<TMovePlan> = {}): TMovePlan => ({
   next_identifier: "GFV3-40",
   sub_items_mode: "move",
   sub_items: [],
+  archived_sub_items: [],
   parent: null,
   states: [
     { source: state("s-todo"), target: state("t-todo"), match: "name", work_item_ids: ["w1"] },
@@ -192,6 +195,31 @@ describe("sub-items choice", () => {
     expect(shouldShowSubItemsChoice(makePlan({ sub_items: [{ id: "w2", name: "Sub", identifier: "PSR-13" }] }))).toBe(
       true
     );
+  });
+});
+
+describe("archived sub-items warning", () => {
+  const archived = [
+    { id: "w3", name: "Old child", identifier: "PSR-14" },
+    { id: "w4", name: "Older grandchild", identifier: "PSR-15" },
+  ];
+
+  it("is empty when nothing archived moves (or there is no plan yet)", () => {
+    expect(getArchivedMovingSubItems(null)).toEqual([]);
+    expect(getArchivedMovingSubItems(makePlan())).toEqual([]);
+    expect(formatArchivedSubItemLabels(makePlan())).toEqual([]);
+  });
+
+  it("lists archived sub-items as `IDENTIFIER name` in plan order", () => {
+    const plan = makePlan({ archived_sub_items: archived });
+    expect(getArchivedMovingSubItems(plan)).toHaveLength(2);
+    expect(formatArchivedSubItemLabels(plan)).toEqual(["PSR-14 Old child", "PSR-15 Older grandchild"]);
+  });
+
+  it("tolerates a plan from an older server without the field", () => {
+    const legacy = makePlan() as Partial<TMovePlan>;
+    delete legacy.archived_sub_items;
+    expect(getArchivedMovingSubItems(legacy as TMovePlan)).toEqual([]);
   });
 });
 

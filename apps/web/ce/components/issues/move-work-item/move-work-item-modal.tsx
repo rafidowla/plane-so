@@ -47,6 +47,7 @@ import type { TWorkItemMoveError } from "@/services/issue/work-item-move.service
 import { workItemMoveService } from "@/services/issue/work-item-move.service";
 // local imports
 import {
+  MoveArchivedSubItems,
   MoveCarried,
   MoveDropsSummary,
   MoveKeptSummary,
@@ -261,6 +262,7 @@ export const MoveWorkItemModal = observer(function MoveWorkItemModal(props: Prop
               {plan && (
                 <div className={isLoadingPlan ? "pointer-events-none space-y-5 opacity-60" : "space-y-5"}>
                   <MoveSubItemsChoice plan={plan} value={subItems} onChange={setSubItems} disabled={isMoving} />
+                  <MoveArchivedSubItems plan={plan} />
                   <MoveStateMapping
                     plan={plan}
                     overrides={stateOverrides}

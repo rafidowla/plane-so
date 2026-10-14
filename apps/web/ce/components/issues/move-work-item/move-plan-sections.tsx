@@ -12,6 +12,7 @@ import { Select } from "@plane/blocks/select";
 import { useTranslation } from "@plane/i18n";
 import type { TMovePlan, TMoveState, TMoveSubItemsMode } from "@plane/utils";
 import {
+  formatArchivedSubItemLabels,
   formatMoveDuration,
   getSelectedTargetStateId,
   hasWorklogWarnings,
@@ -139,6 +140,28 @@ export const MoveSubItemsChoice = ({ plan, value, onChange, disabled }: TSubItem
           {t("move_work_item.sub_items_detach", { project: plan.source_project.name })}
         </label>
       </RadioGroup>
+    </MoveSection>
+  );
+};
+
+/** FORK: archived sub-items travel with the item (and stay archived); warn before confirm. */
+export const MoveArchivedSubItems = ({ plan }: { plan: TMovePlan }) => {
+  const { t } = useTranslation();
+  const labels = formatArchivedSubItemLabels(plan);
+  if (labels.length === 0) return null;
+  return (
+    <MoveSection title={t("move_work_item.sections.archived_sub_items")}>
+      <Banner
+        placement="inline"
+        variant="warning"
+        size="sm"
+        description={
+          <div className="space-y-1">
+            <p>{t("move_work_item.archived_sub_items.warning", { count: labels.length, items: labels.join(", ") })}</p>
+            <p>{t("move_work_item.archived_sub_items.stay_archived")}</p>
+          </div>
+        }
+      />
     </MoveSection>
   );
 };
