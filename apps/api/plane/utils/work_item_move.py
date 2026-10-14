@@ -32,6 +32,8 @@ from django.utils import timezone
 from plane.db.models import (
     CommentReaction,
     CycleIssue,
+    Description,
+    DescriptionVersion,
     FileAsset,
     Issue,
     IssueActivity,
@@ -224,7 +226,15 @@ class _Analysis:
         issue_labels = list(IssueLabel.objects.filter(issue_id__in=self.item_ids).select_related("label"))
         distinct_labels = list(OrderedDict((il.label_id, il.label) for il in issue_labels).values())
         self.labels_kept, self.labels_dropped = self.mapper.map_labels(distinct_labels)
-        self.label_target_by_source = {s.id: t for s, t in self.labels_kept}
+        # FORK: map each source label on its own. ``labels_kept`` is deduplicated on the
+        # target label (preview), so two source labels that collapse onto one target
+        # label ("bug" / "Bug") would otherwise leave the second one unmapped and
+        # silently strip it from the items that carry only that spelling.
+        self.label_target_by_source = {}
+        for label in distinct_labels:
+            mapped, _ = self.mapper.map_labels([label])
+            if mapped:
+                self.label_target_by_source[label.id] = mapped[0][1]
 
         # Assignees
         assignee_ids = list(
@@ -565,6 +575,16 @@ def move_work_item(issue, target, user, sub_items_mode=SUB_ITEMS_MOVE, state_map
         comment_ids = list(IssueComment.all_objects.filter(issue_id__in=item_ids).values_list("id", flat=True))
         for model, fk in REPOINT_BY_COMMENT:
             model.all_objects.filter(**{f"{fk}_id__in": comment_ids}).update(project_id=target.id)
+        # FORK: a comment's Description row (and its versions) carries a project FK
+        # too; left behind it would cascade-delete the moved comment with the
+        # source project.
+        description_ids = [
+            d
+            for d in IssueComment.all_objects.filter(issue_id__in=item_ids).values_list("description_id", flat=True)
+            if d
+        ]
+        Description.all_objects.filter(id__in=description_ids).update(project_id=target.id)
+        DescriptionVersion.all_objects.filter(description_id__in=description_ids).update(project_id=target.id)
 
         # Assignees: keep target members/admins only.
         IssueAssignee.objects.filter(issue_id__in=item_ids, assignee_id__in=analysis.assignees_dropped_ids).delete()
@@ -702,13 +722,20 @@ def _notify(activities, user, target, analysis):
 # ---------------------------------------------------------------------------
 def resolve_moved_work_item(project, sequence):
     """Return the work item that used to be ``<project.identifier>-<sequence>``
-    and has since been moved to another project, or None."""
+    and has since been moved (possibly more than once), or None.
+
+    The source ``IssueSequence`` row is never removed by a move, so it still
+    points at the item wherever it lives now.
+    """
     row = (
         IssueSequence.objects.filter(project_id=project.id, sequence=sequence, issue__isnull=False)
-        .exclude(issue__project_id=project.id)
         .select_related("issue", "issue__project")
+        .order_by("-created_at")
         .first()
     )
     if row is None or row.issue is None or row.issue.deleted_at is not None:
         return None
-    return row.issue
+    issue = row.issue
+    if issue.project_id == project.id and issue.sequence_id == sequence:
+        return None  # not moved — the caller's normal lookup handles it
+    return issue

@@ -233,7 +233,7 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
         cycle_context = data.get("cycle_id", "not_provided")
 
         with transaction.atomic():
-            if issue.project_id is None or str(project_id) != str(issue.project_id):
+            if project_id and (issue.project_id is None or str(project_id) != str(issue.project_id)):
                 target = resolve_target_project(issue.workspace_id, project_id)
                 if target is None or target.archived_at is not None:
                     return Response(
