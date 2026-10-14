@@ -191,6 +191,17 @@ class TestWorklog:
         assert r.status_code == status.HTTP_400_BAD_REQUEST
         assert not IssueWorklog.objects.filter(issue_id=iid).exists()
 
+    def test_log_on_behalf_of_guest_is_400(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        guest = _member(tt["workspace"], tt["project"], role=5)
+        r = session_client.post(
+            _wl_url(slug, pid, iid),
+            {"duration": 60, "logged_date": "2026-06-22", "logged_by": str(guest.id)},
+            format="json",
+        )
+        assert r.status_code == status.HTTP_400_BAD_REQUEST
+        assert not IssueWorklog.objects.filter(issue_id=iid).exists()
+
     @pytest.mark.parametrize("bad", ["not-a-uuid", "00000000-0000-0000-0000-000000000000"])
     def test_log_on_behalf_of_unknown_user_is_400(self, session_client, tt, bad):
         slug, pid, iid = _ids(tt)

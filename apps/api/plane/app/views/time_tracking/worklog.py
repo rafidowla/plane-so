@@ -142,11 +142,16 @@ class IssueWorklogViewSet(BaseViewSet):
                 logged_by_id = uuid.UUID(str(logged_by_id))
             except (ValueError, AttributeError):
                 return Response({"error": "logged_by is not a valid user."}, status=status.HTTP_400_BAD_REQUEST)
+            # FORK: guests are typically client users, so time can't be logged on their behalf.
             if not ProjectMember.objects.filter(
-                workspace__slug=slug, project_id=project_id, member_id=logged_by_id, is_active=True
+                workspace__slug=slug,
+                project_id=project_id,
+                member_id=logged_by_id,
+                is_active=True,
+                role__gte=ROLE.MEMBER.value,
             ).exists():
                 return Response(
-                    {"error": "logged_by must be an active member of this project."},
+                    {"error": "logged_by must be an active member or admin of this project."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
