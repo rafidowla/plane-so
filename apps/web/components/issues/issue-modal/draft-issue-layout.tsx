@@ -27,7 +27,8 @@ export interface DraftIssueProps extends IssueFormProps {
 }
 
 export const DraftIssueLayout = observer(function DraftIssueLayout(props: DraftIssueProps) {
-  const { changesMade, data, onChange, onClose, projectId } = props;
+  // FORK: create-modal-attachments (PSR-88, PSR-104)
+  const { attachmentQueue, changesMade, data, onChange, onClose, onLinkDescriptionAssets, projectId } = props;
   // states
   const [issueDiscardModal, setIssueDiscardModal] = useState(false);
   // router params
@@ -85,12 +86,25 @@ export const DraftIssueLayout = observer(function DraftIssueLayout(props: DraftI
     };
 
     const response = await createIssue(workspaceSlug.toString(), payload)
-      .then((res) => {
+      .then(async (res) => {
         setToast({
           type: "success",
           title: `${t("success")}!`,
           message: t("workspace_draft_issues.toasts.created.success"),
         });
+        // FORK: PSR-104 — editor images were uploaded while composing; link them to the draft
+        // before onClose resets the modal's uploaded-asset list (best-effort, never throws)
+        await onLinkDescriptionAssets?.(res, payload.description_html);
+        // FORK: PSR-88 — drafts have no attachment storage; tell the user instead of dropping silently
+        if (attachmentQueue && attachmentQueue.items.length > 0) {
+          setToast({
+            type: "warning",
+            title: t("warning"),
+            message: `Drafts can't hold attachments, so ${attachmentQueue.items.length} attached ${
+              attachmentQueue.items.length === 1 ? "file was" : "files were"
+            } not saved. Create the work item to attach them.`,
+          });
+        }
         onChange(null);
         setIssueDiscardModal(false);
         onClose();

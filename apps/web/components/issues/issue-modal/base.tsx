@@ -1,3 +1,4 @@
+// oxlint-disable no-shadow
 /**
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -23,6 +24,12 @@ import { useModule } from "@/hooks/store/use-module";
 import { useProject } from "@/hooks/store/use-project";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
+// FORK: create-modal-attachments (PSR-88, PSR-104)
+import {
+  getFailedUploadsMessage,
+  getReferencedAssetIds,
+  usePendingAttachmentQueue,
+} from "@/plane-web/create-modal-attachments";
 // services
 import { FileService } from "@/services/file.service";
 const fileService = new FileService();
@@ -66,6 +73,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   const [description, setDescription] = useState<string | undefined>(undefined);
   const [uploadedAssetIds, setUploadedAssetIds] = useState<string[]>([]);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+  // FORK: create-modal-attachments (PSR-88) — files picked before the work item exists
+  const attachmentQueue = usePendingAttachmentQueue();
   // store hooks
   const { t } = useTranslation();
   const { workspaceSlug, projectId: routerProjectId, cycleId, moduleId, workItem } = useParams();
@@ -74,7 +83,10 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   const { issues } = useIssues(storeType);
   const { issues: projectIssues } = useIssues(EIssuesStoreType.PROJECT);
   const { issues: draftIssues } = useIssues(EIssuesStoreType.WORKSPACE_DRAFT);
-  const { fetchIssue } = useIssueDetail();
+  const {
+    fetchIssue,
+    attachment: { createAttachment },
+  } = useIssueDetail();
   const { allowedProjectIds, handleCreateUpdatePropertyValues, handleCreateSubWorkItem } = useIssueModal();
   const { getProjectByIdentifier } = useProject();
   // current store details
@@ -155,8 +167,61 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
 
     setActiveProjectId(null);
     setChangesMade(null);
+    // FORK: create-modal-attachments — nothing picked in this session may leak into the next one
+    setUploadedAssetIds([]);
+    attachmentQueue.clear();
     onClose();
     handleDuplicateIssueModal(false);
+  };
+
+  /**
+   * FORK: PSR-104 — link the editor images uploaded while composing to the entity that was
+   * just created. The link call is best-effort: the work item/draft already exists, so a
+   * failure here must neither throw (it used to surface as a bogus "Error — The requested
+   * asset could not be found" toast and abort the rest of the create flow) nor be silent.
+   * Only ids the saved description still references are sent (see getReferencedAssetIds).
+   */
+  const linkDescriptionAssets = async (
+    entity: { id?: string; project_id?: string | null } | undefined,
+    descriptionHtml: string | null | undefined
+  ) => {
+    const assetIds = getReferencedAssetIds(uploadedAssetIds, descriptionHtml);
+    // everything uploaded so far is now either linked or abandoned
+    setUploadedAssetIds([]);
+    if (assetIds.length === 0 || !entity?.id || !entity.project_id || !workspaceSlug) return;
+    try {
+      await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug.toString(), entity.project_id, entity.id, {
+        asset_ids: assetIds,
+      });
+    } catch (error) {
+      console.error("Failed to link description images to the new work item", error);
+      setToast({
+        type: "warning",
+        title: t("warning"),
+        message: "The work item was created, but its images could not be linked. Open it to check the description.",
+      });
+    }
+  };
+
+  /**
+   * FORK: PSR-88 — upload the files queued in the modal to the work item that now exists.
+   * Never throws; failed files are reported once and the work item is left untouched.
+   */
+  const uploadQueuedAttachments = async (issue: TIssue) => {
+    const issueProjectId = issue.project_id;
+    if (attachmentQueue.items.length === 0 || !workspaceSlug || !issueProjectId) return;
+    const { failed } = await attachmentQueue.upload(issue.id, (file) =>
+      createAttachment(workspaceSlug.toString(), issueProjectId, issue.id, file)
+    );
+    if (failed.length > 0) {
+      setToast({
+        type: "error",
+        title: "Attachments not uploaded",
+        message: getFailedUploadsMessage(failed),
+      });
+    }
+    // uploaded files are on the work item now; failed ones were reported above
+    attachmentQueue.clear();
   };
 
   const handleCreateIssue = async (
@@ -184,20 +249,14 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
         response = await createIssue(payload.project_id, payload);
       }
 
-      // update uploaded assets' status
-      if (uploadedAssetIds.length > 0) {
-        await fileService.updateBulkProjectAssetsUploadStatus(
-          workspaceSlug?.toString() ?? "",
-          response?.project_id ?? "",
-          response?.id ?? "",
-          {
-            asset_ids: uploadedAssetIds,
-          }
-        );
-        setUploadedAssetIds([]);
-      }
-
       if (!response) throw new Error();
+
+      // FORK: PSR-104 — link editor images to the new entity (best-effort, see linkDescriptionAssets)
+      await linkDescriptionAssets(response, payload.description_html ?? response.description_html);
+
+      // FORK: PSR-88 — attach files picked in the modal. Drafts cannot hold attachments (the
+      // control is hidden in draft mode; DraftIssueLayout warns when queued files are dropped).
+      if (!is_draft_issue) await uploadQueuedAttachments(response);
 
       // check if we should add issue to cycle/module
       if (!is_draft_issue) {
@@ -393,6 +452,9 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
       module_ids: data?.module_ids ? data?.module_ids : moduleId ? [moduleId.toString()] : null,
     },
     onAssetUpload: handleUpdateUploadedAssetIds,
+    // FORK: create-modal-attachments
+    attachmentQueue: data?.id ? undefined : attachmentQueue,
+    onLinkDescriptionAssets: linkDescriptionAssets,
     onClose: handleClose,
     onSubmit: (payload) => handleFormSubmit(payload, isDraft),
     projectId: activeProjectId,
