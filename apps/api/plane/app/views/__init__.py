@@ -246,6 +246,7 @@ from .time_tracking import (
     ClientViewSet,
     IssueWorklogViewSet,
     WorklogTimerEndpoint,
+    WorklogRunningTimerEndpoint,
     TimesheetViewSet,
     ResourceCapacityViewSet,
     TimeReportEndpoint,

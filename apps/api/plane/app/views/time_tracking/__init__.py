@@ -3,7 +3,7 @@
 # See the LICENSE file for details.
 
 from .client import ClientViewSet
-from .worklog import IssueWorklogViewSet, WorklogTimerEndpoint
+from .worklog import IssueWorklogViewSet, WorklogTimerEndpoint, WorklogRunningTimerEndpoint
 from .timesheet import TimesheetViewSet
 from .capacity import ResourceCapacityViewSet
 from .report import TimeReportEndpoint

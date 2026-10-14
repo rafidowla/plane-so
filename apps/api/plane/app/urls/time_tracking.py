@@ -8,6 +8,7 @@ from plane.app.views import (
     ClientViewSet,
     IssueWorklogViewSet,
     WorklogTimerEndpoint,
+    WorklogRunningTimerEndpoint,
     TimesheetViewSet,
     ResourceCapacityViewSet,
     TimeReportEndpoint,
@@ -47,6 +48,12 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/worklog-timer/",
         WorklogTimerEndpoint.as_view(),
         name="worklog-timer",
+    ),
+    # FORK: PSR-105 — the user's running timer in the workspace (header/sidebar indicator)
+    path(
+        "workspaces/<str:slug>/worklog-timer/",
+        WorklogRunningTimerEndpoint.as_view(),
+        name="workspace-running-timer",
     ),
     # Timesheets + approval
     path(

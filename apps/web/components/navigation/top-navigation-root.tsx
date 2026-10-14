@@ -19,6 +19,9 @@ import { InboxOutline } from "@makeplane/propel/icons";
 import useSWR from "swr";
 import { useInstance } from "@/hooks/store/use-instance";
 import { useWorkspaceNotifications } from "@/hooks/store/notifications";
+// FORK: PSR-105 — running-timer indicator for when the sidebar footer is not visible
+import { useAppTheme } from "@/hooks/store/use-app-theme";
+import { RunningTimerTopbar } from "@/plane-web/components/issues/worklog/running-timer-indicator";
 // local imports
 import { StarUsOnGitHubLink } from "@/app/(all)/[workspaceSlug]/(projects)/star-us-link";
 
@@ -31,6 +34,7 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
   const { config: instanceConfig } = useInstance();
   const { unreadNotificationsCount, getUnreadNotificationsCount } = useWorkspaceNotifications();
   const { preferences } = useAppRailPreferences();
+  const { sidebarCollapsed } = useAppTheme();
 
   const showLabel = preferences.displayMode === "icon_with_label";
 
@@ -62,6 +66,8 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
       </div>
       {/* Additional Actions */}
       <div className="flex flex-1 shrink-0 items-center justify-end gap-1">
+        {/* FORK: PSR-105 */}
+        <RunningTimerTopbar sidebarCollapsed={Boolean(sidebarCollapsed)} />
         <Tooltip label="Inbox" side="bottom">
           <AppSidebarItem
             variant="link"
