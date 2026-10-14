@@ -32,6 +32,8 @@ import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserPermissions } from "@/hooks/store/user";
+// FORK: move-work-item (PSR-91)
+import { MoveWorkItemModal, useMoveWorkItemAction } from "@/plane-web/components/issues/move-work-item";
 // helper
 import { ArchiveIssueModal } from "../../archive-issue-modal";
 import { DeleteIssueModal } from "../../delete-issue-modal";
@@ -63,6 +65,8 @@ export const ModuleIssueQuickActions = observer(function ModuleIssueQuickActions
   const [deleteIssueModal, setDeleteIssueModal] = useState(false);
   const [archiveIssueModal, setArchiveIssueModal] = useState(false);
   const [_, setDuplicateWorkItemModal] = useState(false);
+  // FORK: move-work-item (PSR-91)
+  const { isMovingAllowed, isMoveWorkItemModalOpen, setMoveWorkItemModal } = useMoveWorkItemAction(issue, readOnly);
   // router
   const { workspaceSlug, moduleId } = useParams();
   const { t } = useTranslation();
@@ -107,6 +111,8 @@ export const ModuleIssueQuickActions = observer(function ModuleIssueQuickActions
     setDeleteIssueModal,
     setArchiveIssueModal,
     setDuplicateWorkItemModal,
+    isMovingAllowed, // FORK: move-work-item (PSR-91)
+    setMoveWorkItemModal, // FORK: move-work-item (PSR-91)
     handleRemoveFromView,
     moduleId: moduleId?.toString(),
     handleDelete,
@@ -141,6 +147,10 @@ export const ModuleIssueQuickActions = observer(function ModuleIssueQuickActions
         handleClose={() => setDeleteIssueModal(false)}
         onSubmit={handleDelete}
       />
+      {/* FORK: move-work-item (PSR-91) */}
+      {isMoveWorkItemModalOpen && (
+        <MoveWorkItemModal issue={issue} isOpen onClose={() => setMoveWorkItemModal(false)} context="list" />
+      )}
       <CreateUpdateIssueModal
         isOpen={createUpdateIssueModal}
         onClose={() => {

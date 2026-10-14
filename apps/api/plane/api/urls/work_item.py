@@ -25,6 +25,7 @@ from plane.api.views import (
     WorkItemCustomRelationListCreateEndpoint,  # FORK: PSR-83
     WorkItemCustomRelationDetailEndpoint,  # FORK: PSR-83
     WorkItemRelationDefinitionEndpoint,  # FORK: PSR-83
+    WorkItemMoveAPIEndpoint,  # FORK: move-work-item (PSR-91)
 )
 
 # Deprecated url patterns
@@ -169,6 +170,12 @@ new_url_patterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/relations/",
         IssueRelationListCreateAPIEndpoint.as_view(http_method_names=["get", "post"]),
         name="work-item-relation-list",
+    ),
+    # FORK: move-work-item (PSR-91)
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/move/",
+        WorkItemMoveAPIEndpoint.as_view(http_method_names=["get", "post"]),
+        name="work-item-move",
     ),
     # FORK: PSR-83 — routes the stock Plane MCP connector's workitem_relation tool calls.
     path(

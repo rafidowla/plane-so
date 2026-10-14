@@ -36,6 +36,8 @@ from plane.app.views import (
     WorkspaceHomePreferenceViewSet,
     WorkspaceStickyViewSet,
     WorkspaceUserPreferenceViewSet,
+    # FORK: draft-project-change (PSR-92)
+    DraftProjectMappingEndpoint,
 )
 
 
@@ -203,6 +205,12 @@ urlpatterns = [
         "workspaces/<str:slug>/draft-issues/",
         WorkspaceDraftIssueViewSet.as_view({"get": "list", "post": "create"}),
         name="workspace-draft-issues",
+    ),
+    # FORK: draft-project-change (PSR-92)
+    path(
+        "workspaces/<str:slug>/draft-issues/project-mapping/",
+        DraftProjectMappingEndpoint.as_view(),
+        name="workspace-draft-project-mapping",
     ),
     path(
         "workspaces/<str:slug>/draft-issues/<uuid:pk>/",

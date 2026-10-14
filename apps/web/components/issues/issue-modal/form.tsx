@@ -59,6 +59,8 @@ import { TaskTypeHeaderSelect } from "@/plane-web/custom-properties";
 // FORK: create-modal-attachments (PSR-88)
 import { PendingAttachmentsField } from "@/plane-web/create-modal-attachments";
 import type { TPendingAttachmentQueue } from "@/plane-web/create-modal-attachments";
+// FORK: draft-project-change (PSR-92)
+import { DraftProjectChangeNotice, useDraftProjectChange } from "@/plane-web/components/issues/draft-project-change";
 
 export interface IssueFormProps {
   data?: Partial<TIssue>;
@@ -171,13 +173,36 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
 
   const projectId = watch("project_id");
 
-  const isDisabled = isSubmitting || isApplyingTemplate;
+  // FORK: draft-project-change (PSR-92) — switching a draft's project re-maps its fields instead of wiping them
+  const previousProjectIdRef = useRef<string | null | undefined>(projectId);
+  const {
+    mapDraftToProject,
+    notice: draftProjectChangeNotice,
+    dismissNotice: dismissDraftProjectChangeNotice,
+    isMapping: isMappingDraftProject,
+  } = useDraftProjectChange({
+    workspaceSlug: workspaceSlug?.toString() ?? "",
+    getValues,
+    setValue,
+    getIssueTypeIdOnProjectChange,
+    setSelectedParentIssue,
+    // the mapping call failed: fall back to the upstream behaviour (keep name/description/priority/dates only)
+    onMappingFailed: (targetProjectId) => reset(getUpdateFormDataForReset(targetProjectId, getValues())),
+  });
+
+  const isDisabled = isSubmitting || isApplyingTemplate || isMappingDraftProject;
 
   const { getIndex } = getTabIndex(ETabIndices.ISSUE_FORM, isMobile);
 
   //reset few fields on projectId change
   useEffect(() => {
-    if (isDirty) {
+    // FORK: draft-project-change (PSR-92)
+    const previousProjectId = previousProjectIdRef.current;
+    previousProjectIdRef.current = projectId;
+    if (isDraft && !workItemTemplateId && previousProjectId && projectId && previousProjectId !== projectId) {
+      // drafts keep what can be kept (state, labels, assignees, ...) — see useDraftProjectChange
+      void mapDraftToProject(previousProjectId, projectId);
+    } else if (isDirty) {
       if (workItemTemplateId) {
         // reset work item template id
         setWorkItemTemplateId(null);
@@ -196,6 +221,8 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
   useEffect(() => {
     if (data) {
       reset({ ...DEFAULT_WORK_ITEM_FORM_VALUES, project_id: projectId, ...data });
+      // FORK: draft-project-change (PSR-92) — a reset to other data is not a project switch by the person
+      previousProjectIdRef.current = data.project_id ?? projectId;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...dataResetProperties]);
@@ -386,7 +413,8 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 <div className="flex items-center gap-x-1">
                   <IssueProjectSelect
                     control={control}
-                    disabled={!!data?.id || !!data?.sourceIssueId || isProjectSelectionDisabled}
+                    // FORK: draft-project-change (PSR-92) — an existing draft may be re-targeted; posted items may not
+                    disabled={(!!data?.id && !isDraft) || !!data?.sourceIssueId || isProjectSelectionDisabled}
                     handleFormChange={handleFormChange}
                   />
                   {/* FORK: custom-properties — Task Type next to the project selector (improvement #20) */}
@@ -399,6 +427,8 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                   )}
                 </div>
               </div>
+              {/* FORK: draft-project-change (PSR-92) */}
+              <DraftProjectChangeNotice notice={draftProjectChangeNotice} onDismiss={dismissDraftProjectChangeNotice} />
               {watch("parent_id") && selectedParentIssue && (
                 <IssueParentTag
                   control={control}

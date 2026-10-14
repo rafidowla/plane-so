@@ -30,6 +30,8 @@ import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/bloc
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
+// FORK: move-work-item (PSR-91)
+import { MoveWorkItemModal, useMoveWorkItemAction } from "@/plane-web/components/issues/move-work-item";
 // helper
 import { ArchiveIssueModal } from "../../archive-issue-modal";
 import { DeleteIssueModal } from "../../delete-issue-modal";
@@ -60,6 +62,8 @@ export const AllIssueQuickActions = observer(function AllIssueQuickActions(props
   const [deleteIssueModal, setDeleteIssueModal] = useState(false);
   const [archiveIssueModal, setArchiveIssueModal] = useState(false);
   const [_, setDuplicateWorkItemModal] = useState(false);
+  // FORK: move-work-item (PSR-91)
+  const { isMovingAllowed, isMoveWorkItemModalOpen, setMoveWorkItemModal } = useMoveWorkItemAction(issue, readOnly);
   // router
   const { workspaceSlug } = useParams();
   const { t } = useTranslation();
@@ -97,6 +101,8 @@ export const AllIssueQuickActions = observer(function AllIssueQuickActions(props
     setDeleteIssueModal,
     setArchiveIssueModal,
     setDuplicateWorkItemModal,
+    isMovingAllowed, // FORK: move-work-item (PSR-91)
+    setMoveWorkItemModal, // FORK: move-work-item (PSR-91)
     handleDelete,
     handleUpdate,
     handleArchive,
@@ -129,6 +135,10 @@ export const AllIssueQuickActions = observer(function AllIssueQuickActions(props
         handleClose={() => setDeleteIssueModal(false)}
         onSubmit={handleDelete}
       />
+      {/* FORK: move-work-item (PSR-91) */}
+      {isMoveWorkItemModalOpen && (
+        <MoveWorkItemModal issue={issue} isOpen onClose={() => setMoveWorkItemModal(false)} context="list" />
+      )}
       <CreateUpdateIssueModal
         isOpen={createUpdateIssueModal}
         onClose={() => {

@@ -23,6 +23,8 @@ export * from "./attachment";
 export * from "./archived-at";
 export * from "./inbox";
 export * from "./label-activity-chip";
+// FORK: move-work-item (PSR-91)
+export * from "./project-move";
 
 // helpers
 export * from "./helpers/activity-block";

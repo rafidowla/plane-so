@@ -54,6 +54,7 @@ class DraftIssueCreateSerializer(BaseSerializer):
         fields = "__all__"
         read_only_fields = [
             "workspace",
+            "project",  # FORK: draft-project-change (PSR-92) — only re-targeted via the mapping path
             "created_by",
             "updated_by",
             "created_at",

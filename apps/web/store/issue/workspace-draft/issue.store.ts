@@ -237,7 +237,7 @@ export class WorkspaceDraftIssues implements IWorkspaceDraftIssues {
           const newIssueIds = issueIds.filter((issueId) => !existingIssueIds.includes(issueId));
           this.addIssue(results);
           // issue map update
-          update(this.issueMapIds, [workspaceSlug], (existingIssueIds = []) => [...newIssueIds, ...existingIssueIds]);
+          update(this.issueMapIds, [workspaceSlug], (currentIssueIds = []) => [...newIssueIds, ...currentIssueIds]); // FORK: PSR-92 (renamed shadowed param for the lint gate)
           this.loader = undefined;
         } else {
           this.loader = "empty-state";
@@ -296,6 +296,13 @@ export class WorkspaceDraftIssues implements IWorkspaceDraftIssues {
         });
       });
       const response = await workspaceDraftService.updateIssue(workspaceSlug, issueId, payload);
+      // FORK: draft-project-change (PSR-92) — re-targeting a draft makes the server re-map (and clear) project-scoped
+      // fields; adopt its answer so the draft list shows what was actually stored.
+      if (response && issueBeforeUpdate && payload.project_id && payload.project_id !== issueBeforeUpdate.project_id) {
+        runInAction(() => {
+          set(this.issuesMap, [issueId], { ...this.issuesMap[issueId], ...response });
+        });
+      }
       this.loader = undefined;
       return response;
     } catch (error) {
@@ -342,6 +349,13 @@ export class WorkspaceDraftIssues implements IWorkspaceDraftIssues {
 
       const response = await workspaceDraftService.moveIssue(workspaceSlug, issueId, payload);
       runInAction(() => {
+        // FORK: draft-project-change (PSR-92) — the draft may land in a project other than the one it was created in
+        // (the server re-maps it); register the new work item and, when that project's list is on screen, add it there.
+        if (response?.id) {
+          this.issueStore.issues.addIssue([response]);
+          if (response.project_id && response.project_id === this.issueStore.rootStore.router.projectId)
+            this.issueStore.projectIssues.addIssueToList(response.id);
+        }
         // Remove the issue from the issueMapIds
         this.issueMapIds[workspaceSlug] = (this.issueMapIds[workspaceSlug] || []).filter((id) => id !== issueId);
         // Remove the issue from the issuesMap

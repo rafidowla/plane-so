@@ -30,6 +30,7 @@ import {
   IssueAttachmentActivity,
   IssueArchivedAtActivity,
   IssueInboxActivity,
+  IssueProjectMoveActivity, // FORK: move-work-item (PSR-91)
 } from "./actions";
 
 type TIssueActivityItem = {
@@ -91,6 +92,9 @@ export const IssueActivityItem = observer(function IssueActivityItem(props: TIss
     case "intake":
     case "inbox":
       return <IssueInboxActivity {...componentDefaultProps} />;
+    // FORK: move-work-item (PSR-91)
+    case "project":
+      return <IssueProjectMoveActivity {...componentDefaultProps} />;
     default:
       return null;
   }

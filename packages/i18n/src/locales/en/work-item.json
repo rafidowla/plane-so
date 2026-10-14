@@ -428,5 +428,89 @@
       "label": "Epic Title",
       "required": "Epic title is required."
     }
+  },
+  "move_work_item": {
+    "menu_item": "Move to project",
+    "title": "Move {identifier}",
+    "description": "Moves this work item to another project in the workspace. It keeps its history, comments, attachments and links, gets a new identifier, and project-specific fields are re-mapped as shown below.",
+    "target_project": "Target project",
+    "select_project": "Select a project",
+    "no_projects": "You are not an admin or member of any other project, so there is nowhere to move this work item.",
+    "new_identifier": "{current} will become {next}. Links to {current} keep working.",
+    "loading_preview": "Checking what will change…",
+    "preview_failed": "Couldn't load the move preview. Please try again.",
+    "confirm_prefix": "Move to",
+    "moving": "Moving",
+    "states_description": "Each state is mapped to a state in {project}. Change a mapping if the match is not right.",
+    "state_choose": "Choose a state",
+    "state_match": {
+      "group": "No state with the same name; using the first state of the same group.",
+      "default": "No matching state; using the project's default state.",
+      "none": "No matching state. Choose one to continue."
+    },
+    "work_items_count": "{count, plural, one {# work item} other {# work items}}",
+    "sections": {
+      "states": "State mapping",
+      "sub_items": "Sub-work items",
+      "kept": "Kept in the new project",
+      "dropped": "Not carried over",
+      "worklogs": "Time tracking",
+      "carried": "Moves with the work item"
+    },
+    "sub_items_description": "{count, plural, one {This work item has # sub-work item in the same project.} other {This work item has # sub-work items in the same project.}}",
+    "sub_items_move": "Move them together with this work item",
+    "sub_items_detach": "Leave them in {project} and detach them from this work item",
+    "kept": {
+      "labels": "Labels",
+      "assignees": "Assignees",
+      "estimate": "Estimate",
+      "issue_type": "Work item type",
+      "custom_properties": "Custom properties"
+    },
+    "drops": {
+      "labels": "Labels with no match in the target project",
+      "assignees": "Assignees who are not members of the target project",
+      "subscribers": "Subscribers who are not members of the target project",
+      "cycle": "Cycle (cycles belong to a project)",
+      "modules": "Modules (modules belong to a project)",
+      "estimate": "Estimate (no matching estimate point in the target project)",
+      "issue_type": "Work item type (not enabled in the target project)",
+      "parent": "Parent work item (it stays in the source project, so the link is removed)",
+      "custom_properties": "Custom properties with no match in the target project",
+      "custom_property_options": "Custom property values with no matching option"
+    },
+    "worklogs": {
+      "summary": "{count, plural, one {# time entry} other {# time entries}} ({duration}) move with the work item unchanged.",
+      "time_tracking_disabled": "Time tracking is turned off in {project}. The entries are kept but new time can't be logged there.",
+      "locked": "{count, plural, one {# entry is} other {# entries are}} approved or locked and stays that way.",
+      "running_timers": "{count, plural, one {# timer is} other {# timers are}} still running and keeps running in the new project.",
+      "client_changes": "The target project bills a different client than the source project."
+    },
+    "carried": {
+      "comments": "{count, plural, one {# comment} other {# comments}}",
+      "attachments": "{count, plural, one {# attachment} other {# attachments}}",
+      "links": "{count, plural, one {# link} other {# links}}",
+      "relations": "{count, plural, one {# relation} other {# relations}}",
+      "history": "Activity history, reactions and subscribers who are members of the target project come along."
+    },
+    "toast": {
+      "success_title": "Work item moved",
+      "success_message": "Moved to {identifier}.",
+      "error_message": "The work item could not be moved. Please try again."
+    }
+  },
+  "draft_project_change": {
+    "notice_title": "Some fields were reset for {project}",
+    "notice_description": "These don't exist in the new project and were removed from the draft:",
+    "dismiss": "Dismiss",
+    "error": "Couldn't map the draft to the new project. State, labels and assignees were reset.",
+    "drops": {
+      "labels": "Labels",
+      "assignees": "Assignees",
+      "cycle": "Cycle cleared",
+      "modules": "Modules cleared",
+      "estimate": "Estimate cleared",
+      "parent": "Parent work item removed"
+    }
   }
 }

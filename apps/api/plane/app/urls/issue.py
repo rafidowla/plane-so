@@ -31,6 +31,9 @@ from plane.app.views import (
     WorkItemDescriptionVersionEndpoint,
     IssueMetaEndpoint,
     IssueDetailIdentifierEndpoint,
+    # FORK: move-work-item (PSR-91)
+    WorkItemMovePreviewEndpoint,
+    WorkItemMoveEndpoint,
 )
 
 urlpatterns = [
@@ -277,6 +280,17 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/meta/",
         IssueMetaEndpoint.as_view(),
         name="issue-meta",
+    ),
+    # FORK: move-work-item (PSR-91)
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/move/preview/",
+        WorkItemMovePreviewEndpoint.as_view(),
+        name="work-item-move-preview",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/<uuid:issue_id>/move/",
+        WorkItemMoveEndpoint.as_view(),
+        name="work-item-move",
     ),
     path(
         "workspaces/<str:slug>/work-items/<str:project_identifier>-<str:issue_identifier>/",

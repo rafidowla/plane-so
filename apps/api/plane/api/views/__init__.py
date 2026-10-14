@@ -45,6 +45,9 @@ from .work_item_relations import (
     WorkItemRelationDefinitionEndpoint,
 )
 
+# FORK: move-work-item (PSR-91)
+from .work_item_move import WorkItemMoveAPIEndpoint
+
 from .cycle import (
     CycleListCreateAPIEndpoint,
     CycleListLiteAPIEndpoint,
