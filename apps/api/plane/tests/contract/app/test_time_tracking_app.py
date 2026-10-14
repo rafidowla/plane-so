@@ -305,6 +305,25 @@ class TestTimerAutoStop:
         assert WorklogTimer.objects.filter(user=tt["user"], issue=tt["issue"]).count() == 1
         assert IssueWorklog.objects.filter(logged_by=tt["user"]).count() == 0
 
+    def test_start_on_work_item_of_another_project_is_404(self, session_client, tt):
+        """FORK: security — the timer's work item must belong to the project in the URL."""
+        slug, pid, _ = _ids(tt)
+        other_project = Project.objects.create(
+            workspace=tt["workspace"], name="Hidden", identifier="HID", created_by=tt["user"]
+        )
+        state = State.objects.create(
+            workspace=tt["workspace"], project=other_project, name="Todo", group="unstarted", default=True
+        )
+        hidden = Issue(workspace=tt["workspace"], project=other_project, name="Hidden item", state=state)
+        hidden.save(created_by_id=tt["user"].id)
+
+        res = session_client.post(_timer_url(slug, pid, hidden.id), {}, format="json")
+
+        assert res.status_code == status.HTTP_404_NOT_FOUND
+        assert not WorklogTimer.objects.filter(user=tt["user"]).exists()
+        running = session_client.get(f"/api/workspaces/{slug}/worklog-timer/").json()
+        assert "issue_detail" not in running
+
     def test_workspace_running_timer_endpoint(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         url = f"/api/workspaces/{slug}/worklog-timer/"

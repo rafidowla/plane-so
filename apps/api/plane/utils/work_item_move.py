@@ -176,23 +176,36 @@ def collect_subtree(root):
 
 def validate_move(issue, target, user):
     source = issue.project
+    # FORK: security — permission checks come first, so a caller without write access
+    # (e.g. a guest on the public API preview) learns nothing about the item's intake
+    # state or whether a project UUID exists / is archived.
+    if not can_write_in_project(user, source):
+        raise MoveError("FORBIDDEN_SOURCE", "You don't have permission to move this work item.", 403)
     if target is None:
         raise MoveError("INVALID_TARGET", "Target project not found in this workspace.")
     if target.id == source.id:
         raise MoveError("SAME_PROJECT", "The work item is already in this project.")
+    if not can_write_in_project(user, target):
+        raise MoveError("FORBIDDEN_TARGET", "You don't have permission to create work items in that project.", 403)
     if target.archived_at is not None:
         raise MoveError("TARGET_ARCHIVED", "The target project is archived.")
     if issue.archived_at is not None:
         raise MoveError("ITEM_ARCHIVED", "Restore the work item before moving it.")
     if issue.is_draft:
         raise MoveError("INVALID_ITEM", "Draft work items cannot be moved.")
-    in_triage = issue.state is not None and issue.state.group == StateGroup.TRIAGE.value
-    if in_triage or IntakeIssue.objects.filter(issue_id=issue.id, status__in=PENDING_INTAKE_STATUSES).exists():
+    if _pending_intake_ids([issue]):
         raise MoveError("ITEM_IN_INTAKE", "Accept the intake work item before moving it.")
-    if not can_write_in_project(user, source):
-        raise MoveError("FORBIDDEN_SOURCE", "You don't have permission to move this work item.", 403)
-    if not can_write_in_project(user, target):
-        raise MoveError("FORBIDDEN_TARGET", "You don't have permission to create work items in that project.", 403)
+
+
+def _pending_intake_ids(items):
+    """Ids of ``items`` still waiting in intake (triage state or a pending/snoozed record)."""
+    pending = {i.id for i in items if i.state is not None and i.state.group == StateGroup.TRIAGE.value}
+    pending.update(
+        IntakeIssue.objects.filter(
+            issue_id__in=[i.id for i in items], status__in=PENDING_INTAKE_STATUSES
+        ).values_list("issue_id", flat=True)
+    )
+    return pending
 
 
 class _Analysis:
@@ -212,6 +225,11 @@ class _Analysis:
         self.detached_children = (
             [c for c in self.subtree if c.parent_id == issue.id] if self.mode == SUB_ITEMS_DETACH else []
         )
+        # FORK: security — the intake rule applies to every item that moves, not just the
+        # root: a pending intake sub-item would otherwise leave intake (and its triage
+        # state) without being accepted.
+        if self.mode == SUB_ITEMS_MOVE and self.subtree and _pending_intake_ids(self.subtree):
+            raise MoveError("ITEM_IN_INTAKE", "A sub-item is still in intake; accept it (or detach sub-items) first.")
 
         # States: group items by source state.
         self.state_groups = OrderedDict()
@@ -500,6 +518,19 @@ def move_work_item(issue, target, user, sub_items_mode=SUB_ITEMS_MOVE, state_map
         analysis = _Analysis(issue, target, sub_items_mode)
         source = analysis.source
         mapper = analysis.mapper
+
+        # FORK: lock the sub-items too (ancestors first, same order as a move rooted at a
+        # sub-item would take them) and make sure none left the source project between
+        # the analysis and now — e.g. a concurrent move of a sub-item on its own, which
+        # would otherwise be silently overwritten here.
+        for sub_item in analysis.subtree if sub_items_mode == SUB_ITEMS_MOVE else []:
+            if not (
+                Issue.objects.select_for_update()
+                .filter(pk=sub_item.id, project_id=source.id, parent_id=sub_item.parent_id)
+                .values_list("id", flat=True)
+                .first()
+            ):
+                raise MoveError("CONFLICT", "The work item's sub-items changed while moving; try again.", 409)
 
         overrides = {}
         for src_state_id, tgt_state_id in state_map.items():

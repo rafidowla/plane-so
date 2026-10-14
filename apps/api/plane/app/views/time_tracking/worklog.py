@@ -272,6 +272,12 @@ class WorklogTimerEndpoint(BaseAPIView):
                 {"error": "Time tracking is not enabled for this project."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # FORK: security — the work item must live in this project. Without this a member
+        # of any time-tracked project could time a work item of another project (or
+        # workspace) by UUID, and the running-timer endpoint would then echo back that
+        # item's name and identifier.
+        if not Issue.objects.filter(pk=issue_id, project_id=project_id, workspace__slug=slug).exists():
+            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
         # FORK: PSR-101 — starting a timer while another one runs elsewhere stops
         # the running one (logging its time as a normal worklog) and starts the new
         # one, all in ONE transaction under a per-user row lock: no window where two

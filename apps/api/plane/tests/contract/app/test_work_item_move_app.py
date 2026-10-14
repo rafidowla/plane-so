@@ -598,11 +598,12 @@ class TestOldIdentifierLookup:
         assert response.status_code == status.HTTP_200_OK, response.data
         assert str(response.data["id"]) == str(moved.id)
 
-    def test_old_identifier_is_forbidden_for_a_user_not_in_the_target(self, world, moved):
-        # member of the source but not of the project the item lives in now
+    def test_old_identifier_is_not_found_for_a_user_not_in_the_target(self, world, moved):
+        # member of the source but not of the project the item lives in now: same answer
+        # as an identifier that never existed (FORK: security review, Oct 2026)
         response = client_for(world.users.not_in_tgt).get(self._url(world, "SRC-1"))
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_unknown_old_sequence_is_404(self, mover_client, world, moved):
         assert mover_client.get(self._url(world, "SRC-99")).status_code == status.HTTP_404_NOT_FOUND

@@ -1221,9 +1221,17 @@ class IssueDetailIdentifierEndpoint(BaseAPIView):
         # FORK: move-work-item (PSR-91) — the old identifier of a moved work item
         # (e.g. PSR-12 → GFV3-40) resolves to the item in its new project; the
         # membership checks below then run against the project it lives in now.
+        # Only followed for active members of the new project: anyone else gets the
+        # same answer as for an identifier that never existed (no "it moved somewhere
+        # you can't see" signal).
         if not Issue.objects.filter(project_id=project.id, sequence_id=issue_identifier).exists():
             moved_issue = resolve_moved_work_item(project, issue_identifier)
-            if moved_issue is not None:
+            if (
+                moved_issue is not None
+                and ProjectMember.objects.filter(
+                    project_id=moved_issue.project_id, member=request.user, is_active=True
+                ).exists()
+            ):
                 project = moved_issue.project
                 issue_identifier = moved_issue.sequence_id
 

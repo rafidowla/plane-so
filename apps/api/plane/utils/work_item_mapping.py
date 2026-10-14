@@ -16,6 +16,9 @@ is kept unchanged, so callers may pass partially-mapped data through it.
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
+# Django imports
+from django.db.models import Q
+
 # Module imports
 from plane.app.permissions import ROLE
 from plane.db.models import (
@@ -132,8 +135,18 @@ class ProjectFieldMapper:
                 return next((s for s in same_group if s.default), same_group[0]), STATE_MATCH_GROUP
         return self.default_target_state(), STATE_MATCH_DEFAULT
 
+    def _scope_project_ids(self):
+        # FORK: security — ids coming from a request body are only looked up in the two
+        # projects involved; anything else is treated as "not set", so the mapping
+        # endpoint cannot be used to read names of labels/states/users by UUID.
+        return [self.source.id, self.target.id]
+
     def map_state_id(self, state_id):
-        state = State.all_state_objects.filter(pk=state_id).first() if state_id else None
+        state = (
+            State.all_state_objects.filter(pk=state_id, project_id__in=self._scope_project_ids()).first()
+            if _as_uuid(state_id)
+            else None
+        )
         return self.map_state(state)
 
     def validate_target_state_id(self, state_id):
@@ -174,7 +187,12 @@ class ProjectFieldMapper:
         return kept, dropped
 
     def map_label_ids(self, label_ids):
-        labels = list(Label.objects.filter(id__in=[i for i in label_ids or [] if i]))
+        ids = [i for i in label_ids or [] if _as_uuid(i)]
+        labels = list(
+            Label.objects.filter(id__in=ids, workspace_id=self.target.workspace_id).filter(
+                Q(project_id__in=self._scope_project_ids()) | Q(project__isnull=True)
+            )
+        )  # FORK: security — scoped, see _scope_project_ids
         return self.map_labels(labels)
 
     # --------------------------------------------------------------- assignees
@@ -230,7 +248,13 @@ class ProjectFieldMapper:
     def map_estimate_point_id(self, point_id):
         if not point_id:
             return None
-        point = EstimatePoint.objects.filter(pk=point_id).select_related("estimate").first()
+        if _as_uuid(point_id) is None:
+            return None
+        point = (
+            EstimatePoint.objects.filter(pk=point_id, project_id__in=self._scope_project_ids())
+            .select_related("estimate")
+            .first()
+        )  # FORK: security — scoped, see _scope_project_ids
         return self.map_estimate_point(point)
 
     # ------------------------------------------------------------ issue type
@@ -283,7 +307,14 @@ class ProjectFieldMapper:
 
         from plane.db.models import User  # local import keeps module import light
 
-        dropped_users = list(User.objects.filter(id__in=dropped_assignees))
+        # FORK: security — only name people who belong to this workspace
+        dropped_users = list(
+            User.objects.filter(
+                id__in=[a for a in dropped_assignees if _as_uuid(a)],
+                member_workspace__workspace_id=self.target.workspace_id,
+                member_workspace__is_active=True,
+            ).distinct()
+        )
         return {
             "state_id": _str(state.id) if state else None,
             "state_match": state_match,
