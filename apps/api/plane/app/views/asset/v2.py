@@ -740,11 +740,31 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
         # unassociated-or-same-project bound prevent cross-project/user IDOR (a caller can
         # only touch their own uploads, cannot move an asset in from another project, and
         # @allow_permission already scopes them to this project).
+        #
+        # FORK: PSR-104 — the work item create modal's editor binds its upload handlers to
+        # the project that was selected when the editor mounted, so an image added after the
+        # user switched project lands in the *original* project. Without this branch the
+        # post-create link call 404s ("The requested asset could not be found") and the
+        # image never reaches the new work item. Description images that are still
+        # unattached (no issue/draft/comment/page yet) and were uploaded by the caller may
+        # therefore be re-homed into the target project; attached assets still cannot be
+        # moved between projects. The caller is already a member of the target project
+        # (@allow_permission above).
+        unattached_description_asset = Q(
+            entity_type__in=[
+                FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
+                FileAsset.EntityTypeContext.DRAFT_ISSUE_DESCRIPTION,
+            ],
+            issue_id__isnull=True,
+            draft_issue_id__isnull=True,
+            comment_id__isnull=True,
+            page_id__isnull=True,
+        )
         assets = FileAsset.objects.filter(
             id__in=asset_ids,
             workspace__slug=slug,
             created_by=request.user,
-        ).filter(Q(project_id=project_id) | Q(project_id__isnull=True))
+        ).filter(Q(project_id=project_id) | Q(project_id__isnull=True) | unattached_description_asset)
 
         # Get the first asset
         asset = assets.first()
@@ -783,7 +803,8 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
             # For some cases, the bulk api is called after the draft issue is deleted
             # creating an integrity error
             try:
-                assets.update(draft_issue_id=entity_id)
+                # FORK: PSR-104 — keep the asset's project in step with its draft (see above)
+                assets.update(draft_issue_id=entity_id, project_id=project_id)
             except IntegrityError:
                 pass
 

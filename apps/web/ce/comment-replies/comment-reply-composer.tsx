@@ -18,6 +18,13 @@ import { cn, isCommentEmpty } from "@plane/utils";
 import { LiteTextEditor } from "@/components/editor/lite-text";
 // services
 import { FileService } from "@/services/file.service";
+// FORK: comment-attachments (PSR-76) — thread replies get the same attach flow as top-level comments
+import {
+  CommentAttachToolbarButton,
+  CommentAttachmentComposer,
+  refreshCommentAttachments,
+} from "@/plane-web/comment-attachments";
+import type { TCommentAttachmentComposerHandle } from "@/plane-web/comment-attachments";
 
 type Props = {
   activityOperations: TCommentsOperations;
@@ -41,8 +48,11 @@ export const CommentReplyComposer = observer(function CommentReplyComposer(props
   const { activityOperations, parentCommentId, projectId, workspaceId, workspaceSlug, onDone } = props;
   // states
   const [uploadedAssetIds, setUploadedAssetIds] = useState<string[]>([]);
+  // FORK: comment-attachments (PSR-76) — staged non-image attachments
+  const [stagedAttachmentIds, setStagedAttachmentIds] = useState<string[]>([]);
   // refs
   const editorRef = useRef<EditorRefApi>(null);
+  const attachmentComposerRef = useRef<TCommentAttachmentComposerHandle>(null);
   // translation
   const { t } = useTranslation();
   // form info
@@ -71,16 +81,20 @@ export const CommentReplyComposer = observer(function CommentReplyComposer(props
       });
       // same bulk-link flow as the main composer: editor images are uploaded
       // first and only get linked once the comment exists
-      if (uploadedAssetIds.length > 0 && reply?.id) {
+      // FORK: comment-attachments (PSR-76) — staged attachment ids join the editor-image ids
+      const allAssetIds = [...uploadedAssetIds, ...stagedAttachmentIds];
+      if (allAssetIds.length > 0 && reply?.id) {
         if (projectId) {
           await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug, projectId.toString(), reply.id, {
-            asset_ids: uploadedAssetIds,
+            asset_ids: allAssetIds,
           });
         } else {
           await fileService.updateBulkWorkspaceAssetsUploadStatus(workspaceSlug, reply.id, {
-            asset_ids: uploadedAssetIds,
+            asset_ids: allAssetIds,
           });
         }
+        // the attachment list under the new reply fetched before the link above
+        void refreshCommentAttachments(reply.id);
       }
       onDone();
     } catch (error) {
@@ -130,8 +144,30 @@ export const CommentReplyComposer = observer(function CommentReplyComposer(props
           displayConfig={{
             fontSize: "small-font",
           }}
+          // FORK: comment-attachments (PSR-76) — paperclip in the reply toolbar, same as top-level comments
+          toolbarAccessory={
+            projectId ? (
+              <CommentAttachToolbarButton
+                disabled={isSubmitting}
+                onClick={() => attachmentComposerRef.current?.open()}
+              />
+            ) : undefined
+          }
         />
       </div>
+      {/* FORK: comment-attachments (PSR-76) — staged chips for the reply */}
+      {projectId && (
+        <CommentAttachmentComposer
+          ref={attachmentComposerRef}
+          hideAttachButton
+          disabled={isSubmitting}
+          uploadAsset={async (file) => {
+            const { asset_id } = await activityOperations.uploadCommentAsset("", file);
+            return asset_id;
+          }}
+          onStagedAssetIdsChange={setStagedAttachmentIds}
+        />
+      )}
       <div className="flex items-center gap-2 self-end">
         <span className="text-caption-sm-regular text-tertiary">
           {t("issue.comments.replying_hint", { defaultValue: "Replying in thread" })}

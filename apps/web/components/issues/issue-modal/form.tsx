@@ -56,12 +56,23 @@ import { useProjectIssueProperties } from "@/hooks/use-project-issue-properties"
 import { WorkItemModalAdditionalProperties } from "@/plane-web/components/issues/issue-modal/modal-additional-properties";
 // FORK: custom-properties — Task Type chip in the create-modal header (improvement #20)
 import { TaskTypeHeaderSelect } from "@/plane-web/custom-properties";
+// FORK: create-modal-attachments (PSR-88)
+import { PendingAttachmentsField } from "@/plane-web/create-modal-attachments";
+import type { TPendingAttachmentQueue } from "@/plane-web/create-modal-attachments";
 
 export interface IssueFormProps {
   data?: Partial<TIssue>;
   issueTitleRef: React.MutableRefObject<HTMLInputElement | null>;
   isCreateMoreToggleEnabled: boolean;
   onAssetUpload: (assetId: string) => void;
+  // FORK: create-modal-attachments (PSR-88, PSR-104)
+  /** files picked before the work item exists; omitted when editing or saving drafts */
+  attachmentQueue?: TPendingAttachmentQueue;
+  /** links editor images uploaded while composing to the entity that was just saved */
+  onLinkDescriptionAssets?: (
+    entity: { id?: string; project_id?: string | null } | undefined,
+    descriptionHtml: string | null | undefined
+  ) => Promise<void>;
   onCreateMoreToggleChange: (value: boolean) => void;
   onChange?: (formData: Partial<TIssue> | null) => void;
   onClose: () => void;
@@ -88,6 +99,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
     data,
     issueTitleRef,
     onAssetUpload,
+    attachmentQueue,
     onChange,
     onClose,
     onSubmit,
@@ -423,6 +435,10 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 onAssetUpload={onAssetUpload}
                 onClose={onClose}
               />
+              {/* FORK: create-modal-attachments (PSR-88) — queued here, uploaded after create (not for drafts) */}
+              {attachmentQueue && !isDraft && !data?.id && (
+                <PendingAttachmentsField queue={attachmentQueue} disabled={isSubmitting} />
+              )}
               {/* FORK: custom-properties — upstream dropped this render slot with its ce/ tree */}
               <WorkItemModalAdditionalProperties
                 isDraft={isDraft}

@@ -13,9 +13,9 @@
     "check:lint": "oxlint --max-warnings=11957 .",
     "check:types": "react-router typegen && tsc --noEmit",
     "check:format": "oxfmt --check .",
+    "test": "vitest run",
     "fix:lint": "oxlint --fix .",
     "fix:format": "oxfmt .",
-    "test": "vitest run",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report"
