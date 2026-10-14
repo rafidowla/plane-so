@@ -740,6 +740,55 @@ class TestSubItems:
         assert response.status_code == status.HTTP_200_OK
         assert {m["id"] for m in response.data["moved"]} == {str(tree[k].id) for k in ("root", "c1", "grand")}
 
+    # FORK: archived sub-items are allowed to move; the preview warns, they stay archived in the target.
+    def test_preview_lists_archived_sub_items_that_will_move(self, mover_client, world, tree):
+        Issue.objects.filter(pk=tree["c1"].pk).update(archived_at=date.today())
+
+        data = get_preview(mover_client, world, tree["root"]).data
+
+        assert data["archived_sub_items"] == [{"id": str(tree["c1"].id), "name": "Child 1", "identifier": "SRC-3"}]
+        assert "ARCHIVED_SUB_ITEMS_MOVE" in data["warnings"]
+        # the archived item is still part of the sub-tree that moves (and so is its active child)
+        assert {s["identifier"] for s in data["sub_items"]} == {"SRC-3", "SRC-4", "SRC-5"}
+
+    def test_preview_without_archived_sub_items_has_empty_list_and_no_warning(self, mover_client, world, tree):
+        data = get_preview(mover_client, world, tree["root"]).data
+
+        assert data["archived_sub_items"] == []
+        assert "ARCHIVED_SUB_ITEMS_MOVE" not in data["warnings"]
+
+    def test_move_keeps_archived_sub_items_archived_in_the_target(self, mover_client, world, tree):
+        archived_on = date.today()
+        Issue.objects.filter(pk=tree["c1"].pk).update(archived_at=archived_on)
+
+        response = post_move(mover_client, world, tree["root"])
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert str(tree["c1"].id) in {m["id"] for m in response.data["moved"]}
+        archived = Issue.objects.get(pk=tree["c1"].pk)
+        assert archived.project_id == world.tgt.id
+        assert archived.archived_at == archived_on
+        # still hanging off the moved root, and not listed as active work in the target
+        assert archived.parent_id == tree["root"].id
+        assert not Issue.issue_objects.filter(pk=tree["c1"].pk).exists()
+        # the non-archived siblings are unaffected
+        assert fresh(tree["c2"]).archived_at is None
+
+    def test_detach_mode_is_unaffected_by_archived_sub_items(self, mover_client, world, tree):
+        Issue.objects.filter(pk=tree["c1"].pk).update(archived_at=date.today())
+
+        data = get_preview(mover_client, world, tree["root"], sub_items="detach").data
+        assert data["archived_sub_items"] == []  # nothing archived travels in detach mode
+        assert "ARCHIVED_SUB_ITEMS_MOVE" not in data["warnings"]
+
+        response = post_move(mover_client, world, tree["root"], sub_items="detach")
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert [m["id"] for m in response.data["moved"]] == [str(tree["root"].id)]
+        left_behind = Issue.objects.get(pk=tree["c1"].pk)
+        assert left_behind.project_id == world.src.id
+        assert left_behind.archived_at is not None
+
 
 # ------------------------------------------------------------------ carried data
 @pytest.mark.contract
@@ -1417,6 +1466,7 @@ class TestPreview:
             "next_identifier",
             "sub_items_mode",
             "sub_items",
+            "archived_sub_items",
             "parent",
             "states",
             "target_states",

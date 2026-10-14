@@ -306,21 +306,21 @@ variables:
 
 All endpoints are session-authenticated and project/workspace-scoped.
 
-| Method           | Path                                                                | Notes                                                                                    |
-| ---------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| GET/POST         | `/api/workspaces/<slug>/clients/`                                   | client CRUD (admin to mutate)                                                            |
-| GET/PATCH/DELETE | `/api/workspaces/<slug>/clients/<id>/`                              |                                                                                          |
-| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklogs/`      | worklog CRUD; POST `logged_by` for on-behalf (admin)                                     |
-| GET/POST/DELETE  | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklog-timer/` | current / start (auto-stops a timer running elsewhere; `stopped` in the response) / stop |
-| GET              | `/api/workspaces/<slug>/worklog-timer/`                             | the caller's running timer in the workspace (indicator); `{server_now}` only if none     |
-| GET              | `/api/workspaces/<slug>/timesheets/`                                | list (own; admins see all)                                                               |
-| POST             | `/api/workspaces/<slug>/timesheets/submit/`                         | submit a period                                                                          |
-| POST             | `/api/workspaces/<slug>/timesheets/<id>/review/`                    | approve/reject (admin)                                                                   |
-| GET/POST         | `/api/workspaces/<slug>/resource-capacities/`                       | per-resource capacity/rates                                                              |
-| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client\|issue`, `user_ids`, `export=csv`                    |
-| POST             | `/api/workspaces/<slug>/projects/<pid>/jira-import/preview/`        | synchronous dry-run                                                                      |
-| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/jira-import/`                | list jobs / start import                                                                 |
-| GET              | `/api/workspaces/<slug>/projects/<pid>/jira-import/<id>/`           | job status                                                                               |
+| Method           | Path                                                                | Notes                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET/POST         | `/api/workspaces/<slug>/clients/`                                   | client CRUD (admin to mutate)                                                                                                                       |
+| GET/PATCH/DELETE | `/api/workspaces/<slug>/clients/<id>/`                              |                                                                                                                                                     |
+| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklogs/`      | worklog CRUD; POST `logged_by` for on-behalf (admin; `404` if the item is not in the project, `400` if `logged_by` is not an active project member) |
+| GET/POST/DELETE  | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklog-timer/` | current / start (auto-stops a timer running elsewhere; `stopped` in the response) / stop                                                            |
+| GET              | `/api/workspaces/<slug>/worklog-timer/`                             | the caller's running timer in the workspace (indicator); `{server_now}` only if none                                                                |
+| GET              | `/api/workspaces/<slug>/timesheets/`                                | list (own; admins see all)                                                                                                                          |
+| POST             | `/api/workspaces/<slug>/timesheets/submit/`                         | submit a period                                                                                                                                     |
+| POST             | `/api/workspaces/<slug>/timesheets/<id>/review/`                    | approve/reject (admin)                                                                                                                              |
+| GET/POST         | `/api/workspaces/<slug>/resource-capacities/`                       | per-resource capacity/rates                                                                                                                         |
+| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client\|issue`, `user_ids`, `export=csv`                                                                               |
+| POST             | `/api/workspaces/<slug>/projects/<pid>/jira-import/preview/`        | synchronous dry-run                                                                                                                                 |
+| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/jira-import/`                | list jobs / start import                                                                                                                            |
+| GET              | `/api/workspaces/<slug>/projects/<pid>/jira-import/<id>/`           | job status                                                                                                                                          |
 
 ---
 

@@ -37,7 +37,7 @@ through the same function.
 | Estimate                                                                                                          | Kept only if the target project's active estimate has the **same type** as the source point's estimate **and** a point with the same value; mapped to that point. Otherwise cleared.                                                                                                                                                             |
 | Work item type                                                                                                    | Kept if the target project has that type enabled (`ProjectIssueType`), else cleared.                                                                                                                                                                                                                                                             |
 | Parent of the moved item                                                                                          | Plane requires parent and child in the same project, so a parent that stays behind is **detached** (activity recorded).                                                                                                                                                                                                                          |
-| Sub-items                                                                                                         | User chooses: **move together** (default — the whole same-project subtree moves, each item gets its own new identifier) or **detach** (sub-items stay in the source project and lose their parent link).                                                                                                                                         |
+| Sub-items                                                                                                         | User chooses: **move together** (default — the whole same-project subtree moves, each item gets its own new identifier) or **detach** (sub-items stay in the source project and lose their parent link). Archived sub-items in the subtree move too and stay archived (the preview warns).                                                       |
 | Relations                                                                                                         | **Kept**. They are id-based and Plane already allows cross-project relations.                                                                                                                                                                                                                                                                    |
 | Comments, replies, reactions, links, attachments, description assets, votes, mentions, versions, activity history | **Move with the item** (`project_id` re-pointed). Storage keys are workspace-scoped, so files are not copied.                                                                                                                                                                                                                                    |
 | Subscribers                                                                                                       | Kept if they are an active member of the target project (any role); others are dropped (they could no longer open it).                                                                                                                                                                                                                           |
@@ -45,7 +45,7 @@ through the same function.
 | Custom properties (fork)                                                                                          | Matched by property **name + type** among the target's active properties (`issue_type` null or the item's type). OPTION values map by option name; an option with no match is dropped. USER relations keep only target members. Values with no matching property are **dropped** and listed.                                                     |
 | Comment descriptions                                                                                              | A comment's `Description` row and its `DescriptionVersion`s carry a project FK and are re-pointed with the comment. This is a forward FK — the relation-policy guard test only sees reverse FKs of `Issue`/`IssueComment`, so check forward FKs by hand when upstream adds one.                                                                  |
 | Notifications / recent visits                                                                                     | Existing rows are re-pointed to the target project so in-app links keep opening.                                                                                                                                                                                                                                                                 |
-| Intake                                                                                                            | A **pending** intake item (status pending/snoozed) cannot be moved — accept it first. The same applies to every sub-item in *move together* mode (detach is allowed). The intake record of an accepted item stays in the source intake as history.                                                                                                                                                                               |
+| Intake                                                                                                            | A **pending** intake item (status pending/snoozed) cannot be moved — accept it first. The same applies to every sub-item in _move together_ mode (detach is allowed). The intake record of an accepted item stays in the source intake as history.                                                                                               |
 
 ## 3. Permissions
 
@@ -54,7 +54,13 @@ through the same function.
   project member also passes). **Guests can't move**, even items they created.
 - Target: the caller must be able to **create** there under the same rule.
 - Target must be in the same workspace, not archived, and not the source.
-- Archived items must be restored first; `is_draft` legacy items are refused.
+- An **archived work item itself** must be restored first (`ITEM_ARCHIVED`);
+  `is_draft` legacy items are refused.
+- **Archived sub-items** do not block a "move together": they move with the
+  sub-tree and **stay archived** in the target (`archived_at` is untouched).
+  The preview lists them (`archived_sub_items`, warning `ARCHIVED_SUB_ITEMS_MOVE`)
+  and the dialog shows "N archived sub-items will move too: …" before confirm.
+  In _detach_ mode they stay in the source like every other sub-item.
 - Permission is checked **before** anything else, so a caller without write
   access gets `403` and learns nothing about intake state or whether a target
   project UUID exists / is archived.
@@ -106,6 +112,7 @@ POST /api/workspaces/{slug}/draft-issues/project-mapping/
   "next_identifier": "GFV3-40",                        // indicative only
   "sub_items_mode": "move" | "detach",
   "sub_items": [{"id", "name", "identifier"}],          // whole same-project subtree
+  "archived_sub_items": [{"id", "name", "identifier"}], // archived items among those that WILL move ("move" mode only; [] when detaching)
   "parent": {"id", "name", "identifier"} | null,      // will be detached
   "states": [{"source": State, "target": State | null, "match": "name"|"group"|"default"|"none", "work_item_ids": [uuid]}],
   "target_states": [State],                            // State = {id, name, group, color}
@@ -125,7 +132,7 @@ POST /api/workspaces/{slug}/draft-issues/project-mapping/
   "carried": {"comments", "attachments", "links", "relations"},
   "warnings": ["TIME_TRACKING_DISABLED_IN_TARGET", "LOCKED_WORKLOGS", "CLIENT_CHANGES",
                "LABELS_DROPPED", "ASSIGNEES_DROPPED", "PROPERTIES_DROPPED", "CYCLE_CLEARED",
-               "MODULES_CLEARED", "ESTIMATE_CLEARED", "PARENT_DETACHED", "SUB_ITEMS_DETACHED"]
+               "MODULES_CLEARED", "ESTIMATE_CLEARED", "PARENT_DETACHED", "SUB_ITEMS_DETACHED", "ARCHIVED_SUB_ITEMS_MOVE"]
 }
 ```
 
@@ -158,7 +165,7 @@ GET is the preview (same query params, returns `MovePlan`), POST performs the mo
   sections for state mapping (override dropdown per source state), labels
   kept/dropped, assignees kept/dropped, cycle/modules cleared, estimate,
   parent detached, sub-items choice (move together / detach) when the item has
-  sub-items, custom properties dropped, work-log warnings, and what is carried.
+  sub-items, a warning listing archived sub-items that move too, custom properties dropped, work-log warnings, and what is carried.
   Confirm button "Move to GFV3".
 - After moving: removed from the source list, toast with the new identifier;
   detail page navigates to the new URL; peek closes.

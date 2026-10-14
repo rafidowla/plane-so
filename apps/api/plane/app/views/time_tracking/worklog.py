@@ -4,6 +4,7 @@
 
 # Python imports
 import math
+import uuid
 
 # Django imports
 from django.db import transaction
@@ -125,8 +126,29 @@ class IssueWorklogViewSet(BaseViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # The resource the time belongs to (defaults to the admin entering it).
+        # FORK: security — the work item must live in the project (and workspace) of the URL.
+        # Project-admin rights on one project must not let an admin log time against a work
+        # item of another project or workspace just by knowing its UUID.
+        if not Issue.objects.filter(pk=issue_id, project_id=project_id, workspace__slug=slug).exists():
+            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # The resource the time belongs to (defaults to the admin entering it). FORK: security —
+        # on-behalf entries are only for people who are active members of THIS project; otherwise
+        # an admin could attach time (and billing) to any user id, including users outside the
+        # project/workspace.
         logged_by_id = request.data.get("logged_by") or request.user.id
+        if str(logged_by_id) != str(request.user.id):
+            try:
+                logged_by_id = uuid.UUID(str(logged_by_id))
+            except (ValueError, AttributeError):
+                return Response({"error": "logged_by is not a valid user."}, status=status.HTTP_400_BAD_REQUEST)
+            if not ProjectMember.objects.filter(
+                workspace__slug=slug, project_id=project_id, member_id=logged_by_id, is_active=True
+            ).exists():
+                return Response(
+                    {"error": "logged_by must be an active member of this project."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         serializer = IssueWorklogSerializer(data=request.data)
         if not serializer.is_valid():
