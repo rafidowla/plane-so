@@ -8,7 +8,14 @@ import { replaceUnderscoreIfSnakeCase } from "@plane/utils";
 import type { TNotificationContentMap } from "@/components/workspace-notifications/sidebar/notification-card/content";
 
 // Additional notification content map for CE (empty - EE extends this)
-export const ADDITIONAL_NOTIFICATION_CONTENT_MAP: TNotificationContentMap = {};
+export const ADDITIONAL_NOTIFICATION_CONTENT_MAP: TNotificationContentMap = {
+  // FORK: move-work-item (PSR-91) — "project" activity: old_value / new_value are the old / new identifiers
+  project: ({ newValue }) => ({
+    action: "moved this work item to",
+    value: newValue,
+    showConnector: false,
+  }),
+};
 
 // Fallback action renderer for fields not in the map
 export const renderAdditionalAction = (notificationField: string, verb: string | undefined) => {

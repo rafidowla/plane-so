@@ -14,6 +14,7 @@ import {
   LinkOutline,
   NewTabOutline,
   RestoreOutline,
+  TransferWorkItemOutline, // FORK: move-work-item (PSR-91)
 } from "@makeplane/propel/icons";
 // plane imports
 import { useTranslation } from "@plane/i18n";
@@ -104,6 +105,9 @@ export interface MenuItemFactoryProps {
   setDeleteIssueModal: (open: boolean) => void;
   setArchiveIssueModal?: (open: boolean) => void;
   setDuplicateWorkItemModal?: (open: boolean) => void;
+  // FORK: move-work-item (PSR-91)
+  isMovingAllowed?: boolean;
+  setMoveWorkItemModal?: (open: boolean) => void;
   handleRemoveFromView?: () => void;
   handleRestore?: () => Promise<void>;
   // External handlers
@@ -193,6 +197,8 @@ export const useMenuItemFactory = (props: MenuItemFactoryProps) => {
     setArchiveIssueModal,
     setDuplicateWorkItemModal,
     handleRemoveFromView,
+    isMovingAllowed = false, // FORK: move-work-item (PSR-91)
+    setMoveWorkItemModal, // FORK: move-work-item (PSR-91)
   } = props;
 
   const createEditMenuItem = (customEditAction?: () => void): TContextMenuItem => ({
@@ -227,6 +233,15 @@ export const useMenuItemFactory = (props: MenuItemFactoryProps) => {
       workspaceSlug,
     });
   };
+
+  // FORK: move-work-item (PSR-91) — only ADMIN/MEMBER of the item's project, never for archived items
+  const createMoveToProjectMenuItem = (): TContextMenuItem => ({
+    key: "move-to-project",
+    title: t("move_work_item.menu_item"),
+    icon: TransferWorkItemOutline,
+    action: () => handleOptionalAction(setMoveWorkItemModal, "Move to project", true),
+    shouldRender: isMovingAllowed && !issue.archived_at && !!setMoveWorkItemModal,
+  });
 
   const createOpenInNewTabMenuItem = (): TContextMenuItem => ({
     key: "open-in-new-tab",
@@ -290,6 +305,7 @@ export const useMenuItemFactory = (props: MenuItemFactoryProps) => {
     ...actionHandlers,
     createEditMenuItem,
     createCopyMenuItem,
+    createMoveToProjectMenuItem, // FORK: move-work-item (PSR-91)
     createOpenInNewTabMenuItem,
     createCopyLinkMenuItem,
     createRemoveFromCycleMenuItem,
@@ -308,6 +324,7 @@ export const useProjectIssueMenuItems = (props: MenuItemFactoryProps): TContextM
     () => [
       factory.createEditMenuItem(),
       factory.createCopyMenuItem(),
+      factory.createMoveToProjectMenuItem(), // FORK: move-work-item (PSR-91)
       factory.createOpenInNewTabMenuItem(),
       factory.createCopyLinkMenuItem(),
       factory.createArchiveMenuItem(),
@@ -323,6 +340,7 @@ export const useWorkItemDetailMenuItems = (props: MenuItemFactoryProps): TContex
   return useMemo(
     () => [
       factory.createCopyMenuItem(props.workspaceSlug),
+      factory.createMoveToProjectMenuItem(), // FORK: move-work-item (PSR-91)
       factory.createOpenInNewTabMenuItem(),
       factory.createArchiveMenuItem(),
       factory.createRestoreMenuItem(),
@@ -340,6 +358,7 @@ export const useAllIssueMenuItems = (props: MenuItemFactoryProps): TContextMenuI
     () => [
       factory.createEditMenuItem(),
       factory.createCopyMenuItem(),
+      factory.createMoveToProjectMenuItem(), // FORK: move-work-item (PSR-91)
       factory.createOpenInNewTabMenuItem(),
       factory.createCopyLinkMenuItem(),
       factory.createArchiveMenuItem(),
@@ -364,6 +383,7 @@ export const useCycleIssueMenuItems = (props: MenuItemFactoryProps): TContextMen
     () => [
       factory.createEditMenuItem(customEditAction),
       factory.createCopyMenuItem(),
+      factory.createMoveToProjectMenuItem(), // FORK: move-work-item (PSR-91)
       factory.createOpenInNewTabMenuItem(),
       factory.createCopyLinkMenuItem(),
       factory.createRemoveFromCycleMenuItem(),
@@ -390,6 +410,7 @@ export const useModuleIssueMenuItems = (props: MenuItemFactoryProps): TContextMe
     () => [
       factory.createEditMenuItem(customEditAction),
       factory.createCopyMenuItem(),
+      factory.createMoveToProjectMenuItem(), // FORK: move-work-item (PSR-91)
       factory.createOpenInNewTabMenuItem(),
       factory.createCopyLinkMenuItem(),
       factory.createRemoveFromModuleMenuItem(),

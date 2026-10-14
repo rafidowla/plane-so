@@ -12,6 +12,7 @@ import useSWR from "swr";
 import { useTranslation } from "@plane/i18n";
 import type { TIssue } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
+import { getCanonicalWorkItemIdentifier } from "@plane/utils"; // FORK: move-work-item (PSR-91)
 import { Loader } from "@plane/blocks/skeleton";
 // assets
 import emptyIssueDark from "@/app/assets/empty-state/search/issues-dark.webp?url";
@@ -84,6 +85,19 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
     handleToggleIssueDetailSidebar();
     return () => window.removeEventListener("resize", handleToggleIssueDetailSidebar);
   }, [issueDetailSidebarCollapsed, toggleIssueDetailSidebar]);
+
+  // FORK: move-work-item (PSR-91) — an old identifier of a moved item (PSR-12) is served the moved item by the
+  // API; swap the URL for its current identifier (GFV3-40) so bookmarks and copied links converge.
+  const currentProjectIdentifier = data?.project_id ? getProjectById(data.project_id)?.identifier : undefined;
+  useEffect(() => {
+    const canonical = getCanonicalWorkItemIdentifier({
+      urlProjectIdentifier: projectIdentifier,
+      urlSequence: sequence_id,
+      currentProjectIdentifier,
+      currentSequence: data?.sequence_id,
+    });
+    if (canonical) router.replace(`/${workspaceSlug}/browse/${canonical}/`);
+  }, [currentProjectIdentifier, data?.sequence_id, projectIdentifier, sequence_id, workspaceSlug, router]);
 
   useEffect(() => {
     if (data?.is_intake) {
