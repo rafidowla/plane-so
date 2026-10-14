@@ -23,7 +23,8 @@ test("deleting a time entry asks for confirmation", async ({ page, request }) =>
 
     // 1. X opens the dialog; the entry is still listed behind it.
     await deleteButtons.click();
-    const dialog = page.getByRole("dialog");
+    // FORK: the confirmation is an alertdialog (not a plain dialog)
+    const dialog = page.getByRole("alertdialog");
     // NB: headlessui's dialog root has no box; assert on its content.
     const dialogHeading = dialog.getByRole("heading", { name: "Delete time entry" });
     await expect(dialogHeading).toBeVisible();
