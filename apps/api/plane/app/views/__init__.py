@@ -132,6 +132,9 @@ from .issue.base import (
 
 from .issue.activity import IssueActivityEndpoint
 
+# FORK: move-work-item (PSR-91) / draft-project-change (PSR-92)
+from .issue.move import WorkItemMovePreviewEndpoint, WorkItemMoveEndpoint, DraftProjectMappingEndpoint
+
 from .issue.archive import IssueArchiveViewSet, BulkArchiveIssuesEndpoint
 
 from .issue.attachment import (

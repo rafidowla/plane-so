@@ -73,6 +73,7 @@ from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 from plane.utils.timezone_converter import user_timezone_converter
+from plane.utils.work_item_move import resolve_moved_work_item  # FORK: move-work-item (PSR-91)
 
 from .. import BaseAPIView, BaseViewSet
 
@@ -1216,6 +1217,15 @@ class IssueDetailIdentifierEndpoint(BaseAPIView):
 
         # Fetch the project
         project = Project.objects.get(identifier__iexact=project_identifier, workspace__slug=slug)
+
+        # FORK: move-work-item (PSR-91) — the old identifier of a moved work item
+        # (e.g. PSR-12 → GFV3-40) resolves to the item in its new project; the
+        # membership checks below then run against the project it lives in now.
+        if not Issue.objects.filter(project_id=project.id, sequence_id=issue_identifier).exists():
+            moved_issue = resolve_moved_work_item(project, issue_identifier)
+            if moved_issue is not None:
+                project = moved_issue.project
+                issue_identifier = moved_issue.sequence_id
 
         # Check if the user is a member of the project
         if not ProjectMember.objects.filter(

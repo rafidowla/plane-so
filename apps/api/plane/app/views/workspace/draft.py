@@ -42,6 +42,56 @@ from plane.bgtasks.issue_activities_task import issue_activity
 from plane.utils.issue_filters import issue_filters
 from plane.utils.host import base_host
 
+# FORK: draft-project-change (PSR-92)
+from django.db import transaction
+from plane.db.models import DraftIssueAssignee, DraftIssueLabel, DraftIssueModule
+from plane.utils.work_item_mapping import (
+    ProjectFieldMapper,
+    can_write_in_project,
+    is_project_member,
+    resolve_target_project,
+)
+
+_DRAFT_MAPPED_KEYS = (
+    "state_id",
+    "label_ids",
+    "assignee_ids",
+    "estimate_point",
+    "type_id",
+    "parent_id",
+    "cycle_id",
+    "module_ids",
+)
+
+
+def _request_payload(request):
+    """Mutable copy of the JSON body without the mass-assignable ``project`` key."""
+    data = dict(request.data.items()) if hasattr(request.data, "items") else {}
+    data.pop("project", None)
+    return data
+
+
+def _apply_mapping(data, mapped):
+    for key in ("state_id", "label_ids", "assignee_ids", "estimate_point", "parent_id", "cycle_id", "module_ids"):
+        data[key] = mapped[key]
+    data["type_id"] = mapped["type_id"]
+    return data
+
+
+def _draft_stored_values(draft):
+    return {
+        "state_id": draft.state_id,
+        "label_ids": list(DraftIssueLabel.objects.filter(draft_issue=draft).values_list("label_id", flat=True)),
+        "assignee_ids": list(
+            DraftIssueAssignee.objects.filter(draft_issue=draft).values_list("assignee_id", flat=True)
+        ),
+        "estimate_point": draft.estimate_point_id,
+        "type_id": draft.type_id,
+        "parent_id": draft.parent_id,
+        "cycle_id": DraftIssueCycle.objects.filter(draft_issue=draft).values_list("cycle_id", flat=True).first(),
+        "module_ids": list(DraftIssueModule.objects.filter(draft_issue=draft).values_list("module_id", flat=True)),
+    }
+
 
 class WorkspaceDraftIssueViewSet(BaseViewSet):
     model = DraftIssue
@@ -112,6 +162,16 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
     def create(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
 
+        # FORK: draft-project-change (PSR-92) — a draft can only target a project the caller belongs to.
+        draft_project_id = request.data.get("project_id", None)
+        if draft_project_id:
+            draft_project = resolve_target_project(workspace.id, draft_project_id)
+            if draft_project is None or not is_project_member(request.user, draft_project):
+                return Response(
+                    {"error": "You are not a member of that project.", "code": "FORBIDDEN_TARGET"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         serializer = DraftIssueCreateSerializer(
             data=request.data,
             context={
@@ -165,22 +225,51 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
         if not issue:
             return Response({"error": "Issue not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        project_id = request.data.get("project_id", issue.project_id)
+        # FORK: draft-project-change (PSR-92) — a draft can be re-targeted to
+        # another project; stored + submitted values are re-mapped with the
+        # move-work-item rules. `project` is never taken from the body.
+        data = _request_payload(request)
+        project_id = data.get("project_id") or issue.project_id
+        cycle_context = data.get("cycle_id", "not_provided")
 
-        serializer = DraftIssueCreateSerializer(
-            issue,
-            data=request.data,
-            partial=True,
-            context={
-                "project_id": project_id,
-                "cycle_id": request.data.get("cycle_id", "not_provided"),
-            },
-        )
+        with transaction.atomic():
+            if issue.project_id is None or str(project_id) != str(issue.project_id):
+                target = resolve_target_project(issue.workspace_id, project_id)
+                if target is None or target.archived_at is not None:
+                    return Response(
+                        {"error": "Project not found", "code": "INVALID_TARGET"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if not is_project_member(request.user, target):
+                    return Response(
+                        {"error": "You are not a member of that project.", "code": "FORBIDDEN_TARGET"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                stored = _draft_stored_values(issue)
+                values = {key: data.get(key, stored[key]) for key in _DRAFT_MAPPED_KEYS}
+                mapped = ProjectFieldMapper(source=issue.project or target, target=target).map_payload(values)
+                _apply_mapping(data, mapped)
+                data["type"] = mapped["type_id"]
+                cycle_context = mapped["cycle_id"]
+                DraftIssue.objects.filter(pk=issue.pk).update(project_id=target.id)
+                issue.project = target
+                project_id = target.id
 
-        if serializer.is_valid():
-            serializer.save()
+            serializer = DraftIssueCreateSerializer(
+                issue,
+                data=data,
+                partial=True,
+                context={
+                    "project_id": project_id,
+                    "cycle_id": cycle_context,
+                },
+            )
 
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            if serializer.is_valid():
+                serializer.save()
+
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            transaction.set_rollback(True)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], creator=True, model=Issue, level="WORKSPACE")
@@ -215,18 +304,39 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if not draft_issue.project_id:
+        # FORK: draft-project-change (PSR-92) — the draft may be posted into a
+        # different project than the one it was started in; the payload is
+        # re-mapped with the move-work-item rules, and the caller must be able
+        # to create work items there (project admin/member).
+        data = _request_payload(request)
+        target = resolve_target_project(draft_issue.workspace_id, data.get("project_id") or draft_issue.project_id)
+        if target is None:
             return Response(
                 {"error": "Project is required to create an issue."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if target.archived_at is not None:
+            return Response(
+                {"error": "The project is archived.", "code": "TARGET_ARCHIVED"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not can_write_in_project(request.user, target):
+            return Response(
+                {"error": "You don't have permission to create work items in that project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if target.id != draft_issue.project_id:
+            values = {key: data.get(key) for key in _DRAFT_MAPPED_KEYS}
+            mapped = ProjectFieldMapper(source=draft_issue.project or target, target=target).map_payload(values)
+            _apply_mapping(data, mapped)
+        project_id = target.id
 
         serializer = IssueCreateSerializer(
-            data=request.data,
+            data=data,
             context={
-                "project_id": draft_issue.project_id,
-                "workspace_id": draft_issue.project.workspace_id,
-                "default_assignee_id": draft_issue.project.default_assignee_id,
+                "project_id": project_id,
+                "workspace_id": target.workspace_id,
+                "default_assignee_id": target.default_assignee_id,
             },
         )
 
@@ -235,21 +345,21 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
 
             issue_activity.delay(
                 type="issue.activity.created",
-                requested_data=json.dumps(self.request.data, cls=DjangoJSONEncoder),
+                requested_data=json.dumps(data, cls=DjangoJSONEncoder),
                 actor_id=str(request.user.id),
                 issue_id=str(serializer.data.get("id", None)),
-                project_id=str(draft_issue.project_id),
+                project_id=str(project_id),
                 current_instance=None,
                 epoch=int(timezone.now().timestamp()),
                 notification=True,
                 origin=base_host(request=request, is_app=True),
             )
 
-            if request.data.get("cycle_id", None):
+            if data.get("cycle_id", None):
                 created_records = CycleIssue.objects.create(
-                    cycle_id=request.data.get("cycle_id", None),
+                    cycle_id=data.get("cycle_id", None),
                     issue_id=serializer.data.get("id", None),
-                    project_id=draft_issue.project_id,
+                    project_id=project_id,
                     workspace_id=draft_issue.workspace_id,
                     created_by_id=draft_issue.created_by_id,
                     updated_by_id=draft_issue.updated_by_id,
@@ -260,7 +370,7 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
                     requested_data=None,
                     actor_id=str(self.request.user.id),
                     issue_id=None,
-                    project_id=str(self.kwargs.get("project_id", None)),
+                    project_id=str(project_id),  # FORK: PSR-92 (was self.kwargs project_id, always None)
                     current_instance=json.dumps(
                         {
                             "updated_cycle_issues": None,
@@ -272,7 +382,7 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
                     origin=base_host(request=request, is_app=True),
                 )
 
-            if request.data.get("module_ids", []):
+            if data.get("module_ids", []):
                 # bulk create the module
                 ModuleIssue.objects.bulk_create(
                     [
@@ -280,11 +390,11 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
                             module_id=module,
                             issue_id=serializer.data.get("id", None),
                             workspace_id=draft_issue.workspace_id,
-                            project_id=draft_issue.project_id,
+                            project_id=project_id,
                             created_by_id=draft_issue.created_by_id,
                             updated_by_id=draft_issue.updated_by_id,
                         )
-                        for module in request.data.get("module_ids", [])
+                        for module in data.get("module_ids", [])
                     ],
                     batch_size=10,
                 )
@@ -295,13 +405,13 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
                         requested_data=json.dumps({"module_id": str(module)}),
                         actor_id=str(request.user.id),
                         issue_id=serializer.data.get("id", None),
-                        project_id=draft_issue.project_id,
+                        project_id=project_id,
                         current_instance=None,
                         epoch=int(timezone.now().timestamp()),
                         notification=True,
                         origin=base_host(request=request, is_app=True),
                     )
-                    for module in request.data.get("module_ids", [])
+                    for module in data.get("module_ids", [])
                 ]
 
             # Update file assets
