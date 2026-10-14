@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { Play, Square, Plus, Timer, X } from "lucide-react";
 import { observer } from "mobx-react";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
@@ -18,7 +18,9 @@ import { useProject } from "@/hooks/store/use-project";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
+import { revalidateRunningTimer } from "@/plane-web/hooks/use-running-timer";
 import { LogTimeModal } from "../log-time-modal";
+import { formatElapsed, formatLoggedMinutes, getAutoStopToastTitle } from "../timer-utils";
 
 type TIssueWorklogProperty = {
   workspaceSlug: string;
@@ -26,20 +28,6 @@ type TIssueWorklogProperty = {
   issueId: string;
   disabled: boolean;
 };
-
-function fmtMinutes(total: number): string {
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h) return `${h}h`;
-  return `${m}m`;
-}
-
-function fmtElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
 
 export const IssueWorklogProperty = observer(function IssueWorklogProperty(props: TIssueWorklogProperty) {
   const { workspaceSlug, projectId, issueId, disabled } = props;
@@ -97,8 +85,19 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
 
   const handleStart = async () => {
     try {
-      await timeTrackingService.startTimer(workspaceSlug, projectId, issueId);
-      mutateTimer();
+      const started = await timeTrackingService.startTimer(workspaceSlug, projectId, issueId);
+      // FORK: PSR-101 — starting here stops a timer running elsewhere (server-side, atomically)
+      // and logs its time; tell the user, and refresh that work item's widget if it is cached.
+      const stoppedTitle = getAutoStopToastTitle(started.stopped);
+      if (stoppedTitle) {
+        setToast({ type: "info", title: stoppedTitle });
+        const stoppedIssueId = started.stopped?.issue?.id;
+        if (stoppedIssueId) {
+          void globalMutate(`WORKLOG_TIMER_${workspaceSlug}_${stoppedIssueId}`);
+          void globalMutate(`WORKLOGS_${workspaceSlug}_${stoppedIssueId}`);
+        }
+      }
+      await Promise.all([mutateTimer(), mutateWorklogs(), revalidateRunningTimer(workspaceSlug)]);
     } catch (err) {
       setToast({ type: "error", title: "Cannot start timer", message: asApiError(err).error ?? "Try again." });
     }
@@ -107,7 +106,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
   const handleStop = async () => {
     try {
       await timeTrackingService.stopTimer(workspaceSlug, projectId, issueId);
-      await Promise.all([mutateTimer(), mutateWorklogs()]);
+      await Promise.all([mutateTimer(), mutateWorklogs(), revalidateRunningTimer(workspaceSlug)]);
       setToast({ type: "success", title: "Time logged", message: "Timer stopped and time recorded." });
     } catch (err) {
       setToast({ type: "error", title: "Cannot stop timer", message: asApiError(err).error ?? "Try again." });
@@ -134,9 +133,13 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
 
   return (
     <>
-      <SidebarPropertyListItem icon={Timer} label="Time tracking" childrenClassName="flex-col items-start">
+      {/* FORK: PSR-36 — min-w-0 is essential: the full-screen sidebar clips its property list
+          (`truncate` = overflow-hidden). Without it this flex column grows to the entry text's
+          width, pushing the delete (x) button past the clip edge so it was invisible there but
+          visible in the wider peek panel. */}
+      <SidebarPropertyListItem icon={Timer} label="Time tracking" childrenClassName="min-w-0 flex-col items-start">
         <div className="flex w-full min-w-0 flex-col gap-2">
-          <span className="text-sm font-medium">{fmtMinutes(total)} logged</span>
+          <span className="text-sm font-medium">{formatLoggedMinutes(total)} logged</span>
           {canSeeDetails && !disabled && (
             <div className="flex flex-wrap items-center gap-2">
               {runningHere ? (
@@ -145,7 +148,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                   size="sm"
                   stretch="auto"
                   icon={<Icon icon={Square} />}
-                  label={`Stop ${fmtElapsed(elapsed)}`}
+                  label={`Stop ${formatElapsed(elapsed)}`}
                   onClick={handleStop}
                 />
               ) : (
@@ -181,7 +184,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                 return (
                   <div key={w.id} className="text-xs flex min-w-0 items-center justify-between gap-2 text-tertiary">
                     <span className="min-w-0 truncate">
-                      {fmtMinutes(w.duration)} · {w.logged_by_detail?.display_name ?? "—"} ·{" "}
+                      {formatLoggedMinutes(w.duration)} · {w.logged_by_detail?.display_name ?? "—"} ·{" "}
                       <span title={isSelfTracked ? "Self-tracked with the timer" : "Entered manually by a PM/admin"}>
                         {isSelfTracked ? "self" : "PM"}
                       </span>{" "}

@@ -9,6 +9,7 @@ import type {
   TWorklog,
   TWorklogPayload,
   TWorklogTimer,
+  TRunningTimer,
   TClient,
   TTimesheet,
   TTimeReport,
@@ -195,6 +196,15 @@ export class TimeTrackingService extends APIService {
 
   async getTimer(workspaceSlug: string, projectId: string, issueId: string): Promise<TWorklogTimer> {
     return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/worklog-timer/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // FORK: PSR-105 — the signed-in user's running timer anywhere in the workspace.
+  async getRunningTimer(workspaceSlug: string): Promise<TRunningTimer> {
+    return this.get(`/api/workspaces/${workspaceSlug}/worklog-timer/`)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

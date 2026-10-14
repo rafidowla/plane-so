@@ -45,7 +45,9 @@ Enable it per project: **Project settings → Features → Time tracking** (sets
 On any work item, the **Time tracking** section in the properties sidebar shows:
 
 - **Start / Stop timer** — a live stopwatch, available to members. One running timer
-  per user at a time; stopping it records a worklog (rounded to the minute, at least
+  per user at a time; starting a timer on another work item **automatically stops
+  the running one** (its time is logged as a normal entry, atomically in the same
+  request — the UI shows "Stopped timer on PSR-12 (25m logged)"); stopping it records a worklog (rounded to the minute, at least
   one minute) with `source=timer` ("self-tracked").
 - **Log time** — a modal for manual entry (hours/minutes, date, description, work
   type, billable flag). **Manual entry is a PM/admin function** (members self-track
@@ -55,6 +57,10 @@ On any work item, the **Time tracking** section in the properties sidebar shows:
 - **On-behalf logging** — project **admins/PMs** see a **Resource** picker in the
   modal and can log time for another member. The entry records `logged_by` (the
   resource) and `created_by` (who entered it) for an audit trail.
+- **Running-timer indicator** — while a timer runs, the work item reference (linked),
+  live elapsed time and a Stop button show in the sidebar footer (or the top bar when
+  the sidebar is collapsed / absent). It reads the timer from the server, so it
+  survives navigation and reloads.
 - **Worklog list** — recent entries; each tagged **self** (timer) or **PM** (manual).
   Locked (approved) entries are read-only.
 
@@ -300,20 +306,21 @@ variables:
 
 All endpoints are session-authenticated and project/workspace-scoped.
 
-| Method           | Path                                                                | Notes                                                                 |
-| ---------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| GET/POST         | `/api/workspaces/<slug>/clients/`                                   | client CRUD (admin to mutate)                                         |
-| GET/PATCH/DELETE | `/api/workspaces/<slug>/clients/<id>/`                              |                                                                       |
-| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklogs/`      | worklog CRUD; POST `logged_by` for on-behalf (admin)                  |
-| GET/POST/DELETE  | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklog-timer/` | current / start / stop                                                |
-| GET              | `/api/workspaces/<slug>/timesheets/`                                | list (own; admins see all)                                            |
-| POST             | `/api/workspaces/<slug>/timesheets/submit/`                         | submit a period                                                       |
-| POST             | `/api/workspaces/<slug>/timesheets/<id>/review/`                    | approve/reject (admin)                                                |
-| GET/POST         | `/api/workspaces/<slug>/resource-capacities/`                       | per-resource capacity/rates                                           |
-| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client\|issue`, `user_ids`, `export=csv` |
-| POST             | `/api/workspaces/<slug>/projects/<pid>/jira-import/preview/`        | synchronous dry-run                                                   |
-| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/jira-import/`                | list jobs / start import                                              |
-| GET              | `/api/workspaces/<slug>/projects/<pid>/jira-import/<id>/`           | job status                                                            |
+| Method           | Path                                                                | Notes                                                                                    |
+| ---------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| GET/POST         | `/api/workspaces/<slug>/clients/`                                   | client CRUD (admin to mutate)                                                            |
+| GET/PATCH/DELETE | `/api/workspaces/<slug>/clients/<id>/`                              |                                                                                          |
+| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklogs/`      | worklog CRUD; POST `logged_by` for on-behalf (admin)                                     |
+| GET/POST/DELETE  | `/api/workspaces/<slug>/projects/<pid>/issues/<iid>/worklog-timer/` | current / start (auto-stops a timer running elsewhere; `stopped` in the response) / stop |
+| GET              | `/api/workspaces/<slug>/worklog-timer/`                             | the caller's running timer in the workspace (indicator); `{server_now}` only if none     |
+| GET              | `/api/workspaces/<slug>/timesheets/`                                | list (own; admins see all)                                                               |
+| POST             | `/api/workspaces/<slug>/timesheets/submit/`                         | submit a period                                                                          |
+| POST             | `/api/workspaces/<slug>/timesheets/<id>/review/`                    | approve/reject (admin)                                                                   |
+| GET/POST         | `/api/workspaces/<slug>/resource-capacities/`                       | per-resource capacity/rates                                                              |
+| GET              | `/api/workspaces/<slug>/time-report/`                               | `group_by=resource\|project\|client\|issue`, `user_ids`, `export=csv`                    |
+| POST             | `/api/workspaces/<slug>/projects/<pid>/jira-import/preview/`        | synchronous dry-run                                                                      |
+| GET/POST         | `/api/workspaces/<slug>/projects/<pid>/jira-import/`                | list jobs / start import                                                                 |
+| GET              | `/api/workspaces/<slug>/projects/<pid>/jira-import/<id>/`           | job status                                                                               |
 
 ---
 

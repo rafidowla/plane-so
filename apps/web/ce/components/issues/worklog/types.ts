@@ -49,12 +49,43 @@ export type TWorklogPayload = {
   logged_by?: string; // on-behalf (admin/PM only)
 };
 
+// FORK: PSR-101/105 — a work item as the timer endpoints describe it.
+export type TTimerIssueRef = {
+  id: string;
+  name: string;
+  sequence_id: number;
+  project_id: string;
+  project_identifier: string;
+  /** e.g. "PSR-12" */
+  ref: string;
+};
+
+// FORK: PSR-101 — present on the start response when a running timer on another
+// work item was stopped (and logged) to make room for the new one.
+export type TStoppedTimer = {
+  worklog: TWorklog;
+  /** minutes logged for the stopped timer */
+  duration: number;
+  /** null when the work item can no longer be resolved (deleted/archived) */
+  issue: TTimerIssueRef | null;
+};
+
 export type TWorklogTimer = {
   id?: string;
   issue?: string;
   user?: string;
   started_at?: string;
   description?: string;
+  // FORK: PSR-101 — only on the response of a start that auto-stopped another timer
+  stopped?: TStoppedTimer;
+};
+
+// FORK: PSR-105 — the user's running timer in a workspace (empty object fields when none runs).
+export type TRunningTimer = TWorklogTimer & {
+  project?: string;
+  issue_detail?: TTimerIssueRef | null;
+  /** server clock at response time, used to correct client clock skew */
+  server_now?: string;
 };
 
 export type TClient = {

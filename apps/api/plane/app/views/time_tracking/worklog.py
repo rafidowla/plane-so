@@ -6,6 +6,7 @@
 import math
 
 # Django imports
+from django.db import transaction
 from django.utils import timezone
 
 # Third party imports
@@ -19,6 +20,7 @@ from plane.app.serializers import IssueWorklogSerializer, WorklogTimerSerializer
 from plane.db.models import (
     Project,
     ProjectMember,
+    User,
     Issue,
     IssueWorklog,
     WorklogTimer,
@@ -188,6 +190,68 @@ class IssueWorklogViewSet(BaseViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _issue_ref(issue_id):
+    """Human-readable reference for an issue, e.g. {"ref": "TTP-1", "name": "..."}.
+
+    Returns None when the issue can no longer be resolved (deleted/archived).
+    """
+    row = (
+        Issue.issue_objects.filter(id=issue_id)
+        .values("id", "name", "sequence_id", "project_id", "project__identifier")
+        .first()
+    )
+    if not row:
+        return None
+    return {
+        "id": str(row["id"]),
+        "name": row["name"],
+        "sequence_id": row["sequence_id"],
+        "project_id": str(row["project_id"]),
+        "project_identifier": row["project__identifier"],
+        "ref": f"{row['project__identifier']}-{row['sequence_id']}",
+    }
+
+
+def lock_user_timers(user):
+    """Serialize timer start/stop for one user.
+
+    Must be called inside ``transaction.atomic()``. Locking the user's row means
+    two concurrent requests from the same user queue up, so there is never a window
+    where two timers run (start/start), where a timer is stopped twice
+    (stop/stop => duplicate worklogs) or where a start races a stop.
+    """
+    User.objects.select_for_update().only("id").get(pk=user.pk)
+
+
+def stop_timer_to_worklog(timer, user, description=None, ended_at=None):
+    """Convert a running timer into a timer-sourced worklog and remove the timer.
+
+    Duration is rounded down to whole minutes, with a one-minute minimum. Runs on
+    the timer's own project/issue, so it also works when the timer lives on a
+    different work item than the request that triggered the stop.
+    """
+    ended_at = ended_at or timezone.now()
+    minutes = max(1, math.floor((ended_at - timer.started_at).total_seconds() / 60))
+    billable_rate, currency = resolve_billable_rate(timer.project, user.id)
+    worklog = IssueWorklog.objects.create(
+        project_id=timer.project_id,
+        issue_id=timer.issue_id,
+        logged_by=user,
+        duration=minutes,
+        description=timer.description if description is None else description,
+        logged_date=timezone.localdate(timer.started_at),
+        started_at=timer.started_at,
+        ended_at=ended_at,
+        source=WorklogSource.TIMER,
+        is_billable=True,
+        billable_rate=billable_rate,
+        currency=currency,
+        approval_status=WorklogApprovalStatus.DRAFT,
+    )
+    timer.delete()
+    return worklog
+
+
 class WorklogTimerEndpoint(BaseAPIView):
     """Start/stop a stopwatch for the current user. One active timer per user."""
 
@@ -208,66 +272,84 @@ class WorklogTimerEndpoint(BaseAPIView):
                 {"error": "Time tracking is not enabled for this project."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # Enforce a single running timer per user across the workspace.
-        existing = WorklogTimer.objects.filter(workspace__slug=slug, user=request.user).first()
-        if existing:
-            # FORK: PSR-26 — name the ticket holding the running timer so the
-            # user can find and stop it instead of hunting for it.
-            running_issue = Issue.issue_objects.filter(id=existing.issue_id).values(
-                "name", "sequence_id", "project__identifier"
-            ).first()
-            if running_issue:
-                ref = f"{running_issue['project__identifier']}-{running_issue['sequence_id']}"
-                error_message = (
-                    f'You already have a running timer on {ref}: "{running_issue["name"]}". '
-                    "Stop that timer before starting a new one."
-                )
-            else:
-                error_message = "You already have a running timer."
-            return Response(
-                {
-                    "error": error_message,
-                    "timer": WorklogTimerSerializer(existing).data,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+        # FORK: PSR-101 — starting a timer while another one runs elsewhere stops
+        # the running one (logging its time as a normal worklog) and starts the new
+        # one, all in ONE transaction under a per-user row lock: no window where two
+        # timers run, and no time is lost if any step fails (everything rolls back).
+        with transaction.atomic():
+            lock_user_timers(request.user)
+            # One running timer per user, across workspaces (the DB constraint is
+            # per user, not per workspace).
+            existing = WorklogTimer.objects.select_related("project").filter(user=request.user).first()
+            stopped = None
+            if existing:
+                if str(existing.issue_id) == str(issue_id):
+                    # Genuinely invalid: this work item is already being timed.
+                    running_issue = _issue_ref(existing.issue_id)
+                    where = (
+                        f'{running_issue["ref"]}: "{running_issue["name"]}"'
+                        if running_issue
+                        else "this work item"
+                    )
+                    return Response(
+                        {
+                            "error": f"A timer is already running on {where}.",
+                            "timer": WorklogTimerSerializer(existing).data,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                stopped_issue = _issue_ref(existing.issue_id)
+                worklog = stop_timer_to_worklog(existing, request.user)
+                stopped = {
+                    "worklog": IssueWorklogSerializer(worklog).data,
+                    "duration": worklog.duration,
+                    "issue": stopped_issue,
+                }
+            timer = WorklogTimer.objects.create(
+                project_id=project_id,
+                issue_id=issue_id,
+                user=request.user,
+                started_at=timezone.now(),
+                description=request.data.get("description", ""),
             )
-        timer = WorklogTimer.objects.create(
-            project_id=project_id,
-            issue_id=issue_id,
-            user=request.user,
-            started_at=timezone.now(),
-            description=request.data.get("description", ""),
-        )
-        return Response(WorklogTimerSerializer(timer).data, status=status.HTTP_201_CREATED)
+        data = WorklogTimerSerializer(timer).data
+        if stopped:
+            data["stopped"] = stopped
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def delete(self, request, slug, project_id, issue_id):
         """Stop the running timer and convert it to a worklog."""
-        timer = WorklogTimer.objects.filter(
-            workspace__slug=slug, user=request.user, issue_id=issue_id
-        ).first()
-        if not timer:
-            return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
-
-        project = Project.objects.get(pk=project_id)
-        ended_at = timezone.now()
-        minutes = max(1, math.floor((ended_at - timer.started_at).total_seconds() / 60))
-        billable_rate, currency = resolve_billable_rate(project, request.user.id)
-
-        worklog = IssueWorklog.objects.create(
-            project_id=project_id,
-            issue_id=issue_id,
-            logged_by=request.user,
-            duration=minutes,
-            description=request.data.get("description", timer.description),
-            logged_date=timezone.localdate(timer.started_at),
-            started_at=timer.started_at,
-            ended_at=ended_at,
-            source=WorklogSource.TIMER,
-            is_billable=True,
-            billable_rate=billable_rate,
-            currency=currency,
-            approval_status=WorklogApprovalStatus.DRAFT,
-        )
-        timer.delete()
+        with transaction.atomic():
+            # Same lock as start, so a double-click on Stop can't log twice.
+            lock_user_timers(request.user)
+            timer = (
+                WorklogTimer.objects.select_related("project")
+                .filter(workspace__slug=slug, user=request.user, issue_id=issue_id)
+                .first()
+            )
+            if not timer:
+                return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
+            worklog = stop_timer_to_worklog(timer, request.user, description=request.data.get("description"))
         return Response(IssueWorklogSerializer(worklog).data, status=status.HTTP_201_CREATED)
+
+
+class WorklogRunningTimerEndpoint(BaseAPIView):
+    """FORK: PSR-105 — the current user's running timer in this workspace.
+
+    Backs the always-visible timer indicator. Unlike the per-issue endpoint it needs
+    no project/issue in the URL and returns what the indicator renders (work item
+    reference, name, link ids) plus the server clock, so elapsed time is not skewed
+    by a wrong client clock. Returns only ``server_now`` when no timer is running.
+    """
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    def get(self, request, slug):
+        now = timezone.now()
+        timer = WorklogTimer.objects.filter(workspace__slug=slug, user=request.user).first()
+        if not timer:
+            return Response({"server_now": now}, status=status.HTTP_200_OK)
+        data = WorklogTimerSerializer(timer).data
+        data["issue_detail"] = _issue_ref(timer.issue_id)
+        data["server_now"] = now
+        return Response(data, status=status.HTTP_200_OK)

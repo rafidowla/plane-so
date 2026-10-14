@@ -7,9 +7,14 @@ self-service Jira import endpoints added by this fork."""
 
 import csv
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 
 import pytest
+from django.db import connection
+from django.utils import timezone
 from rest_framework import status
+from rest_framework.test import APIClient
 
 from plane.db.models import (
     Client,
@@ -179,21 +184,214 @@ class TestWorklog:
         assert r.status_code == status.HTTP_200_OK
         assert "source" in r.data[0] and "logged_by" in r.data[0]
 
-    def test_timer_start_conflict_and_stop(self, session_client, tt):
+    def test_timer_start_same_item_rejected_and_stop(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         timer_url = f"/api/workspaces/{slug}/projects/{pid}/issues/{iid}/worklog-timer/"
         assert session_client.post(timer_url, {}, format="json").status_code == status.HTTP_201_CREATED
-        # second start while one is running -> blocked, naming the ticket that
-        # holds the running timer (PSR-26)
+        # second start on the SAME work item is genuinely invalid -> blocked,
+        # naming the ticket that holds the running timer (PSR-26 / PSR-101)
         conflict = session_client.post(timer_url, {}, format="json")
         assert conflict.status_code == status.HTTP_400_BAD_REQUEST
         assert "TTP-1" in conflict.json()["error"]
         assert "Issue 1" in conflict.json()["error"]
+        assert WorklogTimer.objects.filter(user=tt["user"]).count() == 1
+        assert IssueWorklog.objects.filter(issue=tt["issue"]).count() == 0
         # stop -> creates a worklog, clears the timer
         stop = session_client.delete(timer_url)
         assert stop.status_code == status.HTTP_201_CREATED
         assert WorklogTimer.objects.filter(user=tt["user"]).count() == 0
         assert IssueWorklog.objects.filter(issue=tt["issue"], source="timer").count() == 1
+
+
+def _second_issue(tt, name="Issue 2"):
+    issue = Issue(workspace=tt["workspace"], project=tt["project"], name=name, state=tt["state"])
+    issue.save(created_by_id=tt["user"].id)
+    return issue
+
+
+def _timer_url(slug, pid, iid):
+    return f"/api/workspaces/{slug}/projects/{pid}/issues/{iid}/worklog-timer/"
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestTimerAutoStop:
+    """FORK: PSR-101 — starting a timer elsewhere stops the running one atomically."""
+
+    def test_start_with_no_running_timer(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        res = session_client.post(_timer_url(slug, pid, iid), {}, format="json")
+        assert res.status_code == status.HTTP_201_CREATED
+        assert "stopped" not in res.json()
+        assert WorklogTimer.objects.filter(user=tt["user"], issue=tt["issue"]).count() == 1
+        assert IssueWorklog.objects.filter(logged_by=tt["user"]).count() == 0
+
+    def test_start_on_other_item_stops_running_timer(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        other = _second_issue(tt)
+        assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
+        # pretend the first timer has been running for 25 minutes
+        WorklogTimer.objects.filter(user=tt["user"]).update(
+            started_at=timezone.now() - timedelta(minutes=25, seconds=30)
+        )
+
+        res = session_client.post(_timer_url(slug, pid, other.id), {}, format="json")
+
+        assert res.status_code == status.HTTP_201_CREATED
+        body = res.json()
+        # the new timer runs on the new item ...
+        assert body["issue"] == str(other.id)
+        # ... and the response reports what was stopped, for the toast
+        assert body["stopped"]["duration"] == 25
+        assert body["stopped"]["issue"]["ref"] == "TTP-1"
+        # exactly one timer remains, on the new item
+        timers = WorklogTimer.objects.filter(user=tt["user"])
+        assert timers.count() == 1 and timers.first().issue_id == other.id
+        # the old timer's time was logged as a normal timer entry on the OLD item
+        logs = IssueWorklog.objects.filter(logged_by=tt["user"])
+        assert logs.count() == 1
+        log = logs.first()
+        assert log.issue_id == tt["issue"].id
+        assert log.source == "timer"
+        assert log.duration == 25
+        assert log.ended_at is not None
+
+    def test_start_on_same_item_still_rejected_and_nothing_logged(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
+        res = session_client.post(_timer_url(slug, pid, iid), {}, format="json")
+        assert res.status_code == status.HTTP_400_BAD_REQUEST
+        assert WorklogTimer.objects.filter(user=tt["user"]).count() == 1
+        assert IssueWorklog.objects.filter(logged_by=tt["user"]).count() == 0
+
+    def test_time_tracking_disabled_does_not_stop_running_timer(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
+        other_project = Project.objects.create(
+            workspace=tt["workspace"],
+            name="Off",
+            identifier="OFF",
+            created_by=tt["user"],
+            is_time_tracking_enabled=False,
+        )
+        ProjectMember.objects.create(
+            project=other_project, workspace=tt["workspace"], member=tt["user"], role=20, is_active=True
+        )
+        state = State.objects.create(
+            workspace=tt["workspace"], project=other_project, name="Todo", group="unstarted", default=True
+        )
+        off_issue = Issue(workspace=tt["workspace"], project=other_project, name="Off issue", state=state)
+        off_issue.save(created_by_id=tt["user"].id)
+        res = session_client.post(_timer_url(slug, other_project.id, off_issue.id), {}, format="json")
+        assert res.status_code == status.HTTP_400_BAD_REQUEST
+        # the invalid request must not have touched the running timer
+        assert WorklogTimer.objects.filter(user=tt["user"], issue=tt["issue"]).count() == 1
+        assert IssueWorklog.objects.filter(logged_by=tt["user"]).count() == 0
+
+    def test_failed_start_rolls_back_the_auto_stop(self, session_client, tt, monkeypatch):
+        """If creating the new timer fails, the old timer survives and nothing is logged."""
+        slug, pid, iid = _ids(tt)
+        other = _second_issue(tt)
+        assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("create failed")
+
+        monkeypatch.setattr(WorklogTimer.objects, "create", boom)
+        session_client.raise_request_exception = False
+        res = session_client.post(_timer_url(slug, pid, other.id), {}, format="json")
+        assert res.status_code >= 500
+        monkeypatch.undo()
+        assert WorklogTimer.objects.filter(user=tt["user"], issue=tt["issue"]).count() == 1
+        assert IssueWorklog.objects.filter(logged_by=tt["user"]).count() == 0
+
+    def test_workspace_running_timer_endpoint(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        url = f"/api/workspaces/{slug}/worklog-timer/"
+        empty = session_client.get(url)
+        assert empty.status_code == status.HTTP_200_OK
+        assert "id" not in empty.json() and "server_now" in empty.json()
+
+        session_client.post(_timer_url(slug, pid, iid), {}, format="json")
+        res = session_client.get(url)
+        assert res.status_code == status.HTTP_200_OK
+        body = res.json()
+        assert body["issue"] == iid
+        assert body["issue_detail"]["ref"] == "TTP-1"
+        assert body["issue_detail"]["project_id"] == pid
+        assert body["server_now"]
+
+    def test_workspace_running_timer_is_per_user(self, session_client, tt):
+        slug, pid, iid = _ids(tt)
+        session_client.post(_timer_url(slug, pid, iid), {}, format="json")
+        # a different workspace member must not see someone else's timer
+        other_user = _ws_member(tt["workspace"], role=15)
+        client = APIClient()
+        client.force_authenticate(user=other_user)
+        res = client.get(f"/api/workspaces/{slug}/worklog-timer/")
+        assert res.status_code == status.HTTP_200_OK
+        assert "id" not in res.json()
+
+    def test_workspace_running_timer_requires_membership(self, tt):
+        outsider = User.objects.create(email="out@plane.so", username="out_user")
+        client = APIClient()
+        client.force_authenticate(user=outsider)
+        res = client.get(f"/api/workspaces/{tt['workspace'].slug}/worklog-timer/")
+        assert res.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.contract
+@pytest.mark.django_db(transaction=True)
+class TestTimerConcurrency:
+    """FORK: PSR-101 — concurrent requests from one user never leave two timers
+    running or log the same stopped time twice."""
+
+    def _client(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client
+
+    def _run_parallel(self, calls):
+        def run(call):
+            try:
+                return call()
+            finally:
+                connection.close()
+
+        with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+            return [f.result() for f in [pool.submit(run, c) for c in calls]]
+
+    def test_concurrent_starts_on_different_items_leave_one_timer(self, tt):
+        slug, pid, _ = _ids(tt)
+        issues = [_second_issue(tt, f"Concurrent {n}") for n in range(3)]
+        responses = self._run_parallel(
+            [lambda i=i: self._client(tt["user"]).post(_timer_url(slug, pid, i.id), {}, format="json") for i in issues]
+        )
+        assert all(r.status_code == status.HTTP_201_CREATED for r in responses)
+        # exactly one timer survives; the other two were stopped and logged
+        assert WorklogTimer.objects.filter(user=tt["user"]).count() == 1
+        assert IssueWorklog.objects.filter(logged_by=tt["user"], source="timer").count() == 2
+
+    def test_concurrent_starts_on_same_item_create_one_timer(self, tt):
+        slug, pid, iid = _ids(tt)
+        responses = self._run_parallel(
+            [lambda: self._client(tt["user"]).post(_timer_url(slug, pid, iid), {}, format="json") for _ in range(3)]
+        )
+        codes = sorted(r.status_code for r in responses)
+        assert codes == [status.HTTP_201_CREATED, status.HTTP_400_BAD_REQUEST, status.HTTP_400_BAD_REQUEST]
+        assert WorklogTimer.objects.filter(user=tt["user"]).count() == 1
+        assert IssueWorklog.objects.filter(logged_by=tt["user"]).count() == 0
+
+    def test_concurrent_stops_log_once(self, tt):
+        slug, pid, iid = _ids(tt)
+        assert self._client(tt["user"]).post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
+        responses = self._run_parallel(
+            [lambda: self._client(tt["user"]).delete(_timer_url(slug, pid, iid)) for _ in range(3)]
+        )
+        codes = sorted(r.status_code for r in responses)
+        assert codes == [status.HTTP_201_CREATED, status.HTTP_404_NOT_FOUND, status.HTTP_404_NOT_FOUND]
+        assert IssueWorklog.objects.filter(logged_by=tt["user"]).count() == 1
+        assert WorklogTimer.objects.filter(user=tt["user"]).count() == 0
 
 
 @pytest.mark.contract
