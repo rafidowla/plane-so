@@ -45,7 +45,7 @@ through the same function.
 | Custom properties (fork)                                                                                          | Matched by property **name + type** among the target's active properties (`issue_type` null or the item's type). OPTION values map by option name; an option with no match is dropped. USER relations keep only target members. Values with no matching property are **dropped** and listed.                                                     |
 | Comment descriptions                                                                                              | A comment's `Description` row and its `DescriptionVersion`s carry a project FK and are re-pointed with the comment. This is a forward FK — the relation-policy guard test only sees reverse FKs of `Issue`/`IssueComment`, so check forward FKs by hand when upstream adds one.                                                                  |
 | Notifications / recent visits                                                                                     | Existing rows are re-pointed to the target project so in-app links keep opening.                                                                                                                                                                                                                                                                 |
-| Intake                                                                                                            | A **pending** intake item (status pending/snoozed) cannot be moved — accept it first. The intake record of an accepted item stays in the source intake as history.                                                                                                                                                                               |
+| Intake                                                                                                            | A **pending** intake item (status pending/snoozed) cannot be moved — accept it first. The same applies to every sub-item in *move together* mode (detach is allowed). The intake record of an accepted item stays in the source intake as history.                                                                                                                                                                               |
 
 ## 3. Permissions
 
@@ -55,6 +55,14 @@ through the same function.
 - Target: the caller must be able to **create** there under the same rule.
 - Target must be in the same workspace, not archived, and not the source.
 - Archived items must be restored first; `is_draft` legacy items are refused.
+- Permission is checked **before** anything else, so a caller without write
+  access gets `403` and learns nothing about intake state or whether a target
+  project UUID exists / is archived.
+- Old identifiers redirect only for active members of the project the item
+  lives in now; anyone else gets the same `404` as for an unknown identifier.
+- Mapping lookups of ids from a request body (states, labels, estimate points)
+  only resolve within the source/target projects; dropped assignees are only
+  named if they are members of the workspace.
 - The request body is an explicit allowlist (`target_project_id`, `sub_items`,
   `state_map`) — nothing else is read (cf. upstream WEB-8332).
 - Draft (PSR-92): changing a draft's project requires active membership of the
@@ -126,7 +134,8 @@ POST /api/workspaces/{slug}/draft-issues/project-mapping/
 `FieldMapping`: `{"state_id", "state_match", "label_ids", "assignee_ids", "estimate_point", "type_id", "parent_id", "cycle_id", "module_ids", "dropped": {"labels": [Label], "assignees": [User], "cycle": bool, "modules": bool, "estimate": bool, "parent": bool}}`
 
 Errors are `400 {"error": "...", "code": "<CODE>"}` (`SAME_PROJECT`, `INVALID_TARGET`,
-`TARGET_ARCHIVED`, `ITEM_ARCHIVED`, `ITEM_IN_INTAKE`, `INVALID_STATE_MAP`) or `403`.
+`TARGET_ARCHIVED`, `ITEM_ARCHIVED`, `ITEM_IN_INTAKE`, `INVALID_STATE_MAP`), `403`, or
+`409 CONFLICT` when a sub-item left the source project / changed parent while the move ran.
 
 Draft endpoints changed: `PATCH /draft-issues/{id}/` with a different
 `project_id` re-targets the draft (server re-maps stored state/labels/
