@@ -19,7 +19,7 @@ from uuid import uuid4
 import pytest
 from rest_framework import status
 
-from plane.db.models import FileAsset, Issue, Project, ProjectMember, State, User
+from plane.db.models import DraftIssue, FileAsset, Issue, Project, ProjectMember, State, User
 
 
 def _make_project(workspace, user, identifier):
@@ -43,6 +43,13 @@ def project_b(db, workspace, create_user):
 def _make_issue(workspace, project, user, name="Issue"):
     state = State.objects.create(name="Todo", project=project, workspace=workspace, group="unstarted")
     return Issue.objects.create(name=name, project=project, workspace=workspace, state=state, created_by=user)
+
+
+def _make_draft(workspace, project, user):
+    # created_by is stamped from the request user in BaseModel.save(); pass it explicitly.
+    draft = DraftIssue(name="Draft", workspace=workspace, project=project)
+    draft.save(created_by_id=user.id)
+    return draft
 
 
 def _make_asset(workspace, project, user, **kwargs):
@@ -146,3 +153,22 @@ class TestBulkAssetRehome:
         assert response.status_code == status.HTTP_404_NOT_FOUND
         asset.refresh_from_db()
         assert asset.project_id == project_a.id
+
+    @pytest.mark.django_db
+    def test_description_asset_is_linked_to_draft_in_target_project(
+        self, session_client, workspace, project_a, project_b, create_user
+    ):
+        """Create modal saved as a draft after switching project: the image is tagged
+        ISSUE_DESCRIPTION, uploaded into project A, linked to a project B draft."""
+        draft = _make_draft(workspace, project_b, create_user)
+        asset = _make_asset(workspace, project_a, create_user)
+
+        response = session_client.post(
+            bulk_url(workspace.slug, project_b.id, draft.id), {"asset_ids": [str(asset.id)]}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT, getattr(response, "data", None)
+        asset.refresh_from_db()
+        assert asset.draft_issue_id == draft.id
+        assert asset.issue_id is None
+        assert asset.project_id == project_b.id

@@ -20,7 +20,7 @@ from rest_framework.permissions import AllowAny
 # Module imports
 from ..base import BaseAPIView
 from plane.app.serializers import FileAssetSerializer
-from plane.db.models import FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember
+from plane.db.models import DraftIssue, FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember
 from plane.settings.storage import S3Storage
 from plane.app.permissions import allow_permission, ROLE
 from plane.utils.cache import invalidate_cache_directly
@@ -784,7 +784,18 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
             # For some cases, the bulk api is called after the issue is deleted creating
             # an integrity error
             try:
-                assets.update(issue_id=entity_id, project_id=project_id)
+                # FORK: PSR-104 — the create modal tags editor images ISSUE_DESCRIPTION even
+                # when the work item is saved as a draft, so entity_id may be a draft id.
+                # Linking it as issue_id violates the FK (swallowed below) and leaves the image
+                # in its original project — broken when the draft was saved in another project.
+                # Link it to the caller's own draft in this project instead.
+                is_own_draft = DraftIssue.objects.filter(
+                    pk=entity_id, workspace__slug=slug, project_id=project_id, created_by=request.user
+                ).exists()
+                if is_own_draft:
+                    assets.update(draft_issue_id=entity_id, project_id=project_id)
+                else:
+                    assets.update(issue_id=entity_id, project_id=project_id)
             except IntegrityError:
                 pass
 
