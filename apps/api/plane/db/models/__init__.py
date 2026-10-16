@@ -105,4 +105,13 @@ from .worklog import (
 # FORK: time-tracking
 from .jira_import import JiraImportJob, JiraImportStatus
 
+# FORK: time-tracking-v2 — workspace time settings, member tracking status, audit log
+from .time_tracking import (
+    TimeTrackingSetting,
+    TimeTrackingMemberStatus,
+    TimeTrackingAuditLog,
+    TimeTrackingAuditTarget,
+    TimeTrackingAuditAction,
+)
+
 from .description import Description, DescriptionVersion

@@ -253,6 +253,10 @@ from .time_tracking import (
     TimesheetViewSet,
     ResourceCapacityViewSet,
     TimeReportEndpoint,
+    # FORK: time-tracking-v2 — workspace settings + member tracking status
+    TimeTrackingSettingsEndpoint,
+    TimeTrackingMembersEndpoint,
+    TimeTrackingMemberStatusEndpoint,
     JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,

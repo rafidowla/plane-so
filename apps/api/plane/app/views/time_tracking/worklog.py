@@ -3,11 +3,9 @@
 # See the LICENSE file for details.
 
 # Python imports
-import math
 import uuid
 
 # Django imports
-from django.db import transaction
 from django.utils import timezone
 
 # Third party imports
@@ -21,47 +19,40 @@ from plane.app.serializers import IssueWorklogSerializer, WorklogTimerSerializer
 from plane.db.models import (
     Project,
     ProjectMember,
-    User,
     Issue,
     IssueWorklog,
     WorklogTimer,
-    ResourceCapacity,
-    WorklogApprovalStatus,
+    TimeTrackingAuditAction,
+    TimeTrackingAuditTarget,
     WorklogSource,
 )
 
-
-def is_project_admin(slug, project_id, user):
-    return ProjectMember.objects.filter(
-        workspace__slug=slug,
-        project_id=project_id,
-        member=user,
-        role=ROLE.ADMIN.value,
-        is_active=True,
-    ).exists()
-
-
-def is_project_member(slug, project_id, user):
-    """Internal roles (admin/member). Guests are clients and excluded."""
-    return ProjectMember.objects.filter(
-        workspace__slug=slug,
-        project_id=project_id,
-        member=user,
-        role__in=[ROLE.ADMIN.value, ROLE.MEMBER.value],
-        is_active=True,
-    ).exists()
+# FORK: time-tracking-v2 — timer start/stop and the shared helpers moved to a service
+# layer (plane.utils.time_tracking) so the sweep and the S2 endpoints reuse them. The
+# names below stay importable from here for existing callers.
+from plane.utils.time_tracking import audit
+from plane.utils.time_tracking.timer import (  # noqa: F401
+    TimeTrackingError,
+    TimerAlreadyRunning,
+    is_project_admin,
+    is_project_member,
+    issue_label as _issue_ref,
+    lock_user_timers,
+    resolve_billable_rate,
+    start_timer,
+    stop_user_timer,
+)
 
 
-def resolve_billable_rate(project, logged_by_id):
-    """Default billable rate: resource rate, else the project's client default."""
-    capacity = ResourceCapacity.objects.filter(
-        workspace_id=project.workspace_id, user_id=logged_by_id
-    ).first()
-    if capacity and capacity.billable_rate is not None:
-        return capacity.billable_rate, capacity.currency
-    if project.client_id and project.client and project.client.default_billable_rate is not None:
-        return project.client.default_billable_rate, project.client.currency
-    return None, "USD"
+def _stop_payload(worklogs):
+    """FORK: time-tracking-v2 — a stop can now produce one entry per local day.
+
+    ``worklog`` (and the top-level fields of a stop response) is the LAST piece, so
+    single-day stops look exactly as before; ``pieces`` lists every entry and
+    ``total_duration`` is their sum.
+    """
+    pieces = IssueWorklogSerializer(worklogs, many=True).data
+    return pieces, sum(w.duration for w in worklogs)
 
 
 class IssueWorklogViewSet(BaseViewSet):
@@ -177,6 +168,15 @@ class IssueWorklogViewSet(BaseViewSet):
             currency=currency,
             source=WorklogSource.MANUAL,
         )
+        # FORK: time-tracking-v2 — audit every manual change.
+        audit.record(
+            worklog.workspace_id,
+            request.user,
+            TimeTrackingAuditTarget.WORKLOG,
+            worklog.id,
+            TimeTrackingAuditAction.CREATE,
+            after=audit.worklog_state(worklog),
+        )
         return Response(IssueWorklogSerializer(worklog).data, status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
@@ -193,9 +193,20 @@ class IssueWorklogViewSet(BaseViewSet):
                 {"error": "You can only edit your own time entries."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        before = audit.worklog_state(worklog)
         serializer = IssueWorklogSerializer(worklog, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
+            worklog = serializer.save()
+            # FORK: time-tracking-v2 — audit every manual change.
+            audit.record(
+                worklog.workspace_id,
+                request.user,
+                TimeTrackingAuditTarget.WORKLOG,
+                worklog.id,
+                TimeTrackingAuditAction.UPDATE,
+                before=before,
+                after=audit.worklog_state(worklog),
+            )
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -213,70 +224,18 @@ class IssueWorklogViewSet(BaseViewSet):
                 {"error": "You can only delete your own time entries."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        # FORK: time-tracking-v2 — audit every manual change.
+        audit.record(
+            worklog.workspace_id,
+            request.user,
+            TimeTrackingAuditTarget.WORKLOG,
+            worklog.id,
+            TimeTrackingAuditAction.DELETE,
+            before=audit.worklog_state(worklog),
+        )
         worklog.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
-def _issue_ref(issue_id):
-    """Human-readable reference for an issue, e.g. {"ref": "TTP-1", "name": "..."}.
-
-    Returns None when the issue can no longer be resolved (deleted/archived).
-    """
-    row = (
-        Issue.issue_objects.filter(id=issue_id)
-        .values("id", "name", "sequence_id", "project_id", "project__identifier")
-        .first()
-    )
-    if not row:
-        return None
-    return {
-        "id": str(row["id"]),
-        "name": row["name"],
-        "sequence_id": row["sequence_id"],
-        "project_id": str(row["project_id"]),
-        "project_identifier": row["project__identifier"],
-        "ref": f"{row['project__identifier']}-{row['sequence_id']}",
-    }
-
-
-def lock_user_timers(user):
-    """Serialize timer start/stop for one user.
-
-    Must be called inside ``transaction.atomic()``. Locking the user's row means
-    two concurrent requests from the same user queue up, so there is never a window
-    where two timers run (start/start), where a timer is stopped twice
-    (stop/stop => duplicate worklogs) or where a start races a stop.
-    """
-    User.objects.select_for_update().only("id").get(pk=user.pk)
-
-
-def stop_timer_to_worklog(timer, user, description=None, ended_at=None):
-    """Convert a running timer into a timer-sourced worklog and remove the timer.
-
-    Duration is rounded down to whole minutes, with a one-minute minimum. Runs on
-    the timer's own project/issue, so it also works when the timer lives on a
-    different work item than the request that triggered the stop.
-    """
-    ended_at = ended_at or timezone.now()
-    minutes = max(1, math.floor((ended_at - timer.started_at).total_seconds() / 60))
-    billable_rate, currency = resolve_billable_rate(timer.project, user.id)
-    worklog = IssueWorklog.objects.create(
-        project_id=timer.project_id,
-        issue_id=timer.issue_id,
-        logged_by=user,
-        duration=minutes,
-        description=timer.description if description is None else description,
-        logged_date=timezone.localdate(timer.started_at),
-        started_at=timer.started_at,
-        ended_at=ended_at,
-        source=WorklogSource.TIMER,
-        is_billable=True,
-        billable_rate=billable_rate,
-        currency=currency,
-        approval_status=WorklogApprovalStatus.DRAFT,
-    )
-    timer.delete()
-    return worklog
 
 
 class WorklogTimerEndpoint(BaseAPIView):
@@ -293,78 +252,42 @@ class WorklogTimerEndpoint(BaseAPIView):
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def post(self, request, slug, project_id, issue_id):
-        project = Project.objects.get(pk=project_id)
-        if not project.is_time_tracking_enabled:
+        # FORK: time-tracking-v2 — logic lives in plane.utils.time_tracking.timer.start_timer
+        # (project enabled 400, issue-in-project 404, tracking turned off 403, PSR-101
+        # stop-previous-then-start in one locked transaction).
+        try:
+            timer, stopped = start_timer(
+                slug, project_id, issue_id, request.user, request.data.get("description", "")
+            )
+        except TimerAlreadyRunning as exc:
             return Response(
-                {"error": "Time tracking is not enabled for this project."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {**exc.payload, "timer": WorklogTimerSerializer(exc.timer).data},
+                status=exc.status_code,
             )
-        # FORK: security — the work item must live in this project. Without this a member
-        # of any time-tracked project could time a work item of another project (or
-        # workspace) by UUID, and the running-timer endpoint would then echo back that
-        # item's name and identifier.
-        if not Issue.objects.filter(pk=issue_id, project_id=project_id, workspace__slug=slug).exists():
-            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
-        # FORK: PSR-101 — starting a timer while another one runs elsewhere stops
-        # the running one (logging its time as a normal worklog) and starts the new
-        # one, all in ONE transaction under a per-user row lock: no window where two
-        # timers run, and no time is lost if any step fails (everything rolls back).
-        with transaction.atomic():
-            lock_user_timers(request.user)
-            # One running timer per user, across workspaces (the DB constraint is
-            # per user, not per workspace).
-            existing = WorklogTimer.objects.select_related("project").filter(user=request.user).first()
-            stopped = None
-            if existing:
-                if str(existing.issue_id) == str(issue_id):
-                    # Genuinely invalid: this work item is already being timed.
-                    running_issue = _issue_ref(existing.issue_id)
-                    where = (
-                        f'{running_issue["ref"]}: "{running_issue["name"]}"'
-                        if running_issue
-                        else "this work item"
-                    )
-                    return Response(
-                        {
-                            "error": f"A timer is already running on {where}.",
-                            "timer": WorklogTimerSerializer(existing).data,
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                stopped_issue = _issue_ref(existing.issue_id)
-                worklog = stop_timer_to_worklog(existing, request.user)
-                stopped = {
-                    "worklog": IssueWorklogSerializer(worklog).data,
-                    "duration": worklog.duration,
-                    "issue": stopped_issue,
-                }
-            timer = WorklogTimer.objects.create(
-                project_id=project_id,
-                issue_id=issue_id,
-                user=request.user,
-                started_at=timezone.now(),
-                description=request.data.get("description", ""),
-            )
+        except TimeTrackingError as exc:
+            return Response(exc.payload, status=exc.status_code)
         data = WorklogTimerSerializer(timer).data
         if stopped:
-            data["stopped"] = stopped
+            pieces, total = _stop_payload(stopped["worklogs"])
+            data["stopped"] = {
+                "worklog": pieces[-1],
+                "duration": total,
+                "issue": stopped["issue"],
+                "pieces": pieces,
+            }
         return Response(data, status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def delete(self, request, slug, project_id, issue_id):
-        """Stop the running timer and convert it to a worklog."""
-        with transaction.atomic():
-            # Same lock as start, so a double-click on Stop can't log twice.
-            lock_user_timers(request.user)
-            timer = (
-                WorklogTimer.objects.select_related("project")
-                .filter(workspace__slug=slug, user=request.user, issue_id=issue_id)
-                .first()
-            )
-            if not timer:
-                return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
-            worklog = stop_timer_to_worklog(timer, request.user, description=request.data.get("description"))
-        return Response(IssueWorklogSerializer(worklog).data, status=status.HTTP_201_CREATED)
+        """Stop the running timer and convert it to worklog(s)."""
+        worklogs = stop_user_timer(slug, issue_id, request.user, description=request.data.get("description"))
+        if not worklogs:
+            return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
+        pieces, total = _stop_payload(worklogs)
+        data = dict(pieces[-1])
+        data["pieces"] = pieces
+        data["total_duration"] = total
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class WorklogRunningTimerEndpoint(BaseAPIView):

@@ -12,6 +12,9 @@ from plane.app.views import (
     TimesheetViewSet,
     ResourceCapacityViewSet,
     TimeReportEndpoint,
+    TimeTrackingSettingsEndpoint,
+    TimeTrackingMembersEndpoint,
+    TimeTrackingMemberStatusEndpoint,
     JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
@@ -82,6 +85,22 @@ urlpatterns = [
         "workspaces/<str:slug>/time-report/",
         TimeReportEndpoint.as_view(),
         name="time-report",
+    ),
+    # FORK: time-tracking-v2 — workspace settings and member tracking status
+    path(
+        "workspaces/<str:slug>/time/settings/",
+        TimeTrackingSettingsEndpoint.as_view(),
+        name="time-tracking-settings",
+    ),
+    path(
+        "workspaces/<str:slug>/time/members/",
+        TimeTrackingMembersEndpoint.as_view(),
+        name="time-tracking-members",
+    ),
+    path(
+        "workspaces/<str:slug>/time/members/<uuid:user_id>/tracking/",
+        TimeTrackingMemberStatusEndpoint.as_view(),
+        name="time-tracking-member-status",
     ),
     # Jira import (self-service)
     path(

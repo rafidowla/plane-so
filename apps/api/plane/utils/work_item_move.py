@@ -59,6 +59,7 @@ from plane.db.models import (
     UserRecentVisit,
     WorklogTimer,
 )
+from plane.utils.time_tracking.snapshot import refresh_worklog_snapshots  # FORK: time-tracking-v2
 from plane.db.models.issue import IssueAttachment
 from plane.utils.uuid import convert_uuid_to_integer
 from plane.utils.work_item_mapping import (
@@ -616,6 +617,9 @@ def move_work_item(issue, target, user, sub_items_mode=SUB_ITEMS_MOVE, state_map
         # Rows that simply follow the item.
         for model, fk in REPOINT_BY_ISSUE:
             model.all_objects.filter(**{f"{fk}_id__in": item_ids}).update(project_id=target.id)
+        # FORK: time-tracking-v2 — worklogs carry a snapshot of the item's identifier
+        # (e.g. "TTP-1"); refresh it now that the item has its new project/sequence.
+        refresh_worklog_snapshots(item_ids)
         comment_ids = list(IssueComment.all_objects.filter(issue_id__in=item_ids).values_list("id", flat=True))
         for model, fk in REPOINT_BY_COMMENT:
             model.all_objects.filter(**{f"{fk}_id__in": comment_ids}).update(project_id=target.id)

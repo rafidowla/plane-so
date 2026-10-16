@@ -53,6 +53,11 @@ app.conf.beat_schedule = {
         "task": "plane.bgtasks.issue_automation_task.unsnooze_expired_intake_issues",
         "schedule": crontab(minute="*/5"),  # Every 5 minutes
     },
+    # FORK: time-tracking-v2 — convert timers on deleted work items / untracked members
+    "check-every-five-minutes-to-sweep-time-tracking-timers": {
+        "task": "plane.bgtasks.time_tracking_sweep.time_tracking_timer_sweep",
+        "schedule": crontab(minute="*/5"),  # Every 5 minutes
+    },
     "push-instance-metrics": {
         "task": "plane.license.bgtasks.telemetry_metrics.push_instance_metrics",
         "schedule": schedule(run_every=timedelta(minutes=METRICS_PUSH_INTERVAL_MINUTES)),

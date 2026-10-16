@@ -12,6 +12,7 @@ from datetime import datetime
 from django.db.models import (
     Sum,
     Count,
+    Max,
     F,
     Q,
     DecimalField,
@@ -50,19 +51,56 @@ def _csv_safe(value):
     return text
 
 
-def _issue_extras(r):
+def _live_issues(issue_ids):
+    """FORK: time-tracking-v2 — {issue_id: (name, sequence_id, deleted_at)} for the
+    work items still in the DB (soft-deleted included). Worklogs outlive their work
+    item, so the report never joins ``issue__*`` (an INNER JOIN would drop rows
+    whose work item was hard-deleted); it falls back to the worklog's snapshot."""
+    from plane.db.models import Issue
+
+    ids = [i for i in issue_ids if i]
+    return {
+        row[0]: row[1:]
+        for row in Issue.all_objects.filter(id__in=ids).values_list("id", "name", "sequence_id", "deleted_at")
+    }
+
+
+def _issue_label(r, live):
+    """(display label, sequence_id, is_deleted) for an issue-grouped row."""
+    ident = r.get("project__identifier")
+    hit = live.get(r["issue"])
+    if hit:
+        name, seq, deleted_at = hit
+        label = f"{ident}-{seq} {name or ''}".strip() if ident and seq else (name or "Untitled")
+        is_deleted = deleted_at is not None
+    else:
+        # Hard-deleted (or never resolvable): use the snapshot taken when the time was logged.
+        seq = None
+        label = f"{r.get('snap_ref') or ''} {r.get('snap_name') or ''}".strip() or "Untitled"
+        is_deleted = True
+    if is_deleted:
+        label = f"(deleted) {label}"
+    return label, seq, is_deleted
+
+
+def _issue_extras(r, live):
     """Compose a disambiguated work-item label + the extra id/link fields the
-    frontend needs. issue__name alone collides across (and within) projects."""
-    ident, seq = r.get("project__identifier"), r.get("issue__sequence_id")
-    name = f"{ident}-{seq} {r.get('issue__name') or ''}".strip() if ident and seq else (r.get("issue__name") or "Untitled")
+    frontend needs. The name alone collides across (and within) projects."""
+    name, seq, is_deleted = _issue_label(r, live)
     return {
         "name": name,
         "issue_id": str(r["issue"]) if r["issue"] else None,
         "sequence_id": seq,
         "project_id": str(r["project"]) if r["project"] else None,
-        "project_identifier": ident,
+        "project_identifier": r.get("project__identifier"),
         "project_name": r.get("project__name"),
+        # FORK: time-tracking-v2 — the work item is gone; its time is still reported.
+        "is_deleted": is_deleted,
     }
+
+
+# FORK: time-tracking-v2 — snapshot columns, aggregated per group (constant within an issue).
+ISSUE_SNAPSHOT_ANNOTATIONS = {"snap_ref": Max("issue_ref"), "snap_name": Max("issue_name")}
 
 
 # group_by -> (value fields, key field, name field, [optional extras builder])
@@ -71,9 +109,9 @@ GROUP_BY_MAP = {
     "project": (["project", "project__name", "project__identifier"], "project", "project__name"),
     "client": (["project__client", "project__client__name"], "project__client", "project__client__name"),
     "issue": (
-        ["issue", "issue__name", "issue__sequence_id", "project", "project__identifier", "project__name"],
+        ["issue", "project", "project__identifier", "project__name"],
         "issue",
-        "issue__name",
+        "snap_name",
         _issue_extras,
     ),
 }
@@ -169,9 +207,11 @@ class TimeReportEndpoint(BaseAPIView):
     def _aggregate(self, qs, group_by, limit=None):
         values, key_field, name_field, *rest = GROUP_BY_MAP[group_by]
         extras_fn = rest[0] if rest else None
+        snapshot = ISSUE_SNAPSHOT_ANNOTATIONS if group_by == "issue" else {}
         rows = (
             qs.values(*values)
             .annotate(
+                **snapshot,
                 total_minutes=Coalesce(Sum("duration"), 0),
                 billable_minutes=Coalesce(Sum("duration", filter=Q(is_billable=True)), 0),
                 billable_amount=Coalesce(
@@ -199,6 +239,8 @@ class TimeReportEndpoint(BaseAPIView):
             rows = list(rows[: limit + 1])
             truncated = len(rows) > limit
             rows = rows[:limit]
+        rows = list(rows)
+        live = _live_issues([r["issue"] for r in rows]) if extras_fn else {}
         groups = []
         for r in rows:
             group = {
@@ -211,7 +253,7 @@ class TimeReportEndpoint(BaseAPIView):
                 "entry_count": r["entry_count"],
             }
             if extras_fn:
-                group.update(extras_fn(r))
+                group.update(extras_fn(r, live))
             groups.append(group)
         return groups, truncated
 
@@ -228,26 +270,22 @@ class TimeReportEndpoint(BaseAPIView):
                 "logged_by",
                 "logged_by__display_name",
                 "issue",
-                "issue__name",
-                "issue__sequence_id",
                 "project__identifier",
                 "project__name",
             )
             .annotate(
+                **ISSUE_SNAPSHOT_ANNOTATIONS,
                 total_minutes=Coalesce(Sum("duration"), 0),
                 billable_minutes=Coalesce(Sum("duration", filter=Q(is_billable=True)), 0),
                 entry_count=Count("id"),
             )
             .order_by("logged_by__display_name", "-total_minutes")
         )
+        rows = list(rows)
+        live = _live_issues({r["issue"] for r in rows})
         breakdown = []
         for r in rows:
-            ident, seq = r.get("project__identifier"), r.get("issue__sequence_id")
-            name = (
-                f"{ident}-{seq} {r.get('issue__name') or ''}".strip()
-                if ident and seq
-                else (r.get("issue__name") or "Untitled")
-            )
+            name, _seq, _deleted = _issue_label(r, live)
             breakdown.append(
                 {
                     "resource_name": r.get("logged_by__display_name") or "Unassigned",

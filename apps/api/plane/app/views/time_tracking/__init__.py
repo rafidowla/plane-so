@@ -7,6 +7,11 @@ from .worklog import IssueWorklogViewSet, WorklogTimerEndpoint, WorklogRunningTi
 from .timesheet import TimesheetViewSet
 from .capacity import ResourceCapacityViewSet
 from .report import TimeReportEndpoint
+from .settings import (
+    TimeTrackingSettingsEndpoint,
+    TimeTrackingMembersEndpoint,
+    TimeTrackingMemberStatusEndpoint,
+)
 from .jira_import import (
     JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
