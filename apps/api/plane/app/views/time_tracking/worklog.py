@@ -6,6 +6,7 @@
 import uuid
 
 # Django imports
+from django.db.models import Sum
 from django.utils import timezone
 
 # Third party imports
@@ -41,6 +42,7 @@ from plane.utils.time_tracking.timer import (  # noqa: F401
     resolve_billable_rate,
     start_timer,
     stop_user_timer,
+    timer_schedule_fields,
 )
 
 
@@ -53,6 +55,39 @@ def _stop_payload(worklogs):
     """
     pieces = IssueWorklogSerializer(worklogs, many=True).data
     return pieces, sum(w.duration for w in worklogs)
+
+
+def timer_data(timer, now=None):
+    """FORK: time-tracking-v2 S2 — the one timer payload every timer endpoint returns:
+    the serializer fields + ``issue_detail`` + the limit/idle-check schedule + ``server_now``."""
+    data = WorklogTimerSerializer(timer).data
+    data["issue_detail"] = _issue_ref(timer.issue_id)
+    data.update(timer_schedule_fields(timer))
+    data["server_now"] = now or timezone.now()
+    return data
+
+
+def start_response(timer, stopped, state_change):
+    """FORK: time-tracking-v2 S2 — response of both start endpoints (identical by design)."""
+    data = timer_data(timer)
+    if stopped:
+        pieces, total = _stop_payload(stopped["worklogs"])
+        data["stopped"] = {
+            "worklog": pieces[-1],
+            "duration": total,
+            "issue": stopped["issue"],
+            "pieces": pieces,
+        }
+    data["state_change"] = state_change
+    return data
+
+
+def stop_response(worklogs):
+    pieces, total = _stop_payload(worklogs)
+    data = dict(pieces[-1])
+    data["pieces"] = pieces
+    data["total_duration"] = total
+    return data
 
 
 class IssueWorklogViewSet(BaseViewSet):
@@ -79,24 +114,26 @@ class IssueWorklogViewSet(BaseViewSet):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def list(self, request, slug, project_id, issue_id):
         worklogs = self.get_queryset()
-        # Internal roles (admin/member) get full detail. Guests (clients) get the
-        # reported total only — never who logged the time or how (timer vs manual).
+        # Internal roles (admin/member) get full detail.
         if is_project_member(slug, project_id, request.user):
             return Response(IssueWorklogSerializer(worklogs, many=True).data, status=status.HTTP_200_OK)
-        stripped = [
-            {
-                "id": str(w.id),
-                "issue": str(w.issue_id),
-                "duration": w.duration,
-                "logged_date": w.logged_date,
-                "is_billable": w.is_billable,
-            }
-            for w in worklogs
-        ]
-        return Response(stripped, status=status.HTTP_200_OK)
+        # FORK: time-tracking-v2 S2 — guests (clients) get ONE figure, the total logged
+        # on a work item they can see (PO answer 4): no entry list, no dates, no names.
+        project = Project.objects.only("guest_view_all_features").get(pk=project_id)
+        if not project.guest_view_all_features and not Issue.objects.filter(
+            pk=issue_id, project_id=project_id, created_by=request.user
+        ).exists():
+            return Response({"error": "You are not allowed to view this issue"}, status=status.HTTP_403_FORBIDDEN)
+        total = worklogs.aggregate(total=Sum("duration"))["total"] or 0
+        return Response({"total_minutes": total}, status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def create(self, request, slug, project_id, issue_id):
+        # FORK: time-tracking-v2 S2 — guests never track time (DESIGN §2 item 13).
+        if not is_project_member(slug, project_id, request.user):
+            return Response(
+                {"error": "Guests can't track time.", "code": "not_tracked"}, status=status.HTTP_403_FORBIDDEN
+            )
         project = Project.objects.get(pk=project_id)
         if not project.is_time_tracking_enabled:
             return Response(
@@ -237,7 +274,6 @@ class IssueWorklogViewSet(BaseViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-
 class WorklogTimerEndpoint(BaseAPIView):
     """Start/stop a stopwatch for the current user. One active timer per user."""
 
@@ -248,15 +284,17 @@ class WorklogTimerEndpoint(BaseAPIView):
         ).first()
         if not timer:
             return Response({}, status=status.HTTP_200_OK)
-        return Response(WorklogTimerSerializer(timer).data, status=status.HTTP_200_OK)
+        # FORK: time-tracking-v2 S2 — same payload as the workspace timer endpoints.
+        return Response(timer_data(timer), status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    # FORK: time-tracking-v2 S2 — GUEST removed: guests never track time (start
+    # refuses with 403 ``not_tracked`` in the service for project guests).
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def post(self, request, slug, project_id, issue_id):
         # FORK: time-tracking-v2 — logic lives in plane.utils.time_tracking.timer.start_timer
-        # (project enabled 400, issue-in-project 404, tracking turned off 403, PSR-101
-        # stop-previous-then-start in one locked transaction).
+        # (shared with POST time/timer/start/, so both refuse/succeed identically).
         try:
-            timer, stopped = start_timer(
+            timer, stopped, state_change = start_timer(
                 slug, project_id, issue_id, request.user, request.data.get("description", "")
             )
         except TimerAlreadyRunning as exc:
@@ -266,28 +304,15 @@ class WorklogTimerEndpoint(BaseAPIView):
             )
         except TimeTrackingError as exc:
             return Response(exc.payload, status=exc.status_code)
-        data = WorklogTimerSerializer(timer).data
-        if stopped:
-            pieces, total = _stop_payload(stopped["worklogs"])
-            data["stopped"] = {
-                "worklog": pieces[-1],
-                "duration": total,
-                "issue": stopped["issue"],
-                "pieces": pieces,
-            }
-        return Response(data, status=status.HTTP_201_CREATED)
+        return Response(start_response(timer, stopped, state_change), status=status.HTTP_201_CREATED)
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def delete(self, request, slug, project_id, issue_id):
         """Stop the running timer and convert it to worklog(s)."""
         worklogs = stop_user_timer(slug, issue_id, request.user, description=request.data.get("description"))
         if not worklogs:
             return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
-        pieces, total = _stop_payload(worklogs)
-        data = dict(pieces[-1])
-        data["pieces"] = pieces
-        data["total_duration"] = total
-        return Response(data, status=status.HTTP_201_CREATED)
+        return Response(stop_response(worklogs), status=status.HTTP_201_CREATED)
 
 
 class WorklogRunningTimerEndpoint(BaseAPIView):
@@ -297,6 +322,8 @@ class WorklogRunningTimerEndpoint(BaseAPIView):
     no project/issue in the URL and returns what the indicator renders (work item
     reference, name, link ids) plus the server clock, so elapsed time is not skewed
     by a wrong client clock. Returns only ``server_now`` when no timer is running.
+    FORK: time-tracking-v2 S2 — also the idle-check / reminder / auto-stop schedule
+    (see ``timer_data``); served at ``worklog-timer/`` and ``time/timer/``.
     """
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
@@ -305,7 +332,4 @@ class WorklogRunningTimerEndpoint(BaseAPIView):
         timer = WorklogTimer.objects.filter(workspace__slug=slug, user=request.user).first()
         if not timer:
             return Response({"server_now": now}, status=status.HTTP_200_OK)
-        data = WorklogTimerSerializer(timer).data
-        data["issue_detail"] = _issue_ref(timer.issue_id)
-        data["server_now"] = now
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(timer_data(timer, now), status=status.HTTP_200_OK)

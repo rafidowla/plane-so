@@ -13,6 +13,7 @@ split into one entry per day sharing a ``session_id``.
 """
 
 # Python imports
+import json
 import uuid
 
 # Django imports
@@ -27,6 +28,8 @@ from plane.db.models import (
     Project,
     ProjectMember,
     ResourceCapacity,
+    State,
+    StateGroup,
     TimeTrackingAuditAction,
     TimeTrackingAuditTarget,
     User,
@@ -34,9 +37,9 @@ from plane.db.models import (
     WorklogSource,
     WorklogTimer,
 )
-from plane.utils.time_tracking import audit
+from plane.utils.time_tracking import audit, limits
 from plane.utils.time_tracking.snapshot import issue_snapshot
-from plane.utils.time_tracking.tracking import tracking_turned_off
+from plane.utils.time_tracking.tracking import is_internal_member, tracking_turned_off
 from plane.utils.time_tracking.tz import local_today, split_by_local_day, workspace_tz
 
 
@@ -132,9 +135,19 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
     ``reason`` marks a stop the user did not make themselves (``issue_deleted``,
     ``tracking_disabled``): each entry gets an ``auto_stop`` audit row with
     ``actor`` (None = system).
+
+    S2: every stop goes through ``limits.cutoff`` — a stop requested after the
+    auto-stop time or after an unanswered "still working?" deadline ends at that
+    limit instead (prompt time for the idle check), whoever triggered it. Such a
+    stop sets ``auto_stopped`` / ``idle_stopped`` and is audited as a system
+    ``auto_stop`` with ``reason`` ``auto_stop`` / ``idle_check``.
     """
     user = user or timer.user
     ended_at = ended_at or timezone.now()
+    ended_at, limit = limits.cutoff(timer, limits.read_settings(timer.workspace_id), ended_at)
+    if limit:
+        # The rule stopped it, not whoever made this call.
+        reason, actor = limit, None
     project = timer.project
     pieces = split_by_local_day(timer.started_at, ended_at, workspace_tz(timer.workspace_id))
     billable_rate, currency = resolve_billable_rate(project, user.id)
@@ -160,6 +173,11 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
                 currency=currency,
                 approval_status=WorklogApprovalStatus.DRAFT,
                 session_id=session_id,
+                # FORK: time-tracking-v2 S2 — flags for the 14 h auto-stop and the idle check.
+                # TODO(S3): an auto_stopped entry must open an ``auto_stop_review`` request
+                # for its approver (DESIGN §2 item 9 / §4 sweep). The entry already counts.
+                auto_stopped=limit == limits.LIMIT_AUTO_STOP,
+                idle_stopped=limit == limits.LIMIT_IDLE,
             )
         )
     timer.delete()
@@ -176,29 +194,96 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
     return worklogs
 
 
+def _move_to_started(issue, user):
+    """FORK: time-tracking-v2 S2 — Backlog/Unstarted -> the project's first "started" state.
+
+    Runs inside the start transaction. Returns ``{"from": state, "to": state}``
+    (id/name/group) or None when the item is already past Unstarted or the
+    project has no started state. The activity row is written by the normal
+    ``issue_activity`` task after commit, exactly like a manual state change.
+    """
+    if issue.state is None or issue.state.group not in (StateGroup.BACKLOG.value, StateGroup.UNSTARTED.value):
+        return None
+    target = (
+        State.objects.filter(project_id=issue.project_id, group=StateGroup.STARTED.value)
+        .order_by("sequence", "created_at")
+        .first()
+    )
+    if target is None:
+        return None
+    old = issue.state
+    issue.state = target
+    issue.updated_by = user
+    # update_fields + disable_auto_set_user: BaseModel.save() would otherwise null
+    # created_by/updated_by when there is no request user (crum) in scope.
+    issue.save(update_fields=["state", "updated_at", "updated_by"], disable_auto_set_user=True)
+
+    from plane.bgtasks.issue_activities_task import issue_activity
+
+    payload = {
+        "type": "issue.activity.updated",
+        "requested_data": json.dumps({"state_id": str(target.id)}),
+        "current_instance": json.dumps({"state_id": str(old.id)}),
+        "issue_id": str(issue.id),
+        "actor_id": str(user.id),
+        "project_id": str(issue.project_id),
+        "epoch": int(timezone.now().timestamp()),
+        "notification": True,
+        "origin": None,
+    }
+    transaction.on_commit(lambda: issue_activity.delay(**payload))
+
+    def _state(st):
+        return {"id": str(st.id), "name": st.name, "group": st.group}
+
+    return {"from": _state(old), "to": _state(target)}
+
+
 def start_timer(slug, project_id, issue_id, user, description=""):
     """Start a timer for ``user`` on an issue, stopping any running one first.
 
-    Returns ``(timer, stopped)``; ``stopped`` is None or
-    ``{"issue": issue_label, "worklogs": [...]}`` for the timer that was stopped.
-    Raises ``TimeTrackingError`` (or ``TimerAlreadyRunning``) when refused; a
-    refused start never touches the running timer.
+    Returns ``(timer, stopped, state_change)``; ``stopped`` is None or
+    ``{"issue": issue_label, "worklogs": [...]}`` for the timer that was stopped,
+    ``state_change`` is None or ``{"from": state, "to": state}`` (see
+    ``_move_to_started``). Raises ``TimeTrackingError`` (or ``TimerAlreadyRunning``)
+    when refused; a refused start never touches the running timer.
+
+    Both start endpoints (per-issue and ``time/timer/start/``) call this, so they
+    refuse and succeed identically. Order of checks (first failure wins):
+    issue not in project 404 · guest / not an active project admin-member 403
+    ``not_tracked`` · project tracking off 400 ``project_tracking_disabled`` ·
+    member tracking turned off 403 ``tracking_disabled`` · Cancelled item 400
+    ``issue_cancelled``.
     """
     project = Project.objects.get(pk=project_id)
-    if not project.is_time_tracking_enabled:
-        raise TimeTrackingError({"error": "Time tracking is not enabled for this project."}, 400)
     # FORK: security — the work item must live in this project. Without this a member
     # of any time-tracked project could time a work item of another project (or
     # workspace) by UUID, and the running-timer endpoint would then echo back that
     # item's name and identifier.
-    if not Issue.objects.filter(pk=issue_id, project_id=project_id, workspace__slug=slug).exists():
+    issue = (
+        Issue.objects.select_related("state")
+        .filter(pk=issue_id, project_id=project_id, workspace__slug=slug)
+        .first()
+    )
+    if issue is None:
         raise TimeTrackingError({"error": "Work item not found."}, 404)
+    today = local_today(workspace_tz(project.workspace_id))
+    # FORK: time-tracking-v2 S2 — guests never track time (DESIGN §2 item 13): the
+    # caller must be an active project admin/member AND a workspace admin/member.
+    if not is_project_member(slug, project_id, user) or not is_internal_member(project.workspace_id, user.id):
+        raise TimeTrackingError({"error": "Guests can't track time.", "code": "not_tracked"}, 403)
+    if not project.is_time_tracking_enabled:
+        raise TimeTrackingError(
+            {"error": "Time tracking is not enabled for this project.", "code": "project_tracking_disabled"}, 400
+        )
     # Timers only run "today", so the member's status today decides.
-    if tracking_turned_off(project.workspace_id, user.id, local_today(workspace_tz(project.workspace_id))):
+    if tracking_turned_off(project.workspace_id, user.id, today):
         raise TimeTrackingError(
             {"error": "Time tracking is turned off for you in this workspace.", "code": "tracking_disabled"},
             403,
         )
+    if issue.state is not None and issue.state.group == StateGroup.CANCELLED.value:
+        raise TimeTrackingError({"error": "This work item is cancelled.", "code": "issue_cancelled"}, 400)
     # FORK: PSR-101 — starting a timer while another one runs elsewhere stops
     # the running one (logging its time as a normal worklog) and starts the new
     # one, all in ONE transaction under a per-user row lock: no window where two
@@ -223,7 +308,9 @@ def start_timer(slug, project_id, issue_id, user, description=""):
             started_at=timezone.now(),
             description=description or "",
         )
-    return timer, stopped
+        issue = Issue.objects.select_for_update(of=("self",)).select_related("state").get(pk=issue.pk)
+        state_change = _move_to_started(issue, user)
+    return timer, stopped, state_change
 
 
 def stop_user_timer(slug, issue_id, user, description=None):
@@ -239,6 +326,66 @@ def stop_user_timer(slug, issue_id, user, description=None):
         if not timer:
             return None
         return stop_timer(timer, user, description=description)
+
+
+def stop_running_timer(slug, user, description=None):
+    """FORK: time-tracking-v2 S2 — stop the user's running timer in this workspace,
+    whatever work item it is on (``time/timer/stop/``). Returns ``(issue_label, worklogs)``
+    or ``(None, None)`` when nothing runs here."""
+    with transaction.atomic():
+        lock_user_timers(user)
+        timer = WorklogTimer.objects.select_related("project").filter(workspace__slug=slug, user=user).first()
+        if not timer:
+            return None, None
+        label = issue_label(timer.issue_id)
+        return label, stop_timer(timer, user, description=description)
+
+
+def confirm_timer(slug, user):
+    """FORK: time-tracking-v2 S2 — answer "Yes, still working".
+
+    Sets ``last_confirmed_at = now`` (the next check is one interval later) and
+    returns ``("confirmed", timer)``. If the answer comes too late — the check
+    deadline (or the auto-stop time) has already passed but the sweep has not
+    run yet — the timer is stopped exactly as the sweep would have stopped it
+    (at the prompt time, ``idle_stopped``) and ``("stopped", worklogs)`` is
+    returned: unconfirmed time never counts. ``(None, None)`` when no timer runs.
+    """
+    with transaction.atomic():
+        lock_user_timers(user)
+        timer = WorklogTimer.objects.select_related("project").filter(workspace__slug=slug, user=user).first()
+        if not timer:
+            return None, None
+        now = timezone.now()
+        _, limit = limits.cutoff(timer, limits.read_settings(timer.workspace_id), now)
+        if limit:
+            return "stopped", stop_timer(timer, user, ended_at=now)
+        timer.last_confirmed_at = now
+        # update_fields: see _move_to_started on BaseModel.save().
+        timer.save(update_fields=["last_confirmed_at", "updated_at"], disable_auto_set_user=True)
+        return "confirmed", timer
+
+
+def timer_schedule_fields(timer, setting=None):
+    """FORK: time-tracking-v2 S2 — the limit fields the UI needs for a running timer.
+
+    ``next_check_at`` / ``check_deadline_at``: when to show "Still working?" and
+    when the timer will be stopped (at ``next_check_at``) if unanswered; both null
+    when the check is off (``idle_check_minutes`` 0). ``remind_at`` /
+    ``auto_stop_at``: the 10 h reminder and 14 h auto-stop. ``reminded``: the
+    reminder has been sent.
+    """
+    setting = setting or limits.read_settings(timer.workspace_id)
+    s = limits.schedule(timer, setting)
+    return {
+        "idle_check_minutes": s["idle_check_minutes"],
+        "idle_grace_seconds": int(limits.IDLE_GRACE.total_seconds()),
+        "next_check_at": s["next_check_at"],
+        "check_deadline_at": s["check_deadline_at"],
+        "remind_at": s["remind_at"],
+        "auto_stop_at": s["auto_stop_at"],
+        "reminded": timer.reminded_at is not None,
+    }
 
 
 def system_stop_timer(timer_id, ended_at, reason, actor=None):

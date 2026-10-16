@@ -50,7 +50,8 @@ def tracking_turned_off(workspace_id, user_id, on_date):
     return row is not None and not row.is_tracked
 
 
-def _is_internal_member(workspace_id, user_id):
+def is_internal_member(workspace_id, user_id):
+    """Active workspace admin/member (guests are clients and never tracked)."""
     return WorkspaceMember.objects.filter(
         workspace_id=workspace_id, member_id=user_id, is_active=True, role__gte=ROLE.MEMBER.value
     ).exists()
@@ -58,14 +59,14 @@ def _is_internal_member(workspace_id, user_id):
 
 def is_tracked(workspace_id, user_id, on_date):
     """Whether the user's time is tracked on ``on_date`` (guests never are)."""
-    if not _is_internal_member(workspace_id, user_id):
+    if not is_internal_member(workspace_id, user_id):
         return False
     return not tracking_turned_off(workspace_id, user_id, on_date)
 
 
 def tracked_days(workspace_id, user_id, start, end):
     """The set of dates in [start, end] on which the user is tracked."""
-    if end < start or not _is_internal_member(workspace_id, user_id):
+    if end < start or not is_internal_member(workspace_id, user_id):
         return set()
     rows = list(
         TimeTrackingMemberStatus.objects.filter(workspace_id=workspace_id, user_id=user_id, effective_from__lte=end)

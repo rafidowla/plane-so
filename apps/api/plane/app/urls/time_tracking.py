@@ -15,6 +15,12 @@ from plane.app.views import (
     TimeTrackingSettingsEndpoint,
     TimeTrackingMembersEndpoint,
     TimeTrackingMemberStatusEndpoint,
+    # FORK: time-tracking-v2 S2 — workspace timer bar, task picker, live dashboard
+    WorkspaceTimerStartEndpoint,
+    WorkspaceTimerStopEndpoint,
+    WorkspaceTimerConfirmEndpoint,
+    TimeMyTasksEndpoint,
+    TimeLiveDashboardEndpoint,
     JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
@@ -101,6 +107,38 @@ urlpatterns = [
         "workspaces/<str:slug>/time/members/<uuid:user_id>/tracking/",
         TimeTrackingMemberStatusEndpoint.as_view(),
         name="time-tracking-member-status",
+    ),
+    # FORK: time-tracking-v2 S2 — timer bar: running timer, start by issue_id, stop,
+    # "still working?" confirm; my-tasks picker; live team dashboard
+    path(
+        "workspaces/<str:slug>/time/timer/",
+        WorklogRunningTimerEndpoint.as_view(),
+        name="time-timer",
+    ),
+    path(
+        "workspaces/<str:slug>/time/timer/start/",
+        WorkspaceTimerStartEndpoint.as_view(),
+        name="time-timer-start",
+    ),
+    path(
+        "workspaces/<str:slug>/time/timer/stop/",
+        WorkspaceTimerStopEndpoint.as_view(),
+        name="time-timer-stop",
+    ),
+    path(
+        "workspaces/<str:slug>/time/timer/confirm/",
+        WorkspaceTimerConfirmEndpoint.as_view(),
+        name="time-timer-confirm",
+    ),
+    path(
+        "workspaces/<str:slug>/time/my-tasks/",
+        TimeMyTasksEndpoint.as_view(),
+        name="time-my-tasks",
+    ),
+    path(
+        "workspaces/<str:slug>/time/live/",
+        TimeLiveDashboardEndpoint.as_view(),
+        name="time-live",
     ),
     # Jira import (self-service)
     path(

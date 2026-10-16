@@ -87,6 +87,12 @@ def _client(user):
     return c
 
 
+def _idle_check_off(tt):
+    # S2 added the hourly "still working?" check; these S1 runs are longer than an
+    # hour with nobody confirming, so turn it off to test what they were written for.
+    TimeTrackingSetting.objects.update_or_create(workspace=tt["workspace"], defaults={"idle_check_minutes": 0})
+
+
 def _timer_url(tt, issue=None):
     issue = issue or tt["issue"]
     return f"/api/workspaces/{tt['workspace'].slug}/projects/{tt['project'].id}/issues/{issue.id}/worklog-timer/"
@@ -140,6 +146,7 @@ class TestLocalDayBucketing:
 
     def test_2330_to_0110_splits_into_two_entries_summing_to_the_total(self, session_client, tt):
         # 23:30 Dhaka (22 June) = 17:30 UTC; 01:10 Dhaka (23 June) = 19:10 UTC.
+        _idle_check_off(tt)
         with freeze_time(utc(2026, 6, 22, 17, 30)):
             assert session_client.post(_timer_url(tt), {"description": "late"}, format="json").status_code == 201
         with freeze_time(utc(2026, 6, 22, 19, 10)):
@@ -272,6 +279,7 @@ class TestWorklogsOutliveWorkItems:
 @pytest.mark.django_db
 class TestTimerSweep:
     def test_timer_on_soft_deleted_issue_is_converted_at_deletion_time(self, session_client, tt):
+        _idle_check_off(tt)
         with freeze_time(utc(2026, 6, 22, 4, 0)):
             assert session_client.post(_timer_url(tt), {}, format="json").status_code == 201
         with freeze_time(utc(2026, 6, 22, 5, 30)):
@@ -307,11 +315,12 @@ class TestTimerSweep:
 
     def test_live_timers_are_left_alone(self, session_client, tt):
         session_client.post(_timer_url(tt), {}, format="json")
-        assert time_tracking_timer_sweep() == {"issue_deleted": 0, "tracking_disabled": 0}
+        assert time_tracking_timer_sweep() == {"issue_deleted": 0, "tracking_disabled": 0, "limits": 0, "reminded": 0}
         assert WorklogTimer.objects.filter(user=tt["user"]).exists()
 
     def test_future_dated_tracking_off_is_enforced_by_the_sweep(self, tt):
         member = _user(tt["workspace"], tt["project"])
+        _idle_check_off(tt)
         with freeze_time(utc(2026, 6, 22, 15, 0)):  # 21:00 Dhaka on 22 June
             set_member_tracking(tt["workspace"].id, member.id, False, date(2026, 6, 23), tt["user"])
             assert _client(member).post(_timer_url(tt), {}, format="json").status_code == 201

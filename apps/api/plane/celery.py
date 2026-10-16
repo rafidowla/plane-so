@@ -53,10 +53,12 @@ app.conf.beat_schedule = {
         "task": "plane.bgtasks.issue_automation_task.unsnooze_expired_intake_issues",
         "schedule": crontab(minute="*/5"),  # Every 5 minutes
     },
-    # FORK: time-tracking-v2 — convert timers on deleted work items / untracked members
-    "check-every-five-minutes-to-sweep-time-tracking-timers": {
+    # FORK: time-tracking-v2 — convert timers on deleted work items / untracked members;
+    # S2: also the 10 h reminder, 14 h auto-stop and "still working?" check. Every
+    # minute so the check's 5-minute grace holds to within a minute.
+    "check-every-minute-to-sweep-time-tracking-timers": {
         "task": "plane.bgtasks.time_tracking_sweep.time_tracking_timer_sweep",
-        "schedule": crontab(minute="*/5"),  # Every 5 minutes
+        "schedule": crontab(minute="*"),  # Every minute
     },
     "push-instance-metrics": {
         "task": "plane.license.bgtasks.telemetry_metrics.push_instance_metrics",

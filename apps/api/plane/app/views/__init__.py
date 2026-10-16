@@ -257,6 +257,12 @@ from .time_tracking import (
     TimeTrackingSettingsEndpoint,
     TimeTrackingMembersEndpoint,
     TimeTrackingMemberStatusEndpoint,
+    # FORK: time-tracking-v2 S2 — workspace timer bar, task picker, live dashboard
+    WorkspaceTimerStartEndpoint,
+    WorkspaceTimerStopEndpoint,
+    WorkspaceTimerConfirmEndpoint,
+    TimeMyTasksEndpoint,
+    TimeLiveDashboardEndpoint,
     JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,

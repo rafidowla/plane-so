@@ -276,19 +276,17 @@ class TestWorklog:
         assert IssueWorklog.objects.get(id=r.data["id"]).source == "manual"
 
     def test_guest_sees_totals_only(self, session_client, tt):
-        # A guest (client) listing worklogs gets the reported total (duration)
-        # but none of the identity/source fields that reveal who logged it or how.
+        # S2 (PO answer 4): a guest gets no entry list at all on a work item they
+        # can see — only the single total-logged figure. (Was: a redacted list.)
         slug, pid, iid = _ids(tt)
         session_client.post(_wl_url(slug, pid, iid), {"duration": 60, "logged_date": "2026-06-22"}, format="json")
+        tt["project"].guest_view_all_features = True
+        tt["project"].save()
         guest = _member(tt["workspace"], tt["project"], role=5)
         session_client.force_authenticate(user=guest)
         r = session_client.get(_wl_url(slug, pid, iid))
         assert r.status_code == status.HTTP_200_OK
-        assert len(r.data) == 1
-        entry = r.data[0]
-        assert entry["duration"] == 60
-        for hidden in ("logged_by", "logged_by_detail", "created_by", "created_by_detail", "source", "description"):
-            assert hidden not in entry
+        assert r.json() == {"total_minutes": 60}
 
     def test_member_sees_full_detail(self, session_client, tt):
         # An internal member still gets the full record (source, who logged it).
