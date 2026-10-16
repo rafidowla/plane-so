@@ -110,6 +110,20 @@ most edits 1–12 lines. Keep this list handy during a merge:
 > - Gate used: `check:types` for web/admin/space, web `check:lint`, web build,
 >   `@plane/blocks` tests, and the full API pytest suite + `makemigrations --check`.
 
+> **2026-10-16 sync (upstream `4605f0078f..4e0e4038a1`, 10 commits, incl.
+> SECUR-243 comment/relation project binding and SECUR-247 publish membership).**
+>
+> - Upstream added `db/0123_remove_apitoken_*` and `db/0124_intakeissue_*` on top
+>   of `0122_alter_draftissue_*`, colliding by number with the fork's
+>   `0123_jiraimportjob` / `0124_jiraimportjob_with_attachments`. Resolved with the
+>   empty merge migration `0127_merge_20261016_1500` (leaves: upstream `0124_intakeissue_*`
+>   - fork `0126_merge_20260810_0440`). Expect to need one of these on every sync that
+>     adds a `db` migration.
+> - `deployments/aio/community/start.sh`: upstream replaced the first-boot
+>   `LIVE_SERVER_SECRET_KEY` generation with a required-secrets check
+>   (INFRA-1096). Took upstream's version; only the fork's `FILE_SIZE_LIMIT`
+>   default line is ours.
+
 ---
 
 ## Procedure
