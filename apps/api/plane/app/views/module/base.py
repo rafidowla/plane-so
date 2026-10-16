@@ -648,6 +648,11 @@ class ModuleViewSet(BaseViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
+    # FORK: put-permission — PUT fell through to ModelViewSet.update (IsAuthenticated only, queryset not
+    # membership-scoped), so guests and users from other workspaces could rewrite a module.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def partial_update(self, request, slug, project_id, pk):
         module_queryset = self.get_queryset().filter(pk=pk)

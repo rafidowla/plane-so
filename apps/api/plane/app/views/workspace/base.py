@@ -153,6 +153,15 @@ class WorkSpaceViewSet(BaseViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
+    # FORK: put-permission — PUT only had WorkSpaceBasePermission (admin *or member*), so a workspace
+    # member could rename the workspace or change its slug; PATCH requires admin. (partial_update calls
+    # ModelViewSet.partial_update, which dispatches back to ``update`` — so gate here and stay partial instead
+    # of delegating, or the two would recurse.)
+    @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    def update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return super().update(request, *args, **kwargs)
+
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)

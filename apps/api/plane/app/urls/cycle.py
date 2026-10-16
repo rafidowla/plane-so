@@ -44,10 +44,9 @@ urlpatterns = [
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/cycles/<uuid:cycle_id>/cycle-issues/<uuid:issue_id>/",
         CycleIssueViewSet.as_view(
+            # FORK: put-permission — only DELETE is implemented (and used by the web); GET/PUT/PATCH fell
+            # through to ModelViewSet defaults with no membership check, so they are no longer routed.
             {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
                 "delete": "destroy",
             }
         ),

@@ -625,6 +625,11 @@ class IssueViewSet(BaseViewSet):
         serializer = IssueDetailSerializer(issue, expand=self.expand)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    # FORK: put-permission — the urls route PUT to ``update``; without this override it fell through to
+    # ModelViewSet.update, which only checks IsAuthenticated, so any signed-in user could overwrite any work item.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER], creator=True, model=Issue)
     def partial_update(self, request, slug, project_id, pk=None):
         queryset = self.get_queryset()

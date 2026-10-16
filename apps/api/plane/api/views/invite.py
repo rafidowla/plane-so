@@ -93,6 +93,11 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         serializer.save(workspace=workspace, created_by=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    # FORK: put-permission — the router maps PUT to ``update``; the default skipped partial_update's
+    # "email cannot be changed" guard.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @extend_schema(
         summary="Update workspace invite",
         description="Update a workspace invite",

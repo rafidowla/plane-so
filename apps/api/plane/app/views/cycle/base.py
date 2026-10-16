@@ -332,6 +332,11 @@ class CycleViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+    # FORK: put-permission — PUT fell through to ModelViewSet.update (IsAuthenticated only), so project
+    # guests could write cycle fields; route it through the role-checked partial_update.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def partial_update(self, request, slug, project_id, pk):
         queryset = self.get_queryset().filter(workspace__slug=slug, project_id=project_id, pk=pk)

@@ -52,6 +52,21 @@ class ProjectInvitationsViewset(BaseViewSet):
             .select_related("workspace", "workspace__owner")
         )
 
+    # FORK: put-permission — list/retrieve/destroy were the ModelViewSet defaults (IsAuthenticated only,
+    # queryset scoped by URL slug/project only): any signed-in user could read invites (incl. their join tokens)
+    # or delete them for any project. Invites are managed by project admins, like ``create``.
+    @allow_permission([ROLE.ADMIN])
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @allow_permission([ROLE.ADMIN])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @allow_permission([ROLE.ADMIN])
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
     @allow_permission([ROLE.ADMIN])
     def create(self, request, slug, project_id):
         emails = request.data.get("emails", [])

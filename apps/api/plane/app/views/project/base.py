@@ -311,6 +311,12 @@ class ProjectViewSet(BaseViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # FORK: put-permission — the urls route PUT to ``update``; without this override it fell through to
+    # ModelViewSet.update (IsAuthenticated only, writable ``workspace``), so any signed-in user could rewrite any
+    # project, flip its visibility, or move it into another workspace.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     def partial_update(self, request, slug, pk=None):
         # try:
         is_workspace_admin = WorkspaceMember.objects.filter(
@@ -536,6 +542,20 @@ class DeployBoardViewSet(BaseViewSet):
     permission_classes = [ProjectMemberPermission]
     serializer_class = DeployBoardSerializer
     model = DeployBoard
+
+    # FORK: put-permission — PATCH/DELETE use the ModelViewSet defaults; with the base queryset
+    # (``DeployBoard.objects.all()``) a member of the URL project could edit or delete *any* project's deploy
+    # board by pk. Bind the lookup to the URL workspace + project.
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(
+                workspace__slug=self.kwargs.get("slug"),
+                entity_name="project",
+                entity_identifier=self.kwargs.get("project_id"),
+            )
+        )
 
     def list(self, request, slug, project_id):
         project_deploy_board = DeployBoard.objects.filter(

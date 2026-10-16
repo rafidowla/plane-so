@@ -54,6 +54,11 @@ class LabelViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+    # FORK: put-permission — PUT fell through to ModelViewSet.update, skipping the admin check and the
+    # name-uniqueness/cache handling in partial_update.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @invalidate_cache(path="/api/workspaces/:slug/labels/", url_params=True, user=False)
     @allow_permission([ROLE.ADMIN])
     def partial_update(self, request, *args, **kwargs):

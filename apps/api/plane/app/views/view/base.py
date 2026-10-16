@@ -83,6 +83,11 @@ class WorkspaceViewViewSet(BaseViewSet):
         views = IssueViewSerializer(queryset, many=True, fields=fields if fields else None).data
         return Response(views, status=status.HTTP_200_OK)
 
+    # FORK: put-permission — PUT fell through to ModelViewSet.update (IsAuthenticated only), so anyone who
+    # could see a public workspace view could rewrite it; partial_update is owner-only.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @allow_permission(allowed_roles=[], level="WORKSPACE", creator=True, model=IssueView)
     def partial_update(self, request, slug, pk):
         with transaction.atomic():
@@ -105,6 +110,9 @@ class WorkspaceViewViewSet(BaseViewSet):
                 return Response(serializer.data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # FORK: put-permission — had no permission check, so a user from any workspace could read this
+    # workspace's public views; gate it like ``list``.
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def retrieve(self, request, slug, pk):
         issue_view = self.get_queryset().filter(pk=pk).first()
         serializer = IssueViewSerializer(issue_view)
@@ -345,6 +353,11 @@ class IssueViewViewSet(BaseViewSet):
             user_id=request.user.id,
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # FORK: put-permission — PUT fell through to ModelViewSet.update (IsAuthenticated only), so any project
+    # member who could see a public view could rewrite it; partial_update is owner-only.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
     @allow_permission(allowed_roles=[], creator=True, model=IssueView)
     def partial_update(self, request, slug, project_id, pk):

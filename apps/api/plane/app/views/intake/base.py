@@ -79,6 +79,16 @@ class IntakeViewSet(BaseViewSet):
     def perform_create(self, serializer):
         serializer.save(project_id=self.kwargs.get("project_id"))
 
+    # FORK: put-permission — retrieve/PATCH were the ModelViewSet defaults (IsAuthenticated only, queryset
+    # scoped by URL slug/project only), so any signed-in user could read or rewrite any project's intake settings.
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def destroy(self, request, slug, project_id, pk):
         intake = Intake.objects.filter(workspace__slug=slug, project_id=project_id, pk=pk).first()

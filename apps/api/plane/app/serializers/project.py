@@ -137,6 +137,9 @@ class ProjectListSerializer(DynamicBaseSerializer):
     class Meta:
         model = Project
         fields = "__all__"
+        # FORK: put-permission — this is ProjectViewSet.serializer_class, so the default PUT handler wrote
+        # through it and accepted ``workspace``, moving a project into another workspace. Match ProjectSerializer.
+        read_only_fields = ["workspace", "deleted_at"]
 
 
 class ProjectDetailSerializer(BaseSerializer):

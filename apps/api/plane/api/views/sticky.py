@@ -86,6 +86,10 @@ class StickyViewSet(BaseViewSet):
         sticky = self.get_object()
         return Response(StickySerializer(sticky).data)
 
+    # FORK: put-permission — the router maps PUT to ``update``; keep a single write path through partial_update.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @sticky_docs(
         operation_id="update_sticky",
         summary="Update a sticky",
