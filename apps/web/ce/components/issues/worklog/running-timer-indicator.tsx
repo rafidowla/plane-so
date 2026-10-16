@@ -23,6 +23,8 @@ import { cn, generateWorkItemLink } from "@plane/utils";
 import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { revalidateRunningTimer, useRunningTimer, useTimerElapsed } from "@/plane-web/hooks/use-running-timer";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
+// FORK: time-tracking-v2
+import { isOverReminder } from "@/plane-web/components/time/timer/idle-check";
 import { formatElapsed, formatLoggedMinutes } from "./timer-utils";
 import { useIsTimerFooterMounted, useRegisterTimerFooter } from "./timer-footer-registry";
 
@@ -78,12 +80,21 @@ const RunningTimerIndicator = observer(function RunningTimerIndicator({ variant 
       {formatElapsed(elapsed)}
     </span>
   );
-  const dot = <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-danger-primary" />;
+  // FORK: time-tracking-v2 — amber once the 10 h reminder state is reached (server flag or reminder time passed)
+  const overLimit = isOverReminder(timer, Date.now() + serverOffsetMs);
+  const dot = (
+    <span
+      aria-hidden
+      data-state={overLimit ? "reminder" : "running"}
+      className={cn("size-2 shrink-0 animate-pulse rounded-full", overLimit ? "bg-amber-500" : "bg-danger-primary")}
+    />
+  );
 
   return (
     <div
       role="status"
       aria-label={`Timer running on ${label}`}
+      data-over-limit={overLimit ? "true" : undefined}
       data-testid={`running-timer-${variant}`}
       className={cn("flex min-w-0 items-center gap-2 text-secondary", {
         "w-full": variant === "sidebar",

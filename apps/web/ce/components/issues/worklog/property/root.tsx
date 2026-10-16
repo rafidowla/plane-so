@@ -20,6 +20,11 @@ import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { revalidateRunningTimer } from "@/plane-web/hooks/use-running-timer";
 import { LogTimeModal } from "../log-time-modal";
+// FORK: time-tracking-v2
+import { describeTimerError } from "@/plane-web/components/time/timer/errors";
+import { requestNotificationPermissionOnce } from "@/plane-web/components/time/timer/notify";
+import { getStateChangeToastTitle } from "@/plane-web/components/time/timer/timer-actions";
+import type { TTimerStartResponse } from "../types";
 import { formatElapsed, formatLoggedMinutes, getAutoStopToastTitle } from "../timer-utils";
 
 type TIssueWorklogProperty = {
@@ -53,6 +58,13 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     enabled ? `WORKLOG_TIMER_${workspaceSlug}_${issueId}` : null,
     enabled ? () => timeTrackingService.getTimer(workspaceSlug, projectId, issueId) : null
   );
+  // FORK: time-tracking-v2 — whether the caller is a tracked user at all (guests never are). Shares the
+  // task picker's cache key, so it costs one request per page.
+  const { data: myTasks } = useSWR(
+    enabled ? `WORKSPACE_MY_TASKS_${workspaceSlug}_` : null,
+    enabled ? () => timeTrackingService.getMyTasks(workspaceSlug, "", 15) : null
+  );
+  const isTracked = myTasks?.tracked === true;
 
   const runningHere = Boolean(timer && timer.id && timer.issue === issueId);
   useEffect(() => {
@@ -78,12 +90,17 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     projectId
   );
   const currentUserId = currentUser?.id ?? "";
-  const list = worklogs ?? [];
-  const total = list.reduce((sum, w) => sum + (w.duration || 0), 0);
+  // FORK: time-tracking-v2 — guests get only `{ total_minutes }`; internal roles get the entry list.
+  const list = Array.isArray(worklogs) ? worklogs : [];
+  const total = Array.isArray(worklogs)
+    ? list.reduce((sum, w) => sum + (w.duration || 0), 0)
+    : ((worklogs as { total_minutes?: number } | undefined)?.total_minutes ?? 0);
   const elapsed =
     runningHere && timer?.started_at ? Math.max(0, Math.floor((now - new Date(timer.started_at).getTime()) / 1000)) : 0;
 
   const handleStart = async () => {
+    // FORK: time-tracking-v2 — ask for notification permission on this click (needed for "Still working?")
+    requestNotificationPermissionOnce();
     try {
       const started = await timeTrackingService.startTimer(workspaceSlug, projectId, issueId);
       // FORK: PSR-101 — starting here stops a timer running elsewhere (server-side, atomically)
@@ -97,9 +114,14 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
           void globalMutate(`WORKLOGS_${workspaceSlug}_${stoppedIssueId}`);
         }
       }
+      // FORK: time-tracking-v2 — "Moved to In Progress" when starting advanced the item's state
+      const movedTitle = getStateChangeToastTitle((started as TTimerStartResponse).state_change);
+      if (movedTitle) setToast({ type: "success", title: movedTitle });
       await Promise.all([mutateTimer(), mutateWorklogs(), revalidateRunningTimer(workspaceSlug)]);
     } catch (err) {
-      setToast({ type: "error", title: "Cannot start timer", message: asApiError(err).error ?? "Try again." });
+      const info = describeTimerError(err);
+      setToast({ type: info.alreadyRunning ? "info" : "error", title: info.title, message: info.message });
+      if (info.alreadyRunning) await Promise.all([mutateTimer(), revalidateRunningTimer(workspaceSlug)]);
     }
   };
 
@@ -142,7 +164,8 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
           <span className="text-sm font-medium">{formatLoggedMinutes(total)} logged</span>
           {canSeeDetails && !disabled && (
             <div className="flex flex-wrap items-center gap-2">
-              {runningHere ? (
+              {/* FORK: time-tracking-v2 — the timer button is for tracked users only (guests/untracked never see it) */}
+              {isTracked && runningHere && (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -151,7 +174,8 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                   label={`Stop ${formatElapsed(elapsed)}`}
                   onClick={handleStop}
                 />
-              ) : (
+              )}
+              {isTracked && !runningHere && (
                 <Button
                   variant="secondary"
                   size="sm"

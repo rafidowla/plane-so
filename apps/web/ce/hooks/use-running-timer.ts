@@ -6,11 +6,12 @@
 // FORK: PSR-105 — the signed-in user's running timer, read from the server so it
 // survives navigation and reloads. Shared (one SWR key) by the indicator and by the
 // worklog widget, which revalidates it after start/stop.
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import type { TRunningTimer } from "@/plane-web/components/issues/worklog/types";
 import { getElapsedSeconds, getServerOffsetMs } from "@/plane-web/components/issues/worklog/timer-utils";
+import { getTimerPollInterval } from "@/plane-web/components/time/timer/idle-check";
 
 export const runningTimerKey = (workspaceSlug: string) => `WORKSPACE_RUNNING_TIMER_${workspaceSlug}`;
 
@@ -18,12 +19,16 @@ export const runningTimerKey = (workspaceSlug: string) => `WORKSPACE_RUNNING_TIM
 export const revalidateRunningTimer = (workspaceSlug: string) => globalMutate(runningTimerKey(workspaceSlug));
 
 export function useRunningTimer(workspaceSlug: string | undefined) {
+  // FORK: time-tracking-v2 — latest clock offset, readable from the SWR interval callback
+  const offsetRef = useRef(0);
   const { data, mutate, isLoading } = useSWR<TRunningTimer>(
     workspaceSlug ? runningTimerKey(workspaceSlug) : null,
     workspaceSlug ? () => timeTrackingService.getRunningTimer(workspaceSlug) : null,
     {
       // Pick up timers started/stopped in another tab or device without a reload.
-      refreshInterval: 60_000,
+      // FORK: time-tracking-v2 — 30 s normally (was 60 s); 5 s around the "Still working?" window.
+      refreshInterval: (latest) =>
+        getTimerPollInterval(latest?.id ? latest : undefined, Date.now() + offsetRef.current),
       revalidateOnFocus: true,
       // A failed poll must not make the indicator vanish while a timer is running.
       keepPreviousData: true,
@@ -37,6 +42,8 @@ export function useRunningTimer(workspaceSlug: string | undefined) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data]
   );
+
+  offsetRef.current = serverOffsetMs;
 
   return { timer, serverOffsetMs, isLoading, mutate };
 }

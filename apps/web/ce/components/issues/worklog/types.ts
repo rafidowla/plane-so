@@ -86,6 +86,120 @@ export type TRunningTimer = TWorklogTimer & {
   issue_detail?: TTimerIssueRef | null;
   /** server clock at response time, used to correct client clock skew */
   server_now?: string;
+  // FORK: time-tracking-v2 — limit / "Still working?" schedule (all ISO timestamps, server clock)
+  last_confirmed_at?: string | null;
+  /** 0 = the "Still working?" check is off */
+  idle_check_minutes?: number;
+  idle_grace_seconds?: number;
+  /** when the prompt appears; null when the check is off */
+  next_check_at?: string | null;
+  /** unanswered by then -> the server stops the timer (at next_check_at) */
+  check_deadline_at?: string | null;
+  /** 10 h reminder time / whether the reminder was already sent */
+  remind_at?: string;
+  auto_stop_at?: string;
+  reminded?: boolean;
+};
+
+// FORK: time-tracking-v2 — what `time/timer/start/` returns on top of the running timer.
+export type TWorkItemState = { id: string; name: string; group: string };
+export type TStateChange = { from: TWorkItemState; to: TWorkItemState } | null;
+export type TTimerStartResponse = TRunningTimer & {
+  stopped?: TStoppedTimer | null;
+  state_change?: TStateChange;
+};
+
+/** Payload of `time/timer/stop/` (the last piece plus the totals). */
+export type TTimerStopResponse = TWorklog & {
+  pieces?: TWorklog[];
+  total_duration?: number;
+  issue_detail?: TTimerIssueRef | null;
+};
+
+/** API error codes of the timer endpoints (`code` on the error payload). */
+export type TTimerErrorCode =
+  | "not_tracked"
+  | "tracking_disabled"
+  | "project_tracking_disabled"
+  | "issue_cancelled"
+  | "idle_stopped"
+  | "auto_stopped";
+
+export type TTimerApiError = {
+  error?: string;
+  code?: TTimerErrorCode;
+  /** present when a timer already runs on the same work item */
+  timer?: TRunningTimer;
+  stopped?: TTimerStopResponse;
+};
+
+// FORK: time-tracking-v2 — `time/my-tasks/` (task picker)
+export type TMyTask = {
+  id: string;
+  name: string;
+  sequence_id: number;
+  ref: string;
+  project_id: string;
+  project_identifier: string;
+  state_id: string | null;
+  state_name: string | null;
+  state_group: string | null;
+  updated_at: string;
+};
+
+export type TMyTasksResponse = { tracked: boolean; results: TMyTask[] };
+
+// FORK: time-tracking-v2 — `time/live/` (dashboard). Built from an allow-list on the server:
+// when `timer.private` is true, issue and project are null and nothing else about the work leaks.
+export type TLiveUser = {
+  id: string;
+  display_name: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+};
+
+export type TLiveTimer = {
+  started_at: string;
+  private: boolean;
+  label: string | null;
+  issue: { id: string; ref: string; name: string } | null;
+  project: { id: string; identifier: string; name: string } | null;
+};
+
+export type TLiveRangeProject = {
+  id: string;
+  identifier: string;
+  name: string;
+  logo_props: Record<string, unknown> | null;
+  minutes: number;
+};
+
+export type TLiveRange = {
+  total_minutes: number;
+  projects: TLiveRangeProject[];
+  other_projects: { label: string; minutes: number };
+};
+
+export type TLiveRow = {
+  user: TLiveUser;
+  is_me: boolean;
+  status: "running" | "stopped";
+  timer: TLiveTimer | null;
+  last_stopped_at: string | null;
+  today_logged_minutes: number;
+  today_minutes: number;
+  range: TLiveRange | null;
+};
+
+export type TLiveResponse = {
+  server_now: string;
+  date: string;
+  timezone: string;
+  start_date: string;
+  end_date: string;
+  scope: "all" | "self";
+  rows: TLiveRow[];
 };
 
 export type TClient = {

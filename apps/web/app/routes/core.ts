@@ -72,6 +72,11 @@ export const coreRoutes: RouteConfigEntry[] = [
           route(":workspaceSlug/analytics/:tabId", "./(all)/[workspaceSlug]/(projects)/analytics/[tabId]/page.tsx"),
         ]),
 
+        // FORK: time-tracking-v2 — workspace Time area
+        layout("./(all)/[workspaceSlug]/(projects)/time/[tabId]/layout.tsx", [
+          route(":workspaceSlug/time/:tabId", "./(all)/[workspaceSlug]/(projects)/time/[tabId]/page.tsx"),
+        ]),
+
         // Browse
         layout("./(all)/[workspaceSlug]/(projects)/browse/[workItem]/layout.tsx", [
           route(":workspaceSlug/browse/:workItem", "./(all)/[workspaceSlug]/(projects)/browse/[workItem]/page.tsx"),
@@ -390,6 +395,8 @@ export const coreRoutes: RouteConfigEntry[] = [
 
   // Analytics redirect: /:workspaceSlug/analytics → /:workspaceSlug/analytics/overview
   route(":workspaceSlug/analytics", "routes/redirects/core/analytics.tsx"),
+  // FORK: time-tracking-v2 — /:workspaceSlug/time → /:workspaceSlug/time/dashboard
+  route(":workspaceSlug/time", "routes/redirects/core/time.tsx"),
 
   // API tokens redirect: /:workspaceSlug/settings/api-tokens
   // → /settings/profile/api-tokens

@@ -10,6 +10,10 @@ import type {
   TWorklogPayload,
   TWorklogTimer,
   TRunningTimer,
+  TTimerStartResponse,
+  TTimerStopResponse,
+  TMyTasksResponse,
+  TLiveResponse,
   TClient,
   TTimesheet,
   TTimeReport,
@@ -204,7 +208,8 @@ export class TimeTrackingService extends APIService {
 
   // FORK: PSR-105 — the signed-in user's running timer anywhere in the workspace.
   async getRunningTimer(workspaceSlug: string): Promise<TRunningTimer> {
-    return this.get(`/api/workspaces/${workspaceSlug}/worklog-timer/`)
+    // FORK: time-tracking-v2 — same payload as the legacy worklog-timer/ route, plus the idle-check schedule.
+    return this.get(`/api/workspaces/${workspaceSlug}/time/timer/`)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;
@@ -231,6 +236,59 @@ export class TimeTrackingService extends APIService {
     data: { description?: string } = {}
   ): Promise<TWorklog> {
     return this.delete(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/worklog-timer/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 — workspace-level timer + live dashboard ----
+  /** Start a timer on any work item the caller can track (stops a running one, may move Todo -> started). */
+  async startWorkspaceTimer(
+    workspaceSlug: string,
+    issueId: string,
+    data: { description?: string } = {}
+  ): Promise<TTimerStartResponse> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/timer/start/`, { issue_id: issueId, ...data })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async stopWorkspaceTimer(workspaceSlug: string, data: { description?: string } = {}): Promise<TTimerStopResponse> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/timer/stop/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** "Yes, still working". 200 = the updated timer; a late answer is an error payload with `code` idle_stopped/auto_stopped. */
+  async confirmTimer(workspaceSlug: string): Promise<TRunningTimer> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/timer/confirm/`, {})
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getMyTasks(workspaceSlug: string, q = "", limit?: number): Promise<TMyTasksResponse> {
+    const params: Record<string, string | number> = {};
+    if (q) params.q = q;
+    if (limit) params.limit = limit;
+    return this.get(`/api/workspaces/${workspaceSlug}/time/my-tasks/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getLive(workspaceSlug: string, startDate?: string, endDate?: string): Promise<TLiveResponse> {
+    const params: Record<string, string> = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    return this.get(`/api/workspaces/${workspaceSlug}/time/live/`, { params })
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

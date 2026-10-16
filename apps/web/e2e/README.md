@@ -14,9 +14,13 @@ docker compose -f docker-compose-local.yml up -d   # db, redis, mq, api on :8000
 cd apps/web && pnpm exec playwright install chromium
 ```
 
-The seed creates two scratch users (`qa-visual@plane.test`,
-`uat-outsider@example.com`, password `QaTest#2026` or `$E2E_PASSWORD`) and an
-isolated `e2e` workspace with one time-tracking-enabled project. It never
+The seed creates scratch users (`qa-visual@plane.test` admin,
+`qa-member@plane.test` and `qa-other@plane.test` members,
+`uat-outsider@example.com`; password `QaTest#2026` or `$E2E_PASSWORD`) and an
+isolated `e2e` workspace with one time-tracking-enabled project plus a second
+project `SEC` that only `qa-other` belongs to (used to check that the Time
+dashboard redacts private projects). Global setup logs in as admin, member and
+other, saving `.auth/{admin,member,other}.json`. It never
 touches demo or real data. Tests create and soft-delete their own work items.
 
 ## Run
@@ -39,6 +43,16 @@ E2E_BASE_URL=http://127.0.0.1:3002 pnpm test:e2e   # explicit (default)
 - `pnpm --filter web run e2e:headed` to watch it in a window;
   `e2e:report` for the HTML report of the last run.
 - Failures land in `apps/web/e2e/.artifacts/` (traces + screenshots).
+
+## Time dashboard spec (`time-dashboard.spec.ts`)
+
+Time tracking v2 UI: live dashboard (rows appear within the 5 s poll, private
+rows redacted, ticking elapsed), keyboard task picker, and the "Still working?"
+idle check across two tabs (prompt, Yes, expiry -> Resume). The idle test runs
+in real time (~8 min, `idle_check_minutes=1`); set `E2E_SKIP_SLOW=1` to skip it.
+`E2E_SHOT_DIR=<dir>` also saves review screenshots. The instance needs
+`is_setup_done` set. Audio chime and the browser notification are not asserted
+headlessly; check them by hand.
 
 ## Adding a flow
 

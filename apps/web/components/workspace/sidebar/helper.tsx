@@ -4,6 +4,8 @@
  * See the LICENSE file for details.
  */
 
+// FORK: time-tracking-v2
+import { Clock } from "lucide-react";
 import {
   AnalyticsOutline,
   ArchiveOutline,
@@ -45,5 +47,8 @@ export const getSidebarNavigationItemIcon = (key: string, className: string = ""
     // FORK: custom-dashboards
     case "custom_dashboard":
       return <DashboardsOutline className={cn("size-4 flex-shrink-0", className)} />;
+    // FORK: time-tracking-v2
+    case "time":
+      return <Clock className={cn("size-4 flex-shrink-0", className)} />;
   }
 };
