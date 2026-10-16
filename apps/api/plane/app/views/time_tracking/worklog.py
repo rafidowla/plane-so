@@ -62,8 +62,9 @@ def timer_data(timer, now=None):
     the serializer fields + ``issue_detail`` + the limit/idle-check schedule + ``server_now``."""
     data = WorklogTimerSerializer(timer).data
     data["issue_detail"] = _issue_ref(timer.issue_id)
-    data.update(timer_schedule_fields(timer))
-    data["server_now"] = now or timezone.now()
+    now = now or timezone.now()
+    data.update(timer_schedule_fields(timer, now=now))
+    data["server_now"] = now
     return data
 
 

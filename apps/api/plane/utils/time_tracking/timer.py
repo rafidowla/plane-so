@@ -54,7 +54,7 @@ class TimeTrackingError(Exception):
 
 class TimerAlreadyRunning(TimeTrackingError):
     def __init__(self, timer, where):
-        super().__init__({"error": f"A timer is already running on {where}."}, 400)
+        super().__init__({"error": f"A timer is already running on {where}.", "code": "already_running"}, 400)
         self.timer = timer
 
 
@@ -366,22 +366,26 @@ def confirm_timer(slug, user):
         return "confirmed", timer
 
 
-def timer_schedule_fields(timer, setting=None):
+def timer_schedule_fields(timer, setting=None, now=None):
     """FORK: time-tracking-v2 S2 — the limit fields the UI needs for a running timer.
 
-    ``next_check_at`` / ``check_deadline_at``: when to show "Still working?" and
-    when the timer will be stopped (at ``next_check_at``) if unanswered; both null
-    when the check is off (``idle_check_minutes`` 0). ``remind_at`` /
+    ``idle_check_enabled``: whether the "still working?" check is on. ``check``:
+    null until the server clock reaches the (random, never pre-announced) check
+    time, then ``{"prompted_at", "deadline_at"}`` — the prompt time, and when the
+    timer is stopped (at ``prompted_at``) if unanswered. ``remind_at`` /
     ``auto_stop_at``: the 10 h reminder and 14 h auto-stop. ``reminded``: the
     reminder has been sent.
     """
     setting = setting or limits.read_settings(timer.workspace_id)
     s = limits.schedule(timer, setting)
+    now = now or timezone.now()
+    check = None
+    if s["next_check_at"] is not None and now >= s["next_check_at"]:
+        check = {"prompted_at": s["next_check_at"], "deadline_at": s["check_deadline_at"]}
     return {
-        "idle_check_minutes": s["idle_check_minutes"],
+        "idle_check_enabled": s["idle_check_enabled"],
         "idle_grace_seconds": int(limits.IDLE_GRACE.total_seconds()),
-        "next_check_at": s["next_check_at"],
-        "check_deadline_at": s["check_deadline_at"],
+        "check": check,
         "remind_at": s["remind_at"],
         "auto_stop_at": s["auto_stop_at"],
         "reminded": timer.reminded_at is not None,

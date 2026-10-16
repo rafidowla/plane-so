@@ -59,8 +59,10 @@ class TimeTrackingSetting(BaseModel):
     minutes_per_day = models.PositiveIntegerField(default=480)
     remind_after_minutes = models.PositiveIntegerField(default=600)
     auto_stop_after_minutes = models.PositiveIntegerField(default=840)
-    # "Still working?" check interval (S2 builds the prompt and sweep). 0 = off.
-    idle_check_minutes = models.PositiveSmallIntegerField(default=60)
+    # "Still working?" check: each check lands at a random time between min and
+    # max minutes of continuous running (see utils/time_tracking/limits.py). 0/0 = off.
+    idle_check_min_minutes = models.PositiveSmallIntegerField(default=20)
+    idle_check_max_minutes = models.PositiveSmallIntegerField(default=80)
     allow_member_manual_entry = models.BooleanField(default=False)
     weekly_approval_enabled = models.BooleanField(default=False)
     billing_enabled = models.BooleanField(default=False)

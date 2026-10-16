@@ -8,11 +8,12 @@
 // the SERVER clock (browser clock + offset), never the raw browser clock.
 import type { TRunningTimer, TTimerIssueRef } from "../../issues/worklog/types";
 
-/** Poll cadence for the running timer: relaxed normally, tight while a prompt is possible/open. */
+/**
+ * Poll cadence for the running timer. The server picks a random check time and never announces it
+ * ahead of time, so while the check is on we poll every 15 s to learn that it is due.
+ */
 export const TIMER_POLL_MS = 30_000;
-export const TIMER_POLL_DUE_MS = 5_000;
-/** How close to `next_check_at` the tight polling starts. */
-export const DUE_POLL_LEAD_MS = 15_000;
+export const TIMER_POLL_CHECK_MS = 15_000;
 /** If the timer vanished within this much of the deadline, assume the server's sweep stopped it. */
 export const EXPIRY_SLACK_MS = 15_000;
 
@@ -24,15 +25,22 @@ const toMs = (iso: string | null | undefined): number | null => {
   return Number.isNaN(t) ? null : t;
 };
 
+/** The server's "check is due" block: null until the (random, unannounced) check time has passed. */
+function dueCheck(timer: TRunningTimer | undefined) {
+  const check = timer?.check;
+  if (!timer?.id || !timer.idle_check_enabled || !check) return null;
+  const promptedAt = toMs(check.prompted_at);
+  const deadlineAt = toMs(check.deadline_at);
+  if (promptedAt === null || deadlineAt === null) return null;
+  return { promptedAt, deadlineAt, promptedAtIso: check.prompted_at, deadlineAtIso: check.deadline_at };
+}
+
 /** Where the running timer is in its "Still working?" cycle. `serverNowMs` is on the server clock. */
 export function getIdlePhase(timer: TRunningTimer | undefined, serverNowMs: number): TIdlePhase {
-  if (!timer?.id || !timer.idle_check_minutes) return "off";
-  const next = toMs(timer.next_check_at);
-  const deadline = toMs(timer.check_deadline_at);
-  if (next === null || deadline === null) return "off";
-  if (serverNowMs < next) return "running";
-  if (serverNowMs < deadline) return "due";
-  return "expired";
+  if (!timer?.id || !timer.idle_check_enabled) return "off";
+  const check = dueCheck(timer);
+  if (!check) return "running";
+  return serverNowMs < check.deadlineAt ? "due" : "expired";
 }
 
 /** 10 h reminder: the server flagged it, or its reminder time has passed. */
@@ -43,16 +51,9 @@ export function isOverReminder(timer: TRunningTimer | undefined, serverNowMs: nu
   return at !== null && serverNowMs >= at;
 }
 
-/** Polling interval (ms) for the running-timer query given its schedule. */
-export function getTimerPollInterval(timer: TRunningTimer | undefined, serverNowMs: number): number {
-  if (!timer?.id || !timer.idle_check_minutes) return TIMER_POLL_MS;
-  const next = toMs(timer.next_check_at);
-  const deadline = toMs(timer.check_deadline_at);
-  if (next === null || deadline === null) return TIMER_POLL_MS;
-  // Tight from just before the prompt until the sweep has had time to act.
-  return serverNowMs >= next - DUE_POLL_LEAD_MS && serverNowMs < deadline + EXPIRY_SLACK_MS
-    ? TIMER_POLL_DUE_MS
-    : TIMER_POLL_MS;
+/** Polling interval (ms) for the running-timer query: 15 s while the check is on, else 30 s. */
+export function getTimerPollInterval(timer: TRunningTimer | undefined): number {
+  return timer?.id && timer.idle_check_enabled ? TIMER_POLL_CHECK_MS : TIMER_POLL_MS;
 }
 
 /** The work item to resume after an expired check. */
@@ -68,11 +69,11 @@ export const initialIdleState: TIdleState = { kind: "none", answered: null };
 export type TIdleEvent =
   /** A fresh timer reading (or its absence) plus the current server-clock time. */
   | { type: "tick"; timer: TRunningTimer | undefined; serverNowMs: number }
-  /** "Yes, still working" succeeded here or in another tab for this check. */
+  /** "I'm still here" succeeded here or in another tab for this check. */
   | { type: "answered"; checkAt: string }
   /** The user stopped the timer (here or in another tab), or started a different one. */
   | { type: "cleared" }
-  /** The server said a late "Yes" came too late: the timer is already stopped. */
+  /** The server said a late "I'm still here" came too late: the timer is already stopped. */
   | { type: "expired" };
 
 function itemOf(timer: TRunningTimer): TIdleItem | null {
@@ -94,13 +95,14 @@ export function reduceIdle(state: TIdleState, event: TIdleEvent): TIdleState {
       if (timer?.id) {
         const phase = getIdlePhase(timer, serverNowMs);
         const item = itemOf(timer);
-        if (phase === "due" && item && timer.next_check_at && timer.check_deadline_at) {
-          if (timer.next_check_at === state.answered) return state;
-          if (state.kind === "prompt" && state.checkAt === timer.next_check_at) return state;
+        const check = dueCheck(timer);
+        if (phase === "due" && item && check) {
+          if (check.promptedAtIso === state.answered) return state;
+          if (state.kind === "prompt" && state.checkAt === check.promptedAtIso) return state;
           return {
             kind: "prompt",
-            checkAt: timer.next_check_at,
-            deadlineAt: timer.check_deadline_at,
+            checkAt: check.promptedAtIso,
+            deadlineAt: check.deadlineAtIso,
             item,
             answered: state.answered,
           };

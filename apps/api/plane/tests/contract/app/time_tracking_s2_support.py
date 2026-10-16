@@ -87,6 +87,15 @@ def client_for(user):
     return c
 
 
+# "Still working?" check settings for tests: off, or a window of exactly N minutes
+# (min == max makes the otherwise random check time predictable).
+IDLE_OFF = {"idle_check_min_minutes": 0, "idle_check_max_minutes": 0}
+
+
+def idle_every(minutes):
+    return {"idle_check_min_minutes": minutes, "idle_check_max_minutes": minutes}
+
+
 def set_settings(workspace, **fields):
     # Call inside the freeze_time block that precedes the timer start: the row's
     # updated_at re-bases the "still working?" check (limits.idle_base).

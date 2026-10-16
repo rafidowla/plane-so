@@ -4,10 +4,11 @@
  * See the LICENSE file for details.
  */
 // FORK: time-tracking-v2 — the "Still working?" check, hosted once per workspace page so it runs
-// in every open tab. Behaviour (PO decision, DESIGN §8.2): at `next_check_at` a prompt appears and
+// in every open tab. Behaviour (PO decision, DESIGN §8.2): the server picks a random check time
+// (20-80 min by default) and never announces it; once `timer.check` is set a prompt appears and
 // a chime repeats every 5 s until the deadline or an answer; a browser notification fires too; if
-// audio is blocked the tab title flashes instead. "Yes" confirms; no answer by the deadline and
-// the server stops the timer, and a Resume card offers to start it again.
+// audio is blocked the tab title flashes instead. "I'm still here" confirms; no answer by the
+// deadline and the server stops the timer, and a card offers "Start again".
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@makeplane/propel/components/button";
@@ -205,7 +206,7 @@ export function IdleCheckHost() {
               variant="primary"
               size="md"
               stretch="auto"
-              label="Yes, still working"
+              label="I'm still here"
               onClick={handleConfirm}
               loading={busy}
               data-testid="idle-check-yes"
@@ -244,7 +245,7 @@ export function IdleCheckHost() {
             variant="primary"
             size="sm"
             stretch="auto"
-            label="Resume"
+            label="Start again"
             onClick={handleResume}
             loading={busy}
             data-testid="idle-check-resume"

@@ -90,7 +90,9 @@ def _client(user):
 def _idle_check_off(tt):
     # S2 added the hourly "still working?" check; these S1 runs are longer than an
     # hour with nobody confirming, so turn it off to test what they were written for.
-    TimeTrackingSetting.objects.update_or_create(workspace=tt["workspace"], defaults={"idle_check_minutes": 0})
+    TimeTrackingSetting.objects.update_or_create(
+        workspace=tt["workspace"], defaults={"idle_check_min_minutes": 0, "idle_check_max_minutes": 0}
+    )
 
 
 def _timer_url(tt, issue=None):
@@ -348,7 +350,7 @@ class TestSettings:
         assert r.data["timezone"] == DHAKA
         assert r.data["work_days"] == [1, 2, 3, 4, 5]
         assert r.data["minutes_per_day"] == 480
-        assert r.data["idle_check_minutes"] == 60
+        assert (r.data["idle_check_min_minutes"], r.data["idle_check_max_minutes"]) == (20, 80)
         assert TimeTrackingSetting.objects.filter(workspace=tt["workspace"]).count() == 1
 
     def test_patch_is_workspace_admin_only(self, session_client, tt):
@@ -362,11 +364,13 @@ class TestSettings:
         assert _client(guest).get(_settings_url(tt)).status_code == 403
 
         r = session_client.patch(
-            _settings_url(tt), {"minutes_per_day": 420, "idle_check_minutes": 0, "work_days": [6, 1]}, format="json"
+            _settings_url(tt),
+            {"minutes_per_day": 420, "idle_check_min_minutes": 0, "idle_check_max_minutes": 0, "work_days": [6, 1]},
+            format="json",
         )
         assert r.status_code == status.HTTP_200_OK, r.data
         assert r.data["minutes_per_day"] == 420
-        assert r.data["idle_check_minutes"] == 0
+        assert (r.data["idle_check_min_minutes"], r.data["idle_check_max_minutes"]) == (0, 0)
         assert r.data["work_days"] == [1, 6]
 
     def test_patch_validation(self, session_client, tt):
@@ -375,9 +379,22 @@ class TestSettings:
             {"work_days": []},
             {"work_days": [0, 8]},
             {"minutes_per_day": 0},
-            {"idle_check_minutes": 2000},
+            {"idle_check_min_minutes": 10, "idle_check_max_minutes": 5},  # min above max
+            {"idle_check_min_minutes": 4, "idle_check_max_minutes": 30},  # below the 5 minute floor
+            {"idle_check_min_minutes": 20, "idle_check_max_minutes": 481},  # above the 480 ceiling
+            {"idle_check_min_minutes": 0, "idle_check_max_minutes": 30},  # off needs both 0
+            {"idle_check_min_minutes": 30, "idle_check_max_minutes": 0},
+            {"idle_check_min_minutes": 100},  # alone: above the stored max (80)
         ):
             assert session_client.patch(_settings_url(tt), body, format="json").status_code == 400, body
+
+    def test_patch_accepts_a_valid_check_window(self, session_client, tt):
+        for lo, hi in ((5, 5), (20, 80), (480, 480), (0, 0)):
+            r = session_client.patch(
+                _settings_url(tt), {"idle_check_min_minutes": lo, "idle_check_max_minutes": hi}, format="json"
+            )
+            assert r.status_code == status.HTTP_200_OK, (lo, hi, r.data)
+            assert (r.data["idle_check_min_minutes"], r.data["idle_check_max_minutes"]) == (lo, hi)
 
     def test_patch_is_audited(self, session_client, tt):
         session_client.patch(_settings_url(tt), {"remind_after_minutes": 300}, format="json")
@@ -400,6 +417,7 @@ class TestMemberTracking:
         member = _user(tt["workspace"], tt["project"])
         mc = _client(member)
         with freeze_time(utc(2026, 6, 22, 4, 0)):
+            _idle_check_off(tt)  # the random check would otherwise land inside this hour
             assert mc.post(_timer_url(tt), {}, format="json").status_code == 201
         with freeze_time(utc(2026, 6, 22, 5, 0)):
             r = session_client.post(_tracking_url(tt, member), {"is_tracked": False}, format="json")

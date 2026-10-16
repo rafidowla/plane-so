@@ -139,7 +139,8 @@ class TimeTrackingSettingSerializer(BaseSerializer):
             "minutes_per_day",
             "remind_after_minutes",
             "auto_stop_after_minutes",
-            "idle_check_minutes",
+            "idle_check_min_minutes",
+            "idle_check_max_minutes",
             "allow_member_manual_entry",
             "weekly_approval_enabled",
             "billing_enabled",
@@ -159,11 +160,6 @@ class TimeTrackingSettingSerializer(BaseSerializer):
             raise serializers.ValidationError("Must be between 1 and 1440 minutes.")
         return value
 
-    def validate_idle_check_minutes(self, value):
-        if value > 1440:
-            raise serializers.ValidationError("Must be between 0 (off) and 1440 minutes.")
-        return value
-
     def validate(self, attrs):
         remind = attrs.get("remind_after_minutes", getattr(self.instance, "remind_after_minutes", None))
         auto_stop = attrs.get("auto_stop_after_minutes", getattr(self.instance, "auto_stop_after_minutes", None))
@@ -174,6 +170,22 @@ class TimeTrackingSettingSerializer(BaseSerializer):
             raise serializers.ValidationError(
                 {"auto_stop_after_minutes": "Auto-stop must come after the reminder."}
             )
+        idle_min = attrs.get("idle_check_min_minutes", getattr(self.instance, "idle_check_min_minutes", 20))
+        idle_max = attrs.get("idle_check_max_minutes", getattr(self.instance, "idle_check_max_minutes", 80))
+        if not (idle_min == 0 and idle_max == 0):
+            # Either both 0 (check off) or a real window.
+            if not 5 <= idle_min <= 480:
+                raise serializers.ValidationError(
+                    {"idle_check_min_minutes": "Must be 0 (off, with the maximum also 0) or 5-480 minutes."}
+                )
+            if not 5 <= idle_max <= 480:
+                raise serializers.ValidationError(
+                    {"idle_check_max_minutes": "Must be 0 (off, with the minimum also 0) or 5-480 minutes."}
+                )
+            if idle_min > idle_max:
+                raise serializers.ValidationError(
+                    {"idle_check_max_minutes": "The maximum must not be below the minimum."}
+                )
         return attrs
 
 

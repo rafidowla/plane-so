@@ -135,26 +135,36 @@ test("live dashboard: running rows appear within 5 s, private work stays private
   }
 });
 
-test("idle check: prompt at the check time, Yes dismisses it everywhere, silence stops the timer and offers Resume", async ({
+test("idle check: prompt at the check time, I'm still here dismisses it everywhere, silence stops the timer and offers Start again", async ({
   browser,
 }) => {
-  test.skip(process.env.E2E_SKIP_SLOW === "1", "real-time idle test (about 7 min) skipped via E2E_SKIP_SLOW");
-  test.setTimeout(14 * 60_000);
+  test.skip(process.env.E2E_SKIP_SLOW === "1", "real-time idle test (about 16 min) skipped via E2E_SKIP_SLOW");
+  test.setTimeout(30 * 60_000);
 
   const admin = await newSession(browser, "admin");
   const project = await getE2EProject(admin.request);
   const issue = await createIssue(admin.request, project.id, "E2E: idle check target");
   const ref = `${E2E_PROJECT_IDENTIFIER}-${issue.sequence_id}`;
-  let previous: number | null = null;
+  let previous: { min: number; max: number } | null = null;
 
   try {
     await stopAnyTimer(admin.request);
     // The schedule is based on max(start, last confirm, settings save): change the setting BEFORE starting.
     const current = await (await admin.request.get(api("time/settings/"))).json();
-    previous = current.idle_check_minutes ?? null;
-    const patch = await admin.request.patch(api("time/settings/"), { data: { idle_check_minutes: 1 } });
+    previous = { min: current.idle_check_min_minutes, max: current.idle_check_max_minutes };
+    // min = max makes the otherwise random (20-80 min) check time predictable. 5 is the smallest
+    // window the settings API accepts (the check is either off, or 5-480 minutes).
+    const patch = await admin.request.patch(api("time/settings/"), {
+      data: { idle_check_min_minutes: 5, idle_check_max_minutes: 5 },
+    });
     expect(patch.ok(), `settings patch failed: ${patch.status()}`).toBeTruthy();
     await startTimer(admin.request, issue.id);
+
+    // The check time is never revealed before it is due.
+    const early = await (await admin.request.get(api("time/timer/"))).json();
+    expect(early.check).toBeNull();
+    expect(early.idle_check_enabled).toBe(true);
+    expect(early).not.toHaveProperty("next_check_at");
 
     // Two tabs of the same user.
     const tabA = await admin.newPage();
@@ -166,35 +176,41 @@ test("idle check: prompt at the check time, Yes dismisses it everywhere, silence
     await tabA.getByTestId("time-dashboard").click({ position: { x: 5, y: 5 } });
     await tabB.getByTestId("time-dashboard").click({ position: { x: 5, y: 5 } });
 
-    // 1. The prompt appears in both tabs when the check is due (about 1 minute after start).
+    // 1. The prompt appears in both tabs when the check is due (about 5 minutes after start, plus up to
+    //    15 s for the poll).
     const dialogA = tabA.getByTestId("idle-check-dialog");
     const dialogB = tabB.getByTestId("idle-check-dialog");
-    await expect(dialogA).toBeVisible({ timeout: 100_000 });
+    await expect(dialogA).toBeVisible({ timeout: 6 * 60_000 });
     await expect(dialogB).toBeVisible({ timeout: 15_000 });
     await expect(dialogA).toContainText("Still working?");
+    await expect(tabA.getByTestId("idle-check-yes")).toHaveText("I'm still here");
     await shot(tabA, "idle-prompt");
 
-    // 2. "Yes" in one tab closes the prompt in both and keeps the timer.
+    // 2. "I'm still here" in one tab closes the prompt in both and keeps the timer.
     await tabA.getByTestId("idle-check-yes").click();
     await expect(dialogA).toBeHidden({ timeout: 10_000 });
     await expect(dialogB).toBeHidden({ timeout: 10_000 });
     await expect(tabA.getByTestId("time-timer-bar")).toContainText(ref);
 
     // 3. Leave the next check unanswered: after the grace period the server stops the timer and the
-    //    page offers Resume. (1 min to the next check + 5 min grace + up to 1 min for the sweep.)
-    await expect(dialogA).toBeVisible({ timeout: 100_000 });
+    //    page offers Start again. (5 min to the next check + 5 min grace + up to 1 min for the sweep.)
+    await expect(dialogA).toBeVisible({ timeout: 6 * 60_000 });
     await expect(tabA.getByTestId("idle-check-stopped")).toBeVisible({ timeout: 8 * 60_000 });
     await expect(tabA.getByTestId("idle-check-stopped")).toContainText("you didn't confirm");
+    await expect(tabA.getByTestId("idle-check-resume")).toHaveText("Start again");
+    await expect(dialogA).toBeHidden();
     await shot(tabA, "idle-resume");
 
-    // 4. Resume starts a new timer on the same work item.
+    // 4. Start again starts a new timer on the same work item.
     await tabA.getByTestId("idle-check-resume").click();
     await expect(tabA.getByTestId("time-timer-bar")).toContainText(ref, { timeout: 15_000 });
     await expect(tabA.getByTestId("time-timer-bar-stop")).toBeVisible();
   } finally {
     await stopAnyTimer(admin.request).catch(() => undefined);
     if (previous !== null) {
-      await admin.request.patch(api("time/settings/"), { data: { idle_check_minutes: previous } });
+      await admin.request.patch(api("time/settings/"), {
+        data: { idle_check_min_minutes: previous.min, idle_check_max_minutes: previous.max },
+      });
     }
     await deleteIssue(admin.request, project.id, issue.id);
     await admin.close();

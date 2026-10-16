@@ -7,7 +7,8 @@
 endpoints agree, the 10 h reminder, the 14 h auto-stop and the "still working?"
 idle check."""
 
-from datetime import date
+import uuid
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -21,13 +22,17 @@ from plane.db.models import (
     IssueWorklog,
     Notification,
     TimeTrackingAuditLog,
+    TimeTrackingSetting,
     WorklogTimer,
 )
+from plane.utils.time_tracking import limits
 from plane.utils.time_tracking.tracking import set_member_tracking
 
 from .time_tracking_s2_support import (  # noqa: F401 (fixtures)
     _load_urlconf,
     client_for,
+    IDLE_OFF,
+    idle_every,
     issue_timer_url,
     join,
     make_issue,
@@ -216,6 +221,7 @@ class TestStartMovesToInProgress:
         join(s2["project"], other)
         second = make_issue(s2["project"], s2["states"]["todo"], "Issue 2", s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **idle_every(60))
             a, _ = self._run(
                 django_capture_on_commit_callbacks,
                 lambda: client_for(s2["user"]).post(issue_timer_url(s2), {}, format="json"),
@@ -224,7 +230,7 @@ class TestStartMovesToInProgress:
         assert a.status_code == b.status_code == status.HTTP_201_CREATED
         a, b = a.json(), b.json()
         assert set(a) == set(b)
-        for key in ("started_at", "next_check_at", "check_deadline_at", "remind_at", "auto_stop_at", "server_now"):
+        for key in ("started_at", "check", "remind_at", "auto_stop_at", "server_now"):
             assert a[key] == b[key]
         assert a["state_change"]["to"] == b["state_change"]["to"]
         assert a["issue_detail"]["ref"] == "TTP-1" and b["issue_detail"]["ref"] == "TTP-2"
@@ -233,6 +239,7 @@ class TestStartMovesToInProgress:
         second = make_issue(s2["project"], s2["states"]["todo"], "Issue 2", s2["user"])
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **IDLE_OFF)
             assert _start(c, s2, s2["issue"]).status_code == 201
         with freeze_time(utc(2026, 6, 22, 4, 30)):
             r = _start(c, s2, second)
@@ -250,6 +257,7 @@ class TestTimerEndpoints:
     def test_get_shows_the_schedule(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **idle_every(60))
             assert _start(c, s2, s2["issue"]).status_code == 201
         with freeze_time(utc(2026, 6, 22, 4, 30)):
             r = c.get(ws_url(s2, "time/timer/"))
@@ -257,10 +265,12 @@ class TestTimerEndpoints:
         d = r.json()
         assert d["issue"] == str(s2["issue"].id)
         assert d["issue_detail"]["ref"] == "TTP-1"
-        assert d["idle_check_minutes"] == 60
+        assert d["idle_check_enabled"] is True
         assert d["idle_grace_seconds"] == 300
-        assert d["next_check_at"].startswith("2026-06-22T05:00:00")
-        assert d["check_deadline_at"].startswith("2026-06-22T05:05:00")
+        # The check time is never revealed before it is due.
+        assert d["check"] is None
+        for gone in ("next_check_at", "check_deadline_at", "idle_check_minutes"):
+            assert gone not in d
         assert d["remind_at"].startswith("2026-06-22T14:00:00")
         assert d["auto_stop_at"].startswith("2026-06-22T18:00:00")
         assert d["reminded"] is False
@@ -295,7 +305,7 @@ class TestReminderAndAutoStop:
     def test_reminder_once_at_ten_hours(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 0, 0)):
-            set_settings(s2["workspace"], idle_check_minutes=0)
+            set_settings(s2["workspace"], **IDLE_OFF)
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 9, 59)):
             assert time_tracking_timer_sweep()["reminded"] == 0
@@ -315,7 +325,7 @@ class TestReminderAndAutoStop:
     def test_auto_stop_at_fourteen_hours_with_idle_check_off(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 0, 0)):  # 06:00 Dhaka
-            set_settings(s2["workspace"], idle_check_minutes=0)
+            set_settings(s2["workspace"], **IDLE_OFF)
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 13, 59)):
             assert time_tracking_timer_sweep()["limits"] == 0
@@ -334,7 +344,7 @@ class TestReminderAndAutoStop:
     def test_late_user_stop_is_clamped_to_the_auto_stop(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 0, 0)):
-            set_settings(s2["workspace"], idle_check_minutes=0)
+            set_settings(s2["workspace"], **IDLE_OFF)
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 16, 0)):  # sweep never ran
             r = c.delete(issue_timer_url(s2))
@@ -352,6 +362,7 @@ class TestIdleCheck:
     def test_unanswered_check_stops_at_the_prompt_time(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):  # default settings: check every 60 min
+            set_settings(s2["workspace"], **idle_every(60))
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 5, 4)):  # inside the 5-minute grace
             assert time_tracking_timer_sweep()["limits"] == 0
@@ -367,12 +378,12 @@ class TestIdleCheck:
     def test_confirm_pushes_the_next_check(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **idle_every(60))
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 5, 2)):  # prompt showing, answered in time
             r = c.post(ws_url(s2, "time/timer/confirm/"))
         assert r.status_code == 200
-        assert r.json()["next_check_at"].startswith("2026-06-22T06:02:00")
-        assert r.json()["check_deadline_at"].startswith("2026-06-22T06:07:00")
+        assert r.json()["check"] is None  # the new interval is not due yet
         with freeze_time(utc(2026, 6, 22, 5, 30)):
             assert time_tracking_timer_sweep()["limits"] == 0
         with freeze_time(utc(2026, 6, 22, 6, 8)):
@@ -384,6 +395,7 @@ class TestIdleCheck:
     def test_confirm_after_the_deadline_stops_at_the_prompt_time(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **idle_every(60))
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 5, 6)):  # sweep has not run yet
             r = c.post(ws_url(s2, "time/timer/confirm/"))
@@ -401,6 +413,7 @@ class TestIdleCheck:
     def test_late_user_stop_is_clamped_to_the_prompt_time(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **idle_every(60))
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 7, 0)):
             r = c.post(ws_url(s2, "time/timer/stop/"), {}, format="json")
@@ -410,18 +423,19 @@ class TestIdleCheck:
     def test_interval_zero_turns_the_check_off(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
-            set_settings(s2["workspace"], idle_check_minutes=0)
+            set_settings(s2["workspace"], **IDLE_OFF)
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 9, 0)):
             assert time_tracking_timer_sweep()["limits"] == 0
             d = c.get(ws_url(s2, "time/timer/")).json()
-        assert d["idle_check_minutes"] == 0
-        assert d["next_check_at"] is None and d["check_deadline_at"] is None
+        assert d["idle_check_enabled"] is False
+        assert d["check"] is None
         assert WorklogTimer.objects.filter(user=s2["user"]).exists()
 
     def test_idle_stop_across_midnight_splits(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 17, 30)):  # 23:30 Dhaka
+            set_settings(s2["workspace"], **idle_every(60))
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 18, 40)):  # 00:40 Dhaka, past the 00:35 deadline
             assert time_tracking_timer_sweep()["limits"] == 1
@@ -435,13 +449,97 @@ class TestIdleCheck:
     def test_turning_the_check_on_is_not_retroactive(self, s2):
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 0, 0)):
-            set_settings(s2["workspace"], idle_check_minutes=0)
+            set_settings(s2["workspace"], **IDLE_OFF)
             _start(c, s2, s2["issue"])
         with freeze_time(utc(2026, 6, 22, 3, 0)):
-            set_settings(s2["workspace"], idle_check_minutes=60)
+            set_settings(s2["workspace"], **idle_every(60))
         with freeze_time(utc(2026, 6, 22, 3, 30)):
             assert time_tracking_timer_sweep()["limits"] == 0
-            assert c.get(ws_url(s2, "time/timer/")).json()["next_check_at"].startswith("2026-06-22T04:00:00")
+            assert c.get(ws_url(s2, "time/timer/")).json()["check"] is None
+        with freeze_time(utc(2026, 6, 22, 4, 1)):
+            assert c.get(ws_url(s2, "time/timer/")).json()["check"]["prompted_at"].startswith("2026-06-22T04:00:00")
         with freeze_time(utc(2026, 6, 22, 4, 6)):
             assert time_tracking_timer_sweep()["limits"] == 1
         assert IssueWorklog.objects.get(logged_by=s2["user"]).ended_at == utc(2026, 6, 22, 4, 0)
+
+
+# ---------------------------------------------------------------------------
+# Random check time (PO decision: 20-80 minutes, never announced in advance)
+# ---------------------------------------------------------------------------
+
+
+def _interval(timer_id, started_at, lo, hi):
+    timer = WorklogTimer(id=timer_id, started_at=started_at)
+    setting = TimeTrackingSetting(idle_check_min_minutes=lo, idle_check_max_minutes=hi)
+    s = limits.schedule(timer, setting)
+    return s["next_check_at"] - started_at
+
+
+class TestRandomCheckTime:
+    def test_defaults_are_20_to_80(self):
+        s = TimeTrackingSetting()
+        assert (s.idle_check_min_minutes, s.idle_check_max_minutes) == (20, 80)
+
+    def test_interval_is_always_inside_the_window(self):
+        base = utc(2026, 6, 22, 4, 0)
+        for i in range(300):
+            d = _interval(uuid.uuid4(), base + timedelta(minutes=i), 20, 80)
+            assert timedelta(minutes=20) <= d <= timedelta(minutes=80)
+
+    def test_min_equals_max_is_exact(self):
+        assert _interval(uuid.uuid4(), utc(2026, 6, 22, 4, 0), 45, 45) == timedelta(minutes=45)
+
+    def test_same_base_gives_the_same_time(self):
+        tid, base = uuid.uuid4(), utc(2026, 6, 22, 4, 0)
+        assert len({_interval(tid, base, 20, 80) for _ in range(5)}) == 1
+
+    def test_a_new_base_gives_a_new_draw(self):
+        tid = uuid.uuid4()
+        draws = {_interval(tid, utc(2026, 6, 22, 4, 0) + timedelta(minutes=i), 20, 80) for i in range(60)}
+        assert len(draws) > 15  # spread over the window, not a constant
+        timers = {_interval(uuid.uuid4(), utc(2026, 6, 22, 4, 0), 20, 80) for _ in range(60)}
+        assert len(timers) > 15
+
+    def test_check_is_null_until_due_then_populated(self, s2):
+        c = client_for(s2["user"])
+        with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **idle_every(30))
+            r = _start(c, s2, s2["issue"])
+        assert r.json()["check"] is None and r.json()["idle_check_enabled"] is True
+        with freeze_time(utc(2026, 6, 22, 4, 29)):
+            assert c.get(ws_url(s2, "time/timer/")).json()["check"] is None
+        with freeze_time(utc(2026, 6, 22, 4, 31)):
+            d = c.get(ws_url(s2, "time/timer/")).json()
+        assert d["check"]["prompted_at"].startswith("2026-06-22T04:30:00")
+        assert d["check"]["deadline_at"].startswith("2026-06-22T04:35:00")
+
+    def test_confirm_after_the_deadline_is_still_409(self, s2):
+        c = client_for(s2["user"])
+        with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], **idle_every(30))
+            _start(c, s2, s2["issue"])
+        with freeze_time(utc(2026, 6, 22, 4, 36)):
+            r = c.post(ws_url(s2, "time/timer/confirm/"))
+        assert r.status_code == status.HTTP_409_CONFLICT and r.json()["code"] == "idle_stopped"
+
+    def test_the_window_is_used_by_the_sweep(self, s2):
+        # A random draw within 20-80 minutes: nothing is stopped before 20 min,
+        # and the check is always over by 80 + 5 minutes.
+        c = client_for(s2["user"])
+        with freeze_time(utc(2026, 6, 22, 4, 0)):
+            set_settings(s2["workspace"], idle_check_min_minutes=20, idle_check_max_minutes=80)
+            _start(c, s2, s2["issue"])
+        with freeze_time(utc(2026, 6, 22, 4, 19)):
+            assert time_tracking_timer_sweep()["limits"] == 0
+        with freeze_time(utc(2026, 6, 22, 5, 26)):
+            assert time_tracking_timer_sweep()["limits"] == 1
+        wl = IssueWorklog.objects.get(logged_by=s2["user"])
+        assert 20 <= wl.duration <= 80 and wl.idle_stopped is True
+
+    def test_already_running_has_a_code(self, s2):
+        c = client_for(s2["user"])
+        with freeze_time(utc(2026, 6, 22, 4, 0)):
+            assert _start(c, s2, s2["issue"]).status_code == 201
+            r = _start(c, s2, s2["issue"])
+        assert r.status_code == 400
+        assert r.json()["code"] == "already_running" and r.json()["timer"]

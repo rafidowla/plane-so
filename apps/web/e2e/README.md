@@ -48,8 +48,9 @@ E2E_BASE_URL=http://127.0.0.1:3002 pnpm test:e2e   # explicit (default)
 
 Time tracking v2 UI: live dashboard (rows appear within the 5 s poll, private
 rows redacted, ticking elapsed), keyboard task picker, and the "Still working?"
-idle check across two tabs (prompt, Yes, expiry -> Resume). The idle test runs
-in real time (~8 min, `idle_check_minutes=1`); set `E2E_SKIP_SLOW=1` to skip it.
+idle check across two tabs (prompt, "I'm still here", expiry -> "Start again"). The idle test runs
+in real time (~16 min: min = max = 5 via `PATCH time/settings/`, the smallest window the API accepts;
+the real check is random, 20-80 min); set `E2E_SKIP_SLOW=1` to skip it.
 `E2E_SHOT_DIR=<dir>` also saves review screenshots. The instance needs
 `is_setup_done` set. Audio chime and the browser notification are not asserted
 headlessly; check them by hand.

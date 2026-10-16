@@ -28,8 +28,8 @@ export type TTimerErrorInfo = {
 export function describeTimerError(err: unknown, fallbackTitle = "Cannot start timer"): TTimerErrorInfo {
   const payload = asPayload(err);
   const code = (payload.code ?? null) as TTimerErrorCode | null;
-  // A start on the item that is already running answers with the running timer and no code.
-  if (!code && payload.timer) {
+  // A start on the item that is already running answers with the running timer.
+  if (code === "already_running") {
     return {
       title: "Already running",
       message: "A timer is already running on this work item.",

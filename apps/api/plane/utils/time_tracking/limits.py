@@ -10,9 +10,14 @@ Three limits come from the workspace settings (``TimeTrackingSetting``):
   notification, once (``WorklogTimer.reminded_at``).
 * **auto-stop** at ``started_at + auto_stop_after_minutes`` (14 h) — the entry
   is saved with ``auto_stopped=True`` and still counts (PO answer 2).
-* **"still working?" check** every ``idle_check_minutes`` (0 = off) of
-  continuous running, counted from ``max(started_at, last_confirmed_at)``.
-  The UI prompts at ``next_check_at``; with no answer by ``check_deadline_at``
+* **"still working?" check** at a RANDOM time between ``idle_check_min_minutes``
+  and ``idle_check_max_minutes`` (both 0 = off) of continuous running, counted
+  from ``idle_base`` (``max(started_at, last_confirmed_at, settings.updated_at)``).
+  The interval is derived, not stored: ``HMAC-SHA256(SECRET_KEY, "<timer id>:<base>")``
+  mod the window size, so the sweep, confirm, stop and the payload all agree
+  with no state, and a new base (confirm / settings edit) is a new draw. The
+  client is never told the time in advance; the payload's ``check`` is null
+  until the server clock reaches it. With no answer by ``check_deadline_at``
   (= prompt + ``IDLE_GRACE``) the timer is stopped AT ``next_check_at`` — the
   moment the prompt appeared — and flagged ``idle_stopped`` (DESIGN §8 item 2).
 
@@ -23,7 +28,12 @@ sweep runs.
 """
 
 # Python imports
+import hashlib
+import hmac
 from datetime import timedelta
+
+# Django imports
+from django.conf import settings as django_settings
 
 # How long the "still working?" prompt waits for an answer. A constant so the
 # product can change it without a settings field (DESIGN §8 item 2).
@@ -72,17 +82,31 @@ def idle_base(timer, setting):
     return base
 
 
+def idle_check_enabled(setting):
+    return (setting.idle_check_min_minutes or 0) > 0 and (setting.idle_check_max_minutes or 0) > 0
+
+
+def idle_interval_minutes(timer, setting, base):
+    """The (random but deterministic) minutes from ``base`` to this interval's check."""
+    lo, hi = setting.idle_check_min_minutes, setting.idle_check_max_minutes
+    digest = hmac.new(
+        django_settings.SECRET_KEY.encode(), f"{timer.id}:{base.isoformat()}".encode(), hashlib.sha256
+    ).digest()
+    return lo + int.from_bytes(digest, "big") % (hi - lo + 1)
+
+
 def schedule(timer, setting):
     """The limit timestamps for a running timer (all aware datetimes or None)."""
-    interval = setting.idle_check_minutes or 0
+    enabled = idle_check_enabled(setting)
     next_check_at = check_deadline_at = None
-    if interval > 0:
-        next_check_at = idle_base(timer, setting) + timedelta(minutes=interval)
+    if enabled:
+        base = idle_base(timer, setting)
+        next_check_at = base + timedelta(minutes=idle_interval_minutes(timer, setting, base))
         check_deadline_at = next_check_at + IDLE_GRACE
     return {
         "remind_at": timer.started_at + timedelta(minutes=setting.remind_after_minutes),
         "auto_stop_at": timer.started_at + timedelta(minutes=setting.auto_stop_after_minutes),
-        "idle_check_minutes": interval,
+        "idle_check_enabled": enabled,
         "next_check_at": next_check_at,
         "check_deadline_at": check_deadline_at,
     }

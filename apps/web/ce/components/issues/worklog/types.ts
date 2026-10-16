@@ -88,13 +88,14 @@ export type TRunningTimer = TWorklogTimer & {
   server_now?: string;
   // FORK: time-tracking-v2 — limit / "Still working?" schedule (all ISO timestamps, server clock)
   last_confirmed_at?: string | null;
-  /** 0 = the "Still working?" check is off */
-  idle_check_minutes?: number;
+  /** false = the "Still working?" check is off */
+  idle_check_enabled?: boolean;
   idle_grace_seconds?: number;
-  /** when the prompt appears; null when the check is off */
-  next_check_at?: string | null;
-  /** unanswered by then -> the server stops the timer (at next_check_at) */
-  check_deadline_at?: string | null;
+  /**
+   * null until the server's random check time has passed (it is never announced in advance), then
+   * the open prompt: unanswered by `deadline_at` -> the server stops the timer at `prompted_at`.
+   */
+  check?: { prompted_at: string; deadline_at: string } | null;
   /** 10 h reminder time / whether the reminder was already sent */
   remind_at?: string;
   auto_stop_at?: string;
@@ -123,7 +124,8 @@ export type TTimerErrorCode =
   | "project_tracking_disabled"
   | "issue_cancelled"
   | "idle_stopped"
-  | "auto_stopped";
+  | "auto_stopped"
+  | "already_running";
 
 export type TTimerApiError = {
   error?: string;
