@@ -279,7 +279,7 @@ export class TimeTrackingService extends APIService {
     projectId: string,
     issueId: string,
     data: { description?: string } = {}
-  ): Promise<TWorklog> {
+  ): Promise<TTimerStopResponse> {
     return this.delete(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/worklog-timer/`, data)
       .then((res) => res?.data)
       .catch((err) => {

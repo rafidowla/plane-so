@@ -31,6 +31,9 @@ export const refreshTimeData = async (slug: string) => {
   ]);
 };
 
+// FORK: PSR-121 — the server cuts a stopped run where the person's day reaches 24 h.
+export const DAY_LIMIT_CLAMPED_MESSAGE = "Cut at 24 h for the day — that day already had other time on it.";
+
 /** "Stopped E2E-12, logged 1h 20m" */
 export const getStoppedToastTitle = (stopped: TStoppedTimer | null | undefined): string | null => {
   if (!stopped) return null;
@@ -47,7 +50,11 @@ export const getStateChangeToastTitle = (change: TStateChange | undefined): stri
 export const announceStartResult = (slug: string, started: TTimerStartResponse) => {
   const stoppedTitle = getStoppedToastTitle(started.stopped);
   if (stoppedTitle) {
-    setToast({ type: "info", title: stoppedTitle });
+    setToast({
+      type: "info",
+      title: stoppedTitle,
+      message: started.stopped?.day_limit_clamped ? DAY_LIMIT_CLAMPED_MESSAGE : undefined,
+    });
     const id = started.stopped?.issue?.id;
     if (id) {
       void globalMutate(`WORKLOG_TIMER_${slug}_${id}`);
@@ -94,7 +101,11 @@ export async function stopRunningTimer(slug: string, ref?: string | null): Promi
   try {
     const stopped = await timeTrackingService.stopWorkspaceTimer(slug);
     const logged = formatLoggedMinutes(stopped?.total_duration ?? stopped?.duration ?? 0);
-    setToast({ type: "success", title: ref ? `Stopped ${ref}, logged ${logged}` : `Timer stopped, logged ${logged}` });
+    setToast({
+      type: "success",
+      title: ref ? `Stopped ${ref}, logged ${logged}` : `Timer stopped, logged ${logged}`,
+      message: stopped?.day_limit_clamped ? DAY_LIMIT_CLAMPED_MESSAGE : undefined,
+    });
     if (stopped?.issue) {
       globalMutate(`WORKLOG_TIMER_${slug}_${stopped.issue}`);
       globalMutate(`WORKLOGS_${slug}_${stopped.issue}`);

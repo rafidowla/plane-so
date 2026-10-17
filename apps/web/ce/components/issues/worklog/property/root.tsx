@@ -25,7 +25,7 @@ import { LogTimeModal } from "../log-time-modal";
 // FORK: time-tracking-v2
 import { describeTimerError } from "@/plane-web/components/time/timer/errors";
 import { requestNotificationPermissionOnce } from "@/plane-web/components/time/timer/notify";
-import { getStateChangeToastTitle } from "@/plane-web/components/time/timer/timer-actions";
+import { DAY_LIMIT_CLAMPED_MESSAGE, getStateChangeToastTitle } from "@/plane-web/components/time/timer/timer-actions";
 import { useCanReviewTime } from "@/plane-web/components/time/approvals/access";
 import { ISSUE_PENDING_KEY } from "@/plane-web/components/time/requests/request-keys";
 import { RequestModal, type TRequestModalKind } from "@/plane-web/components/time/requests/request-modal";
@@ -195,9 +195,13 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
 
   const handleStop = async () => {
     try {
-      await timeTrackingService.stopTimer(workspaceSlug, projectId, issueId);
+      const stopped = await timeTrackingService.stopTimer(workspaceSlug, projectId, issueId);
       await Promise.all([mutateTimer(), mutateWorklogs(), revalidateRunningTimer(workspaceSlug)]);
-      setToast({ type: "success", title: "Time logged", message: "Timer stopped and time recorded." });
+      setToast({
+        type: "success",
+        title: "Time logged",
+        message: stopped?.day_limit_clamped ? DAY_LIMIT_CLAMPED_MESSAGE : "Timer stopped and time recorded.",
+      });
     } catch (err) {
       setToast({ type: "error", title: "Cannot stop timer", message: asApiError(err).error ?? "Try again." });
     }
