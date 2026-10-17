@@ -32,7 +32,9 @@ function TimePage({ params }: Route.ComponentProps) {
   const canReview = useCanReviewTime(workspaceSlug) && isInternal;
   const pendingCount = usePendingApprovalCount(workspaceSlug, canReview);
   const tabs = getTimeTabs({ canReview, pendingCount });
-  const selected = tabs.find((tab) => tab.key === tabId) ?? tabs[0];
+  // FORK: time-tracking-v2 S4 — S3b's old /time/requests/ link now lands on My timesheet, which holds My requests.
+  const wantedKey = tabId === "requests" ? "timesheet" : tabId;
+  const selected = tabs.find((tab) => tab.key === wantedKey) ?? tabs[0];
 
   const title = currentWorkspace?.name ? `${currentWorkspace.name} - Time` : undefined;
 

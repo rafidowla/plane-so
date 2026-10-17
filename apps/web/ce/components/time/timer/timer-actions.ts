@@ -17,11 +17,16 @@ import { requestNotificationPermissionOnce } from "./notify";
 /** SWR key prefix of the dashboard's live query, so every filter variant can be refreshed at once. */
 export const liveKeyPrefix = (slug: string) => `TIME_LIVE_${slug}`;
 
+/** SWR key prefix of the My timesheet week query (every week / person variant). */
+export const timesheetKeyPrefix = (slug: string) => `TIME_TIMESHEET_${slug}`;
+
 export const refreshTimeData = async (slug: string) => {
   await Promise.all([
     revalidateRunningTimer(slug),
     globalMutate((key) => typeof key === "string" && key.startsWith(liveKeyPrefix(slug))),
     globalMutate((key) => typeof key === "string" && key.startsWith(`WORKSPACE_MY_TASKS_${slug}`)),
+    // FORK: time-tracking-v2 S4 — the My timesheet week follows every timer start/stop.
+    globalMutate((key) => typeof key === "string" && key.startsWith(timesheetKeyPrefix(slug))),
   ]);
 };
 

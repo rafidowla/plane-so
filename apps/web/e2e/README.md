@@ -55,6 +55,14 @@ the real check is random, 20-80 min); set `E2E_SKIP_SLOW=1` to skip it.
 `is_setup_done` set. Audio chime and the browser notification are not asserted
 headlessly; check them by hand.
 
+## Time timesheet spec (`time-timesheet.spec.ts`)
+
+Time tracking v2 S4, the My timesheet tab (`/<ws>/time/timesheet/`): start a timer
+from the timesheet's own bar (keyboard only), stop it on the work item, and the one
+entry shows in both the week grid and the entries-by-date list; an admin can open a
+member's week read-only; a member sees no person select and can ask for time on a
+past day. Fast (~20 s). The instance needs `is_setup_done` set.
+
 ## Adding a flow
 
 Create `apps/web/e2e/<flow>.spec.ts`, use the API helpers in `helpers.ts` to

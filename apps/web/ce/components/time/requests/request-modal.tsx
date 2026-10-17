@@ -46,6 +46,8 @@ type TProps = {
   entry?: TWorklog | null;
   /** workspace admins change time directly: time_change saves at once, no reason needed */
   direct?: boolean;
+  // FORK: time-tracking-v2 S4 — missing_time opened from a past day of the timesheet: prefill 09:00–10:00 on it.
+  defaultDate?: string;
   onDone?: () => void;
 };
 
@@ -92,7 +94,12 @@ export function RequestModal(props: TProps) {
 
   useEffect(() => {
     if (!isOpen) return;
-    const interval = kind === "time_change" ? entryInterval(entry, timeZone) : { start: "", end: "" };
+    const interval =
+      kind === "time_change"
+        ? entryInterval(entry, timeZone)
+        : kind === "missing_time" && props.defaultDate
+          ? { start: `${props.defaultDate}T09:00`, end: `${props.defaultDate}T10:00` }
+          : { start: "", end: "" };
     setIssue(props.issue ?? null);
     setStart(interval.start);
     setEnd(interval.end);
@@ -100,7 +107,7 @@ export function RequestModal(props: TProps) {
     setError(null);
     setSubmitting(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, kind, entry?.id, props.issue?.id]);
+  }, [isOpen, kind, entry?.id, props.issue?.id, props.defaultDate]);
 
   const needsWindow = kind !== "deletion";
   const reasonRequired = !(direct && kind === "time_change");
