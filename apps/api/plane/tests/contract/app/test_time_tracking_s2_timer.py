@@ -282,6 +282,7 @@ class TestTimerEndpoints:
         assert set(r.json()) == {"server_now"}
 
     def test_stop_endpoint(self, s2):
+        set_settings(s2["workspace"], **IDLE_OFF)
         c = client_for(s2["user"])
         with freeze_time(utc(2026, 6, 22, 4, 0)):
             _start(c, s2, s2["issue"])
