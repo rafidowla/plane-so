@@ -8,16 +8,16 @@ self-service Jira import endpoints added by this fork."""
 import csv
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 import pytest
 from django.db import connection
 from django.utils import timezone
+from freezegun import freeze_time
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from plane.db.models import (
-    Client,
     Issue,
     IssueAssignee,
     IssueComment,
@@ -27,12 +27,20 @@ from plane.db.models import (
     ProjectMember,
     ResourceCapacity,
     State,
-    Timesheet,
     TimeTrackingSetting,
     User,
     WorklogTimer,
     WorkspaceMember,
 )
+
+
+@pytest.fixture(autouse=True)
+def _load_urlconf():
+    """Import the URLconf before any freeze_time block: freezegun swaps ``datetime.date``
+    for a fake class, and pydantic (pulled in lazily via openai) cannot subclass it."""
+    from django.urls import get_resolver
+
+    get_resolver().url_patterns
 
 
 @pytest.fixture
@@ -344,13 +352,21 @@ class TestTimerAutoStop:
     def test_start_on_other_item_stops_running_timer(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         other = _second_issue(tt)
-        assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
-        # pretend the first timer has been running for 25 minutes
-        WorklogTimer.objects.filter(user=tt["user"]).update(
-            started_at=timezone.now() - timedelta(minutes=25, seconds=30)
+        # Deterministic on purpose. (1) Pinned to mid-day: a 25-minute backdated run that
+        # starts near workspace midnight is split in two entries by the midnight rule.
+        # (2) The "still working?" check is off: with it on (default 20-80 min), a random
+        # per-timer-id draw of 20 min makes the server stop the run at 20 min, not 25.
+        TimeTrackingSetting.objects.update_or_create(
+            workspace=tt["workspace"], defaults={"idle_check_min_minutes": 0, "idle_check_max_minutes": 0}
         )
+        with freeze_time(datetime(2026, 6, 22, 12, 0, tzinfo=dt_timezone.utc)):
+            assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
+            # pretend the first timer has been running for 25 minutes
+            WorklogTimer.objects.filter(user=tt["user"]).update(
+                started_at=timezone.now() - timedelta(minutes=25, seconds=30)
+            )
 
-        res = session_client.post(_timer_url(slug, pid, other.id), {}, format="json")
+            res = session_client.post(_timer_url(slug, pid, other.id), {}, format="json")
 
         assert res.status_code == status.HTTP_201_CREATED
         body = res.json()

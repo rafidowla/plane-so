@@ -77,6 +77,31 @@ Billable rate is snapshotted at log time: the resource's rate
 (`ResourceCapacity.billable_rate`) if set, otherwise the project's client default
 rate.
 
+### One-off: recovering time lost to work-item deletion
+
+Before time tracking v2, deleting a work item also soft-deleted its worklogs, so the
+time disappeared from every report (a hard delete after `HARD_DELETE_AFTER_DAYS`, 60,
+then removed it for good). v2 keeps worklogs when their work item is deleted. Entries
+lost earlier can be recovered while they are still soft-deleted, with a management
+command run once after deploying v2. It defaults to a count-only dry run:
+
+```bash
+# 1. Dry run: counts per workspace/project, total hours, date range. Writes nothing.
+python manage.py recover_cascaded_worklogs [--workspace <slug>]
+
+# 2. After the owner approves the numbers: restore (one transaction, audited, re-runnable).
+python manage.py recover_cascaded_worklogs --apply [--workspace <slug>]
+```
+
+An entry counts as cascade-deleted when its work item is soft-deleted too and the
+entry's `deleted_at` is 0-300 s after the work item's (`--tolerance-seconds`; the old
+cascade ran in a background job right after the delete). Entries a user deleted on
+purpose are not touched: work item still alive, or deleted at a different time. Not
+restored: entries of deleted projects/workspaces (still removed by design), running
+timers lost with their work item (counted only; the real end time is unknown), and
+entries already hard-deleted (gone, not detectable). `--apply` clears `deleted_at`,
+fills the work-item label snapshot and writes a system `update` audit row per entry.
+
 ---
 
 ## Clients & rates
