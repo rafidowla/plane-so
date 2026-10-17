@@ -23,6 +23,7 @@ from plane.app.serializers import (
 )
 from plane.app.views.base import BaseAPIView
 from plane.db.models import (
+    ResourceCapacity,
     TimeTrackingAuditAction,
     TimeTrackingAuditTarget,
     TimeTrackingMemberStatus,
@@ -31,6 +32,8 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.utils.time_tracking import audit
+from plane.utils.time_tracking.limits import read_settings
+from plane.utils.time_tracking.reporting import default_weekly_minutes
 from plane.utils.time_tracking.tracking import get_settings, is_tracked, set_member_tracking
 from plane.utils.time_tracking.tz import local_today, zone
 
@@ -94,6 +97,13 @@ class TimeTrackingMembersEndpoint(BaseAPIView):
             "-effective_from", "-created_at"
         ):
             history.setdefault(row.user_id, []).append(TimeTrackingMemberStatusSerializer(row).data)
+        # FORK: time-tracking-v2 S5 — per-person weekly capacity override (null =
+        # the workspace work week, ``default_weekly_minutes``).
+        capacities = dict(
+            ResourceCapacity.objects.filter(workspace=workspace, weekly_capacity__isnull=False).values_list(
+                "user_id", "weekly_capacity"
+            )
+        )
         data = [
             {
                 "user_id": str(m.member_id),
@@ -101,10 +111,18 @@ class TimeTrackingMembersEndpoint(BaseAPIView):
                 "role": m.role,
                 "is_tracked": is_tracked(workspace.id, m.member_id, today),
                 "history": history.get(m.member_id, []),
+                "weekly_capacity_minutes": capacities.get(m.member_id),
             }
             for m in members
         ]
-        return Response({"date": today, "members": data}, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "date": today,
+                "default_weekly_minutes": default_weekly_minutes(read_settings(workspace.id)),
+                "members": data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class TimeTrackingMemberStatusEndpoint(BaseAPIView):

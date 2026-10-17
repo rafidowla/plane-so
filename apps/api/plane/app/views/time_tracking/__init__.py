@@ -7,6 +7,10 @@ from .worklog import IssueWorklogViewSet, WorklogTimerEndpoint, WorklogRunningTi
 from .timesheet import TimesheetViewSet
 from .capacity import ResourceCapacityViewSet
 from .report import TimeReportEndpoint
+
+# FORK: time-tracking-v2 S5 — Reports v2 + per-member capacity override
+from .report import TimeReportV2Endpoint
+from .capacity import TimeTrackingMemberCapacityEndpoint
 from .settings import (
     TimeTrackingSettingsEndpoint,
     TimeTrackingMembersEndpoint,

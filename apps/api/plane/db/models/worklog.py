@@ -202,7 +202,11 @@ class ResourceCapacity(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="resource_capacities")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="resource_capacities")
     # Expected billable/available capacity per week, in minutes (default 40h).
-    weekly_capacity = models.PositiveIntegerField(default=2400)
+    # FORK: time-tracking-v2 S5 — now the per-person weekly capacity OVERRIDE: null
+    # follows the workspace work week (TimeTrackingSetting work_days x minutes_per_day);
+    # a value is spread evenly over the working days. Nullable so an override can be
+    # cleared without deleting the row's rates.
+    weekly_capacity = models.PositiveIntegerField(null=True, blank=True, default=None)
     # Internal cost rate and default client-facing billable rate.
     cost_rate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     billable_rate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)

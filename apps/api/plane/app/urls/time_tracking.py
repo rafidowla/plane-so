@@ -34,6 +34,9 @@ from plane.app.views import (
     TimeEntryRequestEventsEndpoint,
     TimeEntryEndpoint,
     TimeEntryDetailEndpoint,
+    # FORK: time-tracking-v2 S5 — Reports v2 + per-member capacity override
+    TimeReportV2Endpoint,
+    TimeTrackingMemberCapacityEndpoint,
 )
 
 urlpatterns = [
@@ -189,6 +192,23 @@ urlpatterns = [
         "workspaces/<str:slug>/time/entries/<uuid:pk>/",
         TimeEntryDetailEndpoint.as_view(),
         name="time-entry-detail",
+    ),
+    # FORK: time-tracking-v2 S5 — Reports v2 (JSON + entry CSV), capacity override
+    path(
+        "workspaces/<str:slug>/time/report/",
+        TimeReportV2Endpoint.as_view(),
+        name="time-report-v2",
+    ),
+    path(
+        "workspaces/<str:slug>/time/report.csv",
+        TimeReportV2Endpoint.as_view(),
+        {"csv_export": True},
+        name="time-report-v2-csv",
+    ),
+    path(
+        "workspaces/<str:slug>/time/members/<uuid:user_id>/capacity/",
+        TimeTrackingMemberCapacityEndpoint.as_view(),
+        name="time-tracking-member-capacity",
     ),
     # Jira import (self-service)
     path(

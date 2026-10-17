@@ -574,13 +574,15 @@ class TestReport:
         # over-tightening the legitimate admin/PM use case.
         slug, pid, iid = _ids(tt)
         self._seed(session_client, tt)
-        r = session_client.get(
-            f"/api/workspaces/{slug}/time-report/?group_by=resource&start_date=2026-06-01&end_date=2026-06-30"
-        )
+        url = f"/api/workspaces/{slug}/time-report/?group_by=resource&start_date=2026-06-01&end_date=2026-06-30"
+        r = session_client.get(url)
         assert r.status_code == status.HTTP_200_OK
         assert r.data["totals"]["total_minutes"] == 120
         assert r.data["group_by"] == "resource"
-        # Billing fields are present for an admin.
+        # S5: billing fields exist only while the workspace's billing setting is on.
+        assert "billable_amount" not in r.data["totals"]
+        TimeTrackingSetting.objects.update_or_create(workspace=tt["workspace"], defaults={"billing_enabled": True})
+        r = session_client.get(url)
         assert "billable_amount" in r.data["totals"]
 
     def test_report_member_allowed(self, session_client, tt):
@@ -805,8 +807,9 @@ class TestReport:
             f"TTP-{issue2.sequence_id} Issue 2",
         }
         # A blank separator row, then a second header, then the task rows.
+        # S5: no "Billable (h)" column while billing is off (the default).
         blank_idx = rows.index([])
-        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Billable (h)", "Entries"]
+        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Entries"]
         task_rows = rows[blank_idx + 2 :]
         assert {r[1] for r in task_rows} == expected_names
         assert all(r[0] == tt["user"].display_name for r in task_rows)
@@ -826,11 +829,12 @@ class TestReport:
         assert r.status_code == status.HTTP_200_OK
         rows = list(csv.reader(r.content.decode().splitlines()))
 
-        # Resource summary is still workspace-wide (unaffected).
-        assert any(tt["user"].display_name in row for row in rows[:2])
-        # But the appended task-breakdown table is empty: header present, no rows.
+        # S5 scope fix: a plain member sees only their own time, so neither the
+        # resource summary nor the task breakdown carries anyone else.
+        assert not any(tt["user"].display_name in row for row in rows)
         blank_idx = rows.index([])
-        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Billable (h)", "Entries"]
+        assert blank_idx == 1  # header only, no resource rows
+        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Entries"]
         assert rows[blank_idx + 2 :] == []
 
     def test_report_csv_export_by_task_has_no_second_table(self, session_client, tt):
@@ -857,9 +861,11 @@ class TestReport:
         assert r_issue.status_code == status.HTTP_200_OK
         assert r_issue.data["groups"] == []
 
+        # S5 scope fix: the resource grouping is own-only for a plain member too.
         r_resource = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource")
         assert r_resource.status_code == status.HTTP_200_OK
-        assert r_resource.data["totals"]["total_minutes"] == 120
+        assert r_resource.data["totals"]["total_minutes"] == 0
+        assert r_resource.data["groups"] == []
 
 
 @pytest.mark.contract
@@ -881,10 +887,14 @@ class TestResourceCapacity:
         )
 
     def test_admin_sees_capacity_with_rates(self, session_client, tt):
+        # S5: rates are shown only while the workspace's billing setting is on.
         self._seed_capacity(tt)
         r = session_client.get(self.URL.format(slug=tt["workspace"].slug))
         assert r.status_code == status.HTTP_200_OK
         assert len(r.data) == 1
+        assert "cost_rate" not in r.data[0] and "billable_rate" not in r.data[0]
+        TimeTrackingSetting.objects.update_or_create(workspace=tt["workspace"], defaults={"billing_enabled": True})
+        r = session_client.get(self.URL.format(slug=tt["workspace"].slug))
         row = r.data[0]
         assert "cost_rate" in row and "billable_rate" in row
 
