@@ -143,7 +143,7 @@ GROUP_BY_MAP = {
 }
 
 # Hard cap on the number of issue-grouped rows returned for the JSON response.
-# CSV export (an explicit, deliberate action) is never capped.
+# CSV export is capped separately at MAX_CSV_ROWS.
 MAX_ISSUE_GROUPS = 200
 
 # Billable amount = sum(duration_minutes * billable_rate / 60) over billable entries.
@@ -203,7 +203,9 @@ class TimeReportEndpoint(BaseAPIView):
     billable (true|false), export (csv to download).
 
     group_by=issue is capped at MAX_ISSUE_GROUPS rows for JSON (the response
-    carries "truncated"/"limit" so a caller can tell); CSV export is uncapped.
+    carries "truncated"/"limit" so a caller can tell); a CSV export is capped at
+    MAX_CSV_ROWS rows (400 ``too_many_rows`` beyond that). FORK secfix: the date range is
+    at most MAX_RANGE_DAYS (an omitted bound is filled in; see ``_resolve_range``).
 
     FORK: time-tracking-v2 S5 — scoped per viewer (``reporting.resolve_scope``):
     a member sees only their own time, a project admin their projects' members
@@ -218,7 +220,7 @@ class TimeReportEndpoint(BaseAPIView):
     task) breakdown table after the summary table (see _resource_task_breakdown).
     """
 
-    def _validate_query_params(self, request):
+    def _validate_query_params(self, request, workspace):
         """Return an error string if a query param is malformed, else None.
 
         Before this check existed, a bad value here (an invalid date, a
@@ -235,6 +237,12 @@ class TimeReportEndpoint(BaseAPIView):
                 except ValueError:
                     return f"{field} must be a valid date in YYYY-MM-DD format."
 
+        # FORK: time-tracking-v2 secfix — the same range cap as the v2 report (MAX_RANGE_DAYS);
+        # the old endpoint accepted any span, or none (the whole history).
+        error = self._resolve_range(request, workspace)
+        if error:
+            return error
+
         for field in ("project_ids", "user_ids"):
             try:
                 _parse_uuid_list(request.GET.get(field), field)
@@ -250,10 +258,32 @@ class TimeReportEndpoint(BaseAPIView):
 
         return None
 
+    @staticmethod
+    def _resolve_range(request, workspace):
+        """Fill in a missing ``start_date`` / ``end_date`` so the span is never longer than
+        ``MAX_RANGE_DAYS``, and refuse a longer one. Stores the dates on ``request``; returns
+        an error string or None. Both given are used as-is; one given defaults the other to
+        a span of ``MAX_RANGE_DAYS``; neither = the last ``MAX_RANGE_DAYS`` days."""
+        raw_start, raw_end = request.GET.get("start_date"), request.GET.get("end_date")
+        span = timedelta(days=MAX_RANGE_DAYS - 1)
+        start = datetime.strptime(raw_start, "%Y-%m-%d").date() if raw_start else None
+        end = datetime.strptime(raw_end, "%Y-%m-%d").date() if raw_end else None
+        if start is None and end is None:
+            end = local_today(zone(workspace.timezone))
+        if start is None:
+            start = end - span
+        elif end is None:
+            end = start + span
+        if end < start:
+            return "end_date must be on or after start_date."
+        if (end - start).days + 1 > MAX_RANGE_DAYS:
+            return f"The range can be at most {MAX_RANGE_DAYS} days."
+        request.time_report_range = (start.isoformat(), end.isoformat())
+        return None
+
     def _filtered_worklogs(self, workspace, request, scope, billing):
         qs = IssueWorklog.objects.filter(workspace_id=workspace.id).filter(scope.user_q())
-        start_date = request.GET.get("start_date")
-        end_date = request.GET.get("end_date")
+        start_date, end_date = request.time_report_range
         project_ids = _parse_uuid_list(request.GET.get("project_ids"), "project_ids")
         client_id = request.GET.get("client_id")
         user_ids = _parse_uuid_list(request.GET.get("user_ids"), "user_ids")
@@ -371,7 +401,7 @@ class TimeReportEndpoint(BaseAPIView):
                 **billing_agg,
                 entry_count=Count("id"),
             )
-            .order_by("logged_by__display_name", "-total_minutes")
+            .order_by("logged_by__display_name", "-total_minutes")[: MAX_CSV_ROWS + 1]
         )
         others = []
         if scope.detail_project_ids is not None:
@@ -442,10 +472,10 @@ class TimeReportEndpoint(BaseAPIView):
                 {"error": f"group_by must be one of {', '.join(GROUP_BY_MAP)}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        param_error = self._validate_query_params(request)
+        workspace = Workspace.objects.get(slug=slug)
+        param_error = self._validate_query_params(request, workspace)
         if param_error:
             return Response({"error": param_error}, status=status.HTTP_400_BAD_REQUEST)
-        workspace = Workspace.objects.get(slug=slug)
         # FORK: time-tracking-v2 S5 — the HARD scope fix: members no longer see
         # everyone's time; see resolve_scope.
         scope = resolve_scope(workspace.id, request.user)
@@ -457,7 +487,9 @@ class TimeReportEndpoint(BaseAPIView):
                     "forbidden_user", "You can only report on people in your scope.", status.HTTP_403_FORBIDDEN
                 )
         setting = read_settings(workspace.id)
-        billing = bool(setting.billing_enabled)
+        # FORK: time-tracking-v2 secfix — rates/amounts are for workspace admins and project
+        # admins only; a plain member's own-time report carries no billing fields.
+        billing = bool(setting.billing_enabled) and scope.kind != SCOPE_SELF
         qs, start_date, end_date = self._filtered_worklogs(workspace, request, scope, billing)
 
         # Not "format" — that's DRF's reserved content-negotiation query param
@@ -465,7 +497,8 @@ class TimeReportEndpoint(BaseAPIView):
         # get() even runs); since only JSONRenderer is registered, "?format=csv"
         # raises Http404 deep inside DRF before this line is ever reached.
         is_csv = request.GET.get("export") == "csv"
-        limit = MAX_ISSUE_GROUPS if (group_by == "issue" and not is_csv) else None
+        # FORK: time-tracking-v2 secfix — the CSV is capped too (MAX_CSV_ROWS, as the v2 CSV).
+        limit = (MAX_CSV_ROWS if is_csv else MAX_ISSUE_GROUPS) if group_by == "issue" else None
         if group_by == "resource":
             groups, truncated = self._aggregate(qs, group_by, billing, limit=limit)
             groups = self._add_utilization(workspace, setting, groups, start_date, end_date)
@@ -490,6 +523,8 @@ class TimeReportEndpoint(BaseAPIView):
             totals["billable_minutes"] = agg["billable_minutes"]
             totals["billable_amount"] = round(float(agg["billable_amount"] or 0), 2)
 
+        if is_csv and truncated:
+            return _refuse("too_many_rows", f"The export is limited to {MAX_CSV_ROWS} rows; pick a shorter range.")
         if is_csv:
             # "By resource" is the only export that also gets a task-level
             # breakdown appended — it's the one place the UI itself offers a
@@ -498,6 +533,10 @@ class TimeReportEndpoint(BaseAPIView):
             task_breakdown = None
             if group_by == "resource":
                 task_breakdown = self._resource_task_breakdown(qs, scope, billing)
+                if len(task_breakdown) > MAX_CSV_ROWS:
+                    return _refuse(
+                        "too_many_rows", f"The export is limited to {MAX_CSV_ROWS} rows; pick a shorter range."
+                    )
             return self._csv_response(group_by, groups, billing, task_breakdown=task_breakdown)
 
         return Response(
@@ -635,7 +674,9 @@ class TimeReportV2Endpoint(BaseAPIView):
             return _refuse("invalid_limit", f"task_limit must be between 1 and {MAX_TASK_LIMIT}.")
 
         setting = read_settings(workspace.id)
-        billing = bool(setting.billing_enabled)
+        # FORK: time-tracking-v2 secfix — rates/amounts are for workspace admins and project
+        # admins only; a plain member's own-time report carries no billing fields.
+        billing = bool(setting.billing_enabled) and scope.kind != SCOPE_SELF
         candidates = candidate_user_ids(workspace.id, scope, start, end)
 
         target = params.get("user") or ("me" if scope.kind == SCOPE_SELF else "team")
@@ -940,7 +981,8 @@ class TimeReportV2Endpoint(BaseAPIView):
                 _csv_safe(note),
             ]
             if billing:
-                rate = r["billable_rate"]
+                # A project admin sees rates only for the projects they administer.
+                rate = r["billable_rate"] if (scope.is_all or r["project_id"] in scope.admin_project_ids) else None
                 amount = round(r["duration"] * rate / 60, 2) if (rate is not None and r["is_billable"]) else ""
                 row += [
                     "yes" if r["is_billable"] else "no",

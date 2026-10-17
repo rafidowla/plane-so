@@ -31,7 +31,7 @@ from plane.db.models import (
     Workspace,
     WorkspaceMember,
 )
-from plane.utils.time_tracking import audit
+from plane.utils.time_tracking import audit, billing
 from plane.utils.time_tracking.limits import read_settings
 from plane.utils.time_tracking.reporting import default_weekly_minutes
 from plane.utils.time_tracking.tracking import get_settings, is_tracked, set_member_tracking
@@ -155,7 +155,9 @@ class TimeTrackingMemberStatusEndpoint(BaseAPIView):
             {
                 "status": TimeTrackingMemberStatusSerializer(row).data,
                 "is_tracked_today": is_tracked(workspace.id, user_id, today),
-                "stopped": IssueWorklogSerializer(stopped, many=True).data,
+                "stopped": IssueWorklogSerializer(
+                    stopped, many=True, context=billing.serializer_context(request.user)
+                ).data,
             },
             status=status.HTTP_201_CREATED,
         )

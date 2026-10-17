@@ -39,7 +39,7 @@ from plane.db.models import (
     WorklogSource,
     WorklogTimer,
 )
-from plane.utils.time_tracking import audit, limits
+from plane.utils.time_tracking import audit, billing, limits
 from plane.utils.time_tracking.approvers import is_project_admin, workspace_role
 from plane.utils.time_tracking.snapshot import issue_snapshot
 from plane.utils.time_tracking.timer import TimeTrackingError, lock_user_timers, resolve_billable_rate
@@ -247,7 +247,7 @@ def create_entry(workspace_id, project_id, issue_id, actor, data):
         target = uuid.UUID(str(target))
     except (ValueError, AttributeError):
         refuse("invalid_user", "logged_by is not a valid user.")
-    ws_role = _target_entry_rules(workspace_id, project_id, actor, target)
+    _target_entry_rules(workspace_id, project_id, actor, target)
     # Guests are client users: time is never logged for them (nor for non-members).
     if not is_active_project_member(project_id, target):
         refuse("invalid_user", "logged_by must be an active member or admin of this project.")
@@ -277,12 +277,14 @@ def create_entry(workspace_id, project_id, issue_id, actor, data):
         if tracking_turned_off(workspace_id, target, logged_date):
             refuse("tracking_disabled", "Time tracking is turned off for this person on that date.", 403)
 
-    is_billable = data.get("is_billable", True)
-    is_billable = is_billable if isinstance(is_billable, bool) else str(is_billable).lower() in ("1", "true")
-    billable_rate = data.get("billable_rate")
-    currency = data.get("currency") or "USD"
-    # Billing fields are an admin's call; a member adding their own time gets the defaults.
-    if ws_role != ROLE.ADMIN.value and not is_project_admin(project_id, actor.id):
+    # FORK: time-tracking-v2 secfix — billing fields are an admin's call (workspace admin or
+    # admin of this project) and only while billing is on; otherwise the defaults apply.
+    # Bad input is a 400, never a 500.
+    if billing.can_manage_rates(workspace_id, actor, project_id):
+        is_billable = billing.parse_billable(data.get("is_billable", True))
+        billable_rate = billing.parse_rate(data.get("billable_rate"))
+        currency = billing.parse_currency(data.get("currency"))
+    else:
         billable_rate, currency, is_billable = None, "USD", True
     if is_billable and billable_rate in (None, ""):
         billable_rate, currency = resolve_billable_rate(project, target)
@@ -359,9 +361,18 @@ def update_entry(worklog, actor, data):
     lock_user_timers(worklog.logged_by_id)
     before = audit.worklog_state(worklog)
     tz = workspace_tz(worklog.workspace_id)
-    for field in ("description", "work_type", "is_billable", "billable_rate", "currency"):
+    for field in ("description", "work_type"):
         if field in data:
             setattr(worklog, field, data[field] if field != "description" else str(data[field] or ""))
+    # FORK: time-tracking-v2 secfix — validated; ignored unless billing is on and the actor
+    # may manage rates (workspace admin / admin of the entry's project).
+    if billing.can_manage_rates(worklog.workspace_id, actor, worklog.project_id):
+        if "is_billable" in data:
+            worklog.is_billable = billing.parse_billable(data["is_billable"])
+        if "billable_rate" in data:
+            worklog.billable_rate = billing.parse_rate(data["billable_rate"])
+        if "currency" in data:
+            worklog.currency = billing.parse_currency(data["currency"])
     rows = [worklog]
     if changes_time:
         if "started_at" in data or "ended_at" in data:

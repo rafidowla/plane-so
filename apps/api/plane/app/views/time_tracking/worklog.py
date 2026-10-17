@@ -25,7 +25,7 @@ from plane.db.models import (
 # layer (plane.utils.time_tracking) so the sweep and the S2 endpoints reuse them. The
 # names below stay importable from here for existing callers.
 # FORK: time-tracking-v2 S3 — manual create/edit/delete rules live in ``entries``.
-from plane.utils.time_tracking import entries
+from plane.utils.time_tracking import billing, entries
 from plane.utils.time_tracking.timer import (  # noqa: F401
     TimeTrackingError,
     TimerAlreadyRunning,
@@ -40,14 +40,15 @@ from plane.utils.time_tracking.timer import (  # noqa: F401
 )
 
 
-def _stop_payload(worklogs):
+def _stop_payload(worklogs, user):
     """FORK: time-tracking-v2 — a stop can now produce one entry per local day.
 
     ``worklog`` (and the top-level fields of a stop response) is the LAST piece, so
     single-day stops look exactly as before; ``pieces`` lists every entry and
     ``total_duration`` is their sum.
     """
-    pieces = IssueWorklogSerializer(worklogs, many=True).data
+    # FORK: time-tracking-v2 secfix — billing fields only for those who may manage rates.
+    pieces = IssueWorklogSerializer(worklogs, many=True, context=billing.serializer_context(user)).data
     return pieces, sum(w.duration for w in worklogs)
 
 
@@ -62,11 +63,11 @@ def timer_data(timer, now=None):
     return data
 
 
-def start_response(timer, stopped, state_change):
+def start_response(timer, stopped, state_change, user):
     """FORK: time-tracking-v2 S2 — response of both start endpoints (identical by design)."""
     data = timer_data(timer)
     if stopped:
-        pieces, total = _stop_payload(stopped["worklogs"])
+        pieces, total = _stop_payload(stopped["worklogs"], user)
         data["stopped"] = {
             "worklog": pieces[-1],
             "duration": total,
@@ -77,8 +78,8 @@ def start_response(timer, stopped, state_change):
     return data
 
 
-def stop_response(worklogs):
-    pieces, total = _stop_payload(worklogs)
+def stop_response(worklogs, user):
+    pieces, total = _stop_payload(worklogs, user)
     data = dict(pieces[-1])
     data["pieces"] = pieces
     data["total_duration"] = total
@@ -111,7 +112,10 @@ class IssueWorklogViewSet(BaseViewSet):
         worklogs = self.get_queryset()
         # Internal roles (admin/member) get full detail.
         if is_project_member(slug, project_id, request.user):
-            return Response(IssueWorklogSerializer(worklogs, many=True).data, status=status.HTTP_200_OK)
+            return Response(
+                IssueWorklogSerializer(worklogs, many=True, context=billing.serializer_context(request.user)).data,
+                status=status.HTTP_200_OK,
+            )
         # FORK: time-tracking-v2 S2 — guests (clients) get ONE figure, the total logged
         # on a work item they can see (PO answer 4): no entry list, no dates, no names.
         project = Project.objects.only("guest_view_all_features").get(pk=project_id)
@@ -138,7 +142,7 @@ class IssueWorklogViewSet(BaseViewSet):
             rows = entries.create_entry(project.workspace_id, project_id, issue_id, request.user, request.data)
         except TimeTrackingError as exc:
             return Response(exc.payload, status=exc.status_code)
-        return Response(stop_response(rows), status=status.HTTP_201_CREATED)
+        return Response(stop_response(rows, request.user), status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def partial_update(self, request, slug, project_id, issue_id, pk):
@@ -149,7 +153,7 @@ class IssueWorklogViewSet(BaseViewSet):
             rows = entries.update_entry(worklog, request.user, request.data)
         except TimeTrackingError as exc:
             return Response(exc.payload, status=exc.status_code)
-        return Response(stop_response(rows), status=status.HTTP_200_OK)
+        return Response(stop_response(rows, request.user), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def destroy(self, request, slug, project_id, issue_id, pk):
@@ -167,9 +171,7 @@ class WorklogTimerEndpoint(BaseAPIView):
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id, issue_id):
-        timer = WorklogTimer.objects.filter(
-            workspace__slug=slug, user=request.user
-        ).first()
+        timer = WorklogTimer.objects.filter(workspace__slug=slug, user=request.user).first()
         if not timer:
             return Response({}, status=status.HTTP_200_OK)
         # FORK: time-tracking-v2 S2 — same payload as the workspace timer endpoints.
@@ -192,7 +194,7 @@ class WorklogTimerEndpoint(BaseAPIView):
             )
         except TimeTrackingError as exc:
             return Response(exc.payload, status=exc.status_code)
-        return Response(start_response(timer, stopped, state_change), status=status.HTTP_201_CREATED)
+        return Response(start_response(timer, stopped, state_change, request.user), status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def delete(self, request, slug, project_id, issue_id):
@@ -200,7 +202,7 @@ class WorklogTimerEndpoint(BaseAPIView):
         worklogs = stop_user_timer(slug, issue_id, request.user, description=request.data.get("description"))
         if not worklogs:
             return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
-        return Response(stop_response(worklogs), status=status.HTTP_201_CREATED)
+        return Response(stop_response(worklogs, request.user), status=status.HTTP_201_CREATED)
 
 
 class WorklogRunningTimerEndpoint(BaseAPIView):
