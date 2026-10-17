@@ -51,7 +51,17 @@ def _is_internal_member(workspace_id, user_id):
 
 
 def _capacity_state(row):
-    return {"user_id": str(row.user_id), "weekly_capacity": row.weekly_capacity} if row else None
+    # FORK: time-tracking-v2 secfix — every field the endpoints can change, so the audit
+    # row shows rate edits too (decimals as strings: the audit columns are JSON).
+    if row is None:
+        return None
+    return {
+        "user_id": str(row.user_id),
+        "weekly_capacity": row.weekly_capacity,
+        "cost_rate": None if row.cost_rate is None else str(row.cost_rate),
+        "billable_rate": None if row.billable_rate is None else str(row.billable_rate),
+        "currency": row.currency,
+    }
 
 
 class ResourceCapacityViewSet(BaseViewSet):

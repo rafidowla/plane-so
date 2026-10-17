@@ -118,7 +118,14 @@ class TestCapacityApi:
         assert next(m for m in listed["members"] if m["user_id"] == str(member.id))["weekly_capacity_minutes"] == 1200
         audits = TimeTrackingAuditLog.objects.filter(workspace=s2["workspace"], target_type="setting")
         audit = audits.latest("created_at")
-        assert audit.after == {"user_id": str(member.id), "weekly_capacity": 1200}
+        # Every capacity field is recorded, not only the one that changed.
+        assert audit.after == {
+            "user_id": str(member.id),
+            "weekly_capacity": 1200,
+            "cost_rate": None,
+            "billable_rate": None,
+            "currency": "USD",
+        }
 
         r = admin.put(_capacity_url(s2, member), {"weekly_minutes": None}, format="json")
         assert r.status_code == 200
