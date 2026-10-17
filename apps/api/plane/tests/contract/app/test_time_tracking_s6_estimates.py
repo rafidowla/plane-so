@@ -7,9 +7,11 @@
 * ``GET/PUT projects/<p>/issues/<i>/time-estimate/`` — set, replace before work starts,
   re-estimate after (original kept), history, permissions (guests 403).
 * Lock: on move into Started/Completed, timer start, first time entry.
-* "Required" gate: app PATCH/PUT and public API PATCH of the state, timer start (both
-  endpoints), manual entry, missing-time submit/approve — 400 ``estimate_required``;
-  not at creation, never into Cancelled, never for grandfathered (already started) items.
+* "Required" gate: app PATCH/PUT and public API PATCH of the state, creation straight into a
+  Started/Completed state (app and v1), intake accept, a move into a required project, timer start
+  (both endpoints), manual entry, missing-time submit/approve — 400 ``estimate_required``;
+  never into Cancelled, never for grandfathered items (the stored flag written when the mode
+  became required — not the item's current state).
 * Guests can't move an item into Started at all (state is not a guest field).
 * Moving a work item to another project carries its estimate.
 """
@@ -347,7 +349,49 @@ class TestGateStateChange:
         mode(s6["p"], value)
         assert move_state(s6["member"], s6, s6["todo"], s6["states"]["In Progress"]).status_code == 204
 
-    def test_creation_in_a_started_state_is_allowed(self, s6):
+    @pytest.mark.parametrize("target", ["In Progress", "Done"])
+    def test_creation_in_a_started_state_is_gated(self, s6, target):
+        r = client_for(s6["member"]).post(
+            ws_url(s6, f"projects/{s6['p'].id}/issues/"),
+            {"name": "born started", "state_id": str(s6["states"][target].id)},
+            format="json",
+        )
+        assert_required(r)
+        assert not Issue.objects.filter(name="born started").exists()
+
+    def test_creation_in_a_not_started_state_is_allowed(self, s6):
+        for target in ("Todo", "Backlog", "Cancelled"):
+            r = client_for(s6["member"]).post(
+                ws_url(s6, f"projects/{s6['p'].id}/issues/"),
+                {"name": f"born {target}", "state_id": str(s6["states"][target].id)},
+                format="json",
+            )
+            assert r.status_code == 201, r.content
+
+    def test_creation_without_a_state_uses_the_default_state(self, s6):
+        # The default state counts: a project whose default state is Started cannot be used to dodge the gate.
+        from plane.db.models import State
+
+        State.objects.filter(project=s6["p"]).update(default=False)
+        State.objects.filter(pk=s6["states"]["In Progress"].id).update(default=True)
+        r = client_for(s6["member"]).post(
+            ws_url(s6, f"projects/{s6['p'].id}/issues/"), {"name": "born default"}, format="json"
+        )
+        assert_required(r)
+
+    def test_v1_creation_in_a_started_state_is_gated(self, s6):
+        url = f"/api/v1/workspaces/{s6['slug']}/projects/{s6['p'].id}/issues/"
+        c = api_key_client(s6["member"])
+        assert_required(
+            c.post(url, {"name": "v1 started", "state": str(s6["states"]["In Progress"].id)}, format="json")
+        )
+        assert not Issue.objects.filter(name="v1 started").exists()
+        r = c.post(url, {"name": "v1 todo", "state": str(s6["states"]["Todo"].id)}, format="json")
+        assert r.status_code == 201, r.content
+
+    @pytest.mark.parametrize("value", ["off", "optional"])
+    def test_creation_in_a_started_state_is_open_when_not_required(self, s6, value):
+        mode(s6["p"], value)
         r = client_for(s6["member"]).post(
             ws_url(s6, f"projects/{s6['p'].id}/issues/"),
             {"name": "born started", "state_id": str(s6["states"]["In Progress"].id)},
@@ -500,3 +544,236 @@ class TestProjectSetting:
         assert r.json()["time_estimate_mode"] == "required"
         s6["q"].refresh_from_db()
         assert s6["q"].time_estimate_mode == "required"
+
+
+# ---------------------------------------------------------------------------
+# Secfix 5 — the gate cannot be dodged: stored grandfather flag, intake accept, moves
+# ---------------------------------------------------------------------------
+
+
+def started_flags(project):
+    from plane.db.models import IssueEstimateGrandfather
+
+    return set(IssueEstimateGrandfather.objects.filter(project=project).values_list("issue_id", flat=True))
+
+
+class TestGrandfatherFlag:
+    def test_flip_to_required_flags_items_already_in_progress(self, s6):
+        # s6 flipped P to required: the In Progress item was flagged, the Todo item was not.
+        assert started_flags(s6["p"]) == {s6["issue"].id}
+
+    def test_state_alone_does_not_grandfather(self, s6):
+        # An item pushed into a Started state behind the gate's back (bulk update) is NOT grandfathered.
+        Issue.objects.filter(pk=s6["todo"].pk).update(state=s6["states"]["In Progress"])
+        assert_required(start_timer(s6["member"], s6, s6["todo"]))
+        g = client_for(s6["member"]).get(est_url(s6, s6["todo"])).json()
+        assert g["grandfathered"] is False
+        # ...and the stored flag still covers the item that was running when the mode flipped.
+        assert start_timer(s6["member"], s6, s6["issue"]).status_code in (200, 201)
+
+    def test_item_started_in_optional_mode_is_flagged_on_the_later_flip(self, s6):
+        mode(s6["p"], "optional")
+        assert move_state(s6["member"], s6, s6["todo"], s6["states"]["In Progress"]).status_code == 204
+        mode(s6["p"], "required")
+        assert s6["todo"].id in started_flags(s6["p"])
+        assert move_state(s6["member"], s6, s6["todo"], s6["states"]["Done"]).status_code == 204
+
+    def test_reflip_flags_only_whats_in_progress_at_that_moment(self, s6):
+        mode(s6["p"], "optional")
+        later = make_issue(s6["p"], s6["states"]["In Progress"], "started while optional", s6["wsadmin"])
+        mode(s6["p"], "required")
+        assert later.id in started_flags(s6["p"]) and s6["todo"].id not in started_flags(s6["p"])
+
+    def test_saving_a_required_project_again_does_not_reflag(self, s6):
+        from plane.db.models import IssueEstimateGrandfather
+
+        Issue.objects.filter(pk=s6["todo"].pk).update(state=s6["states"]["In Progress"])
+        s6["p"].name = "Renamed"
+        s6["p"].save()
+        assert s6["todo"].id not in started_flags(s6["p"])
+        assert IssueEstimateGrandfather.objects.filter(project=s6["p"]).count() == 1
+
+    def test_turning_tracking_on_with_required_mode_flags_too(self, s6):
+        s6["p"].is_time_tracking_enabled = False
+        s6["p"].save()
+        started = make_issue(s6["p"], s6["states"]["In Progress"], "started while dormant", s6["wsadmin"])
+        s6["p"].is_time_tracking_enabled = True
+        s6["p"].save()
+        assert started.id in started_flags(s6["p"])
+
+    def test_flip_through_the_project_update_endpoint(self, s6):
+        q = s6["q"]
+        started = make_issue(q, s6["q_states"]["In Progress"], "Q started", s6["wsadmin"])
+        with mock.patch("plane.app.views.project.base.model_activity"):
+            r = client_for(s6["wsadmin"]).patch(
+                ws_url(s6, f"projects/{q.id}/"), {"time_estimate_mode": "required"}, format="json"
+            )
+        assert r.status_code == 200, r.content
+        assert started.id in started_flags(q) and s6["issue_q"].id in started_flags(q)
+
+    def test_items_with_an_estimate_are_not_flagged(self, s6):
+        mode(s6["p"], "optional")
+        put_est(s6["member"], s6, s6["issue"], 30)
+        from plane.db.models import IssueEstimateGrandfather
+
+        IssueEstimateGrandfather.objects.all().delete()
+        mode(s6["p"], "required")
+        assert started_flags(s6["p"]) == set()
+
+
+class TestBackfillMigration:
+    def test_backfill_flags_started_items_of_required_projects_only(self, s6):
+        import importlib
+
+        from django.db import connection
+
+        from plane.db.models import IssueEstimateGrandfather
+
+        mig = importlib.import_module("plane.db.migrations.0133_time_estimate_grandfather")
+        q_started = make_issue(s6["q"], s6["q_states"]["In Progress"], "Q started", s6["wsadmin"])  # Q: mode off
+        done = make_issue(s6["p"], s6["states"]["Done"], "P done", s6["wsadmin"])
+        estimated = make_issue(s6["p"], s6["states"]["In Progress"], "P estimated", s6["wsadmin"])
+        mode(s6["p"], "optional")
+        put_est(s6["member"], s6, estimated, 30)
+        IssueEstimateGrandfather.objects.all().delete()
+        Issue.objects.filter(pk=done.pk)  # done is in the completed group
+        mode_rows = Issue.objects.filter(project=s6["p"]).count()
+        assert mode_rows >= 3
+        # Set the mode without the receiver (what the table looked like before the migration).
+        type(s6["p"]).objects.filter(pk=s6["p"].pk).update(time_estimate_mode="required")
+        with connection.cursor() as cursor:
+            cursor.execute(mig.BACKFILL_SQL)
+            cursor.execute(mig.BACKFILL_SQL)  # idempotent
+        assert started_flags(s6["p"]) == {s6["issue"].id, done.id}  # not the estimated one, not the Todo one
+        assert started_flags(s6["q"]) == set() and q_started.id not in started_flags(s6["q"])
+
+
+class TestIntakeAccept:
+    @pytest.fixture
+    def intake_item(self, s6):
+        from plane.db.models import Intake, IntakeIssue, State
+
+        p = s6["p"]
+        p.intake_view = True
+        p.save(update_fields=["intake_view"])
+        triage = State.objects.create(
+            workspace=s6["workspace"], project=p, name="Triage", group="triage", default=False
+        )
+        intake = Intake.objects.create(name="Intake", project=p, workspace=s6["workspace"], is_default=True)
+        issue = Issue(workspace=s6["workspace"], project=p, name="from intake", state=triage)
+        issue.save(created_by_id=s6["wsadmin"].id)
+        IntakeIssue.objects.create(intake=intake, issue=issue, project=p, workspace=s6["workspace"], status=-2)
+        # Accepting moves the item into the project's default state: make that a Started one.
+        State.objects.filter(project=p).update(default=False)
+        State.objects.filter(pk=s6["states"]["In Progress"].id).update(default=True)
+        return issue, triage
+
+    def test_app_accept_into_a_started_default_state_needs_an_estimate(self, s6, intake_item):
+        issue, triage = intake_item
+        url = ws_url(s6, f"projects/{s6['p'].id}/intake-issues/{issue.id}/")
+        r = client_for(s6["wsadmin"]).patch(url, {"status": 1}, format="json")
+        assert_required(r)
+        assert r.json()["issue_id"] == str(issue.id)
+        issue.refresh_from_db()
+        assert issue.state_id == triage.id
+        from plane.db.models import IntakeIssue
+
+        assert IntakeIssue.objects.get(issue=issue).status == -2
+
+    def test_app_accept_with_an_estimate_works(self, s6, intake_item):
+        issue, _ = intake_item
+        assert put_est(s6["wsadmin"], s6, issue, 60).status_code == 200
+        url = ws_url(s6, f"projects/{s6['p'].id}/intake-issues/{issue.id}/")
+        r = client_for(s6["wsadmin"]).patch(url, {"status": 1}, format="json")
+        assert r.status_code == 200, r.content
+        issue.refresh_from_db()
+        assert issue.state_id == s6["states"]["In Progress"].id
+
+    def test_app_accept_into_a_not_started_default_state_is_open(self, s6, intake_item):
+        from plane.db.models import State
+
+        issue, _ = intake_item
+        State.objects.filter(project=s6["p"]).update(default=False)
+        State.objects.filter(pk=s6["states"]["Todo"].id).update(default=True)
+        url = ws_url(s6, f"projects/{s6['p'].id}/intake-issues/{issue.id}/")
+        assert client_for(s6["wsadmin"]).patch(url, {"status": 1}, format="json").status_code == 200
+
+    def test_app_accept_is_open_when_not_required(self, s6, intake_item):
+        issue, _ = intake_item
+        mode(s6["p"], "optional")
+        url = ws_url(s6, f"projects/{s6['p'].id}/intake-issues/{issue.id}/")
+        assert client_for(s6["wsadmin"]).patch(url, {"status": 1}, format="json").status_code == 200
+
+    def test_v1_accept_into_a_started_default_state_needs_an_estimate(self, s6, intake_item):
+        issue, triage = intake_item
+        url = f"/api/v1/workspaces/{s6['slug']}/projects/{s6['p'].id}/intake-issues/{issue.id}/"
+        c = api_key_client(s6["wsadmin"])
+        assert_required(c.patch(url, {"status": 1}, format="json"))
+        issue.refresh_from_db()
+        assert issue.state_id == triage.id
+        put_est(s6["wsadmin"], s6, issue, 60)
+        assert c.patch(url, {"status": 1}, format="json").status_code == 200
+
+
+class TestMoveIntoRequiredProject:
+    @pytest.fixture
+    def move_world(self, s6):
+        support.join(s6["q"], s6["wsadmin"], 20)
+        mode(s6["q"], "required")
+        return s6
+
+    def _move(self, s, issue, state_map=None):
+        from plane.utils.work_item_move import move_work_item
+
+        return move_work_item(Issue.objects.get(pk=issue.pk), s["q"], s["wsadmin"], state_map=state_map, notify=False)
+
+    def test_started_item_without_an_estimate_cannot_enter_a_required_project(self, move_world):
+        from rest_framework.exceptions import APIException
+
+        s = move_world
+        # The source flag (P's grandfathering) does not travel: the item is refused.
+        assert s["issue"].id in started_flags(s["p"])
+        with pytest.raises(APIException) as exc:
+            self._move(s, s["issue"])
+        assert exc.value.detail["code"] == "estimate_required" and exc.value.detail["issue_id"] == str(s["issue"].id)
+        assert Issue.objects.get(pk=s["issue"].pk).project_id == s["p"].id
+        assert s["issue"].id in started_flags(s["p"])  # nothing was written
+
+    def test_started_item_with_an_estimate_moves(self, move_world):
+        s = move_world
+        put_est(s["member"], s, s["issue"], 90)
+        self._move(s, s["issue"])
+        assert Issue.objects.get(pk=s["issue"].pk).project_id == s["q"].id
+
+    def test_unstarted_item_moves_and_a_started_override_is_refused(self, move_world):
+        from rest_framework.exceptions import APIException
+
+        s = move_world
+        with pytest.raises(APIException):
+            self._move(s, s["todo"], state_map={str(s["states"]["Todo"].id): str(s["q_states"]["In Progress"].id)})
+        self._move(s, s["todo"])
+        moved = Issue.objects.get(pk=s["todo"].pk)
+        assert moved.project_id == s["q"].id and moved.state.group == "unstarted"
+
+    def test_cancelled_item_moves(self, move_world):
+        s = move_world
+        s["todo"].state = s["states"]["Cancelled"]
+        s["todo"].save()
+        self._move(s, s["todo"])
+        assert Issue.objects.get(pk=s["todo"].pk).project_id == s["q"].id
+
+    def test_move_to_a_project_that_does_not_require_estimates_is_open_and_drops_the_flag(self, move_world):
+        s = move_world
+        mode(s["q"], "optional")
+        self._move(s, s["issue"])
+        assert Issue.objects.get(pk=s["issue"].pk).project_id == s["q"].id
+        assert s["issue"].id not in started_flags(s["p"]) and s["issue"].id not in started_flags(s["q"])
+
+    def test_move_endpoint_returns_the_estimate_required_payload(self, move_world):
+        s = move_world
+        r = client_for(s["wsadmin"]).post(
+            ws_url(s, f"projects/{s['p'].id}/work-items/{s['issue'].id}/move/"),
+            {"target_project_id": str(s["q"].id)},
+            format="json",
+        )
+        assert_required(r)

@@ -148,6 +148,9 @@ ISSUE_RELATION_POLICY = {
     "db.GithubIssueSync.issue": "leave",  # bound to the source project's repository sync
     # FORK: time-tracking-v2 S6 — revision history has no project column; it hangs off the estimate
     "db.IssueTimeEstimateRevision.issue": "leave",
+    # FORK: time-tracking-v2 S6 — the "already in progress" flag belongs to the project whose mode flip it
+    # recorded; dropped on a move (``clear_grandfathered``), so a move into a "required" project is gated.
+    "db.IssueEstimateGrandfather.issue": "special",
 }
 COMMENT_RELATION_POLICY = {
     **{f"{m._meta.label}.{f}": "repoint" for m, f in REPOINT_BY_COMMENT},
@@ -211,9 +214,9 @@ def _pending_intake_ids(items):
     """Ids of ``items`` still waiting in intake (triage state or a pending/snoozed record)."""
     pending = {i.id for i in items if i.state is not None and i.state.group == StateGroup.TRIAGE.value}
     pending.update(
-        IntakeIssue.objects.filter(
-            issue_id__in=[i.id for i in items], status__in=PENDING_INTAKE_STATUSES
-        ).values_list("issue_id", flat=True)
+        IntakeIssue.objects.filter(issue_id__in=[i.id for i in items], status__in=PENDING_INTAKE_STATUSES).values_list(
+            "issue_id", flat=True
+        )
     )
     return pending
 
@@ -562,6 +565,13 @@ def move_work_item(issue, target, user, sub_items_mode=SUB_ITEMS_MOVE, state_map
                 raise MoveError("INVALID_STATE_MAP", "state_map points at a state outside the target project.")
             overrides[str(src_state_id)] = tgt_state
 
+        # FORK: time-tracking-v2 S6 — a "required" target refuses unestimated items landing in a
+        # Started/Completed state (moves into Cancelled etc. stay open). Before any write.
+        from plane.utils.time_tracking.estimate import clear_grandfathered, gate_move
+
+        for item in analysis.items:
+            gate_move(item, target, overrides.get(str(item.state_id)) or analysis.state_groups[item.state_id]["target"])
+
         # Allocate sequences exactly like Issue.save(): per-project advisory lock.
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(%s)", [convert_uuid_to_integer(target.id)])
@@ -623,6 +633,7 @@ def move_work_item(issue, target, user, sub_items_mode=SUB_ITEMS_MOVE, state_map
 
         item_ids = analysis.item_ids
 
+        clear_grandfathered(analysis.item_ids)  # FORK: time-tracking-v2 S6 — see ``gate_move``
         # Rows that simply follow the item.
         for model, fk in REPOINT_BY_ISSUE:
             model.all_objects.filter(**{f"{fk}_id__in": item_ids}).update(project_id=target.id)

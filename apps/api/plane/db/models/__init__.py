@@ -15,6 +15,7 @@ from .draft import (
     DraftIssueModule,
     DraftIssueCycle,
 )
+
 # FORK: time-tracking
 from .client import Client
 from .estimate import Estimate, EstimatePoint
@@ -123,6 +124,7 @@ from .time_tracking import (
     TimeEstimateMode,
     TimeEstimateRevisionKind,
     IssueTimeEstimate,
+    IssueEstimateGrandfather,
     IssueTimeEstimateRevision,
 )
 
