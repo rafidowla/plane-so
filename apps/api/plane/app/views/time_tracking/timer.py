@@ -70,7 +70,7 @@ class WorkspaceTimerStopEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
     def post(self, request, slug):
         label, worklogs = stop_running_timer(slug, request.user, description=request.data.get("description"))
-        if not worklogs:
+        if worklogs is None:  # FORK: PSR-121 — an empty stop (day already full) is still a stop
             return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
         data = stop_response(worklogs, request.user)
         data["issue_detail"] = label
@@ -93,7 +93,8 @@ class WorkspaceTimerConfirmEndpoint(BaseAPIView):
         if outcome is None:
             return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
         if outcome == "stopped":
-            auto = any(w.auto_stopped for w in result)
+            # FORK: PSR-121 — the result may hold no entry (day cap); its ``limit`` still says why.
+            auto = getattr(result, "limit", None) == "auto_stop" or any(w.auto_stopped for w in result)
             return Response(
                 {
                     "error": "The timer was already stopped.",

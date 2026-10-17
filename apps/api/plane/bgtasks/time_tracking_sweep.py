@@ -67,7 +67,7 @@ def _sweep_deleted_issues():
         if issue_id in issues and issues[issue_id] is None:
             continue  # live issue
         ended_at = issues.get(issue_id)  # deleted_at, or None (row gone) => now
-        if system_stop_timer(timer_id, ended_at, "issue_deleted"):
+        if system_stop_timer(timer_id, ended_at, "issue_deleted") is not None:
             stopped += 1
     return stopped
 
@@ -80,7 +80,7 @@ def _sweep_tracking_disabled():
         row = status_row_on(workspace_id, user_id, local_today(tz))
         if row is None or row.is_tracked:
             continue
-        if system_stop_timer(timer_id, day_start(row.effective_from, tz), "tracking_disabled"):
+        if system_stop_timer(timer_id, day_start(row.effective_from, tz), "tracking_disabled") is not None:
             stopped += 1
     return stopped
 
@@ -103,7 +103,7 @@ def _sweep_removed_members():
         )
     )
     for timer_id in timer_ids:
-        if system_stop_timer(timer_id, None, "member_removed"):
+        if system_stop_timer(timer_id, None, "member_removed") is not None:
             stopped += 1
     return stopped
 
@@ -121,7 +121,7 @@ def _sweep_limits():
             continue
         # ``stop_timer`` re-applies ``limits.cutoff`` and sets the stop time,
         # the flag and the audit reason; ``ended_at`` here is only "now".
-        if system_stop_timer(timer.id, None, "limit"):
+        if system_stop_timer(timer.id, None, "limit") is not None:
             stopped += 1
     return stopped
 

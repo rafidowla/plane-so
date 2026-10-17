@@ -15,6 +15,7 @@ split into one entry per day sharing a ``session_id``.
 # Python imports
 import json
 import uuid
+from datetime import timedelta
 
 # Django imports
 from django.db import transaction
@@ -122,6 +123,51 @@ def lock_user_timers(user):
     User.objects.select_for_update().only("id").get(pk=getattr(user, "pk", user))
 
 
+class StoppedWorklogs(list):
+    """FORK: PSR-121 — what ``stop_timer`` returns: the entries in time order (a list, as
+    before) plus ``day_limit_clamped`` (the run was cut where the person's day reached 24 h)
+    and ``limit`` (the auto-stop / idle-check rule that ended it, or None). It may be EMPTY
+    when the day was already full: the timer still stopped, nothing was saved."""
+
+    def __init__(self, worklogs=(), day_limit_clamped=False, limit=None):
+        super().__init__(worklogs)
+        self.day_limit_clamped = day_limit_clamped
+        self.limit = limit
+
+
+def _clamp_to_day_cap(workspace_id, user_id, pieces):
+    """FORK: PSR-121 — apply the 24 h per person per local day cap (``entries.DAY_CAP_MINUTES``)
+    to a timer run without refusing the stop (a refused stop would leave the timer running).
+
+    Walks the per-day pieces in time order and ends the run where a day reaches 24 h: that piece
+    is shortened (``ended_at`` = its start + the minutes left), and it and everything after it
+    stop there. Returns ``(pieces, clamped)``.
+
+    Reachable because the overlap checks only cover intervals: legacy ``logged_date`` +
+    ``duration`` rows (manual legacy entries, imported Jira worklogs) take day capacity without
+    taking clock time, so a timer can still run over a day they already filled. Interval rows
+    and timers never overlap, so without legacy rows a day can only overflow on a 25 h DST day.
+    """
+    from plane.utils.time_tracking.entries import DAY_CAP_MINUTES, day_totals
+
+    if not pieces:
+        return pieces, False
+    logged = day_totals(workspace_id, user_id, {piece["logged_date"] for piece in pieces})
+    kept = []
+    for piece in pieces:
+        day = piece["logged_date"]
+        room = DAY_CAP_MINUTES - (logged.get(day) or 0)
+        if piece["duration"] > room:
+            if room > 0:
+                kept.append(
+                    {**piece, "duration": room, "ended_at": piece["started_at"] + timedelta(minutes=room)}
+                )
+            return kept, True
+        kept.append(piece)
+        logged[day] = (logged.get(day) or 0) + piece["duration"]
+    return kept, False
+
+
 def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, reason=None):
     """Convert a running timer into timer-sourced worklog(s) and remove the timer.
 
@@ -141,6 +187,10 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
     limit instead (prompt time for the idle check), whoever triggered it. Such a
     stop sets ``auto_stopped`` / ``idle_stopped`` and is audited as a system
     ``auto_stop`` with ``reason`` ``auto_stop`` / ``idle_check``.
+
+    FORK: PSR-121 — the run is also cut where the person's local day reaches 24 h
+    (``_clamp_to_day_cap``); the result (a ``StoppedWorklogs``) then has
+    ``day_limit_clamped`` set and may hold no entry at all.
     """
     user = user or timer.user
     ended_at = ended_at or timezone.now()
@@ -150,6 +200,8 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
         reason, actor = limit, None
     project = timer.project
     pieces = split_by_local_day(timer.started_at, ended_at, workspace_tz(timer.workspace_id))
+    # FORK: PSR-121 — the 24 h day cap: never refuse the stop, cut the saved run instead.
+    pieces, day_limit_clamped = _clamp_to_day_cap(timer.workspace_id, user.id, pieces)
     billable_rate, currency = resolve_billable_rate(project, user.id)
     issue_ref, issue_name = issue_snapshot(timer.issue_id)
     session_id = uuid.uuid4()
@@ -179,15 +231,21 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
             )
         )
     timer.delete()
+    if day_limit_clamped and not reason:
+        # FORK: PSR-121 — the day cap cut it, not whoever made this call.
+        reason, actor = "day_limit", None
     if reason:
         for worklog in worklogs:
+            after = {**audit.worklog_state(worklog), "reason": reason, "timer_id": timer.id}
+            if day_limit_clamped:
+                after["day_limit_clamped"] = True
             audit.record(
                 worklog.workspace_id,
                 actor,
                 TimeTrackingAuditTarget.WORKLOG,
                 worklog.id,
                 TimeTrackingAuditAction.AUTO_STOP,
-                after={**audit.worklog_state(worklog), "reason": reason, "timer_id": timer.id},
+                after=after,
             )
     if limit == limits.LIMIT_AUTO_STOP:
         # S3: the 14 h auto-stop opens a review for the entry's approver (DESIGN §2 item 9).
@@ -195,7 +253,7 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
         from plane.utils.time_tracking.entry_requests import open_auto_stop_review
 
         open_auto_stop_review(worklogs)
-    return worklogs
+    return StoppedWorklogs(worklogs, day_limit_clamped=day_limit_clamped, limit=limit)
 
 
 def _move_to_started(issue, user):
