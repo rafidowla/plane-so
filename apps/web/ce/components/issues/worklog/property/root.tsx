@@ -5,7 +5,7 @@
  */
 // FORK: time-tracking — fills the worklog property stub
 import { useEffect, useState } from "react";
-import { Play, Square, Plus, Timer, X } from "lucide-react";
+import { Pencil, Play, Square, Plus, Timer, X } from "lucide-react";
 import { observer } from "mobx-react";
 import useSWR, { mutate as globalMutate } from "swr";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
@@ -14,7 +14,9 @@ import { Icon } from "@makeplane/propel/components/icon";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
+import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
+import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 import { asApiError } from "@/plane-web/components/analytics/api-error";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
@@ -24,7 +26,11 @@ import { LogTimeModal } from "../log-time-modal";
 import { describeTimerError } from "@/plane-web/components/time/timer/errors";
 import { requestNotificationPermissionOnce } from "@/plane-web/components/time/timer/notify";
 import { getStateChangeToastTitle } from "@/plane-web/components/time/timer/timer-actions";
-import type { TTimerStartResponse } from "../types";
+import { useCanReviewTime } from "@/plane-web/components/time/approvals/access";
+import { ISSUE_PENDING_KEY } from "@/plane-web/components/time/requests/request-keys";
+import { RequestModal, type TRequestModalKind } from "@/plane-web/components/time/requests/request-modal";
+import { safeTimeZone } from "@/plane-web/components/time/requests/request-utils";
+import type { TTimeRequest, TTimerStartResponse, TWorklog } from "../types";
 import { formatElapsed, formatLoggedMinutes, getAutoStopToastTitle } from "../timer-utils";
 
 type TIssueWorklogProperty = {
@@ -45,6 +51,19 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
   // FORK: PSR-37 — confirm before deleting a time-log entry
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // FORK: time-tracking-v2 S3b — the request modal: missing time for this item, or a change / deletion /
+  // direct edit of one entry
+  const [requestModal, setRequestModal] = useState<{
+    kind: TRequestModalKind;
+    entry?: TWorklog;
+    direct?: boolean;
+  } | null>(null);
+  const { currentWorkspace } = useWorkspace();
+  const {
+    issue: { getIssueById },
+  } = useIssueDetail();
+  const canReview = useCanReviewTime(workspaceSlug);
+  const timeZone = safeTimeZone(currentWorkspace?.timezone);
 
   // is_time_tracking_enabled is returned by the project API but not on the TProject type.
   const project = getProjectById(projectId) as ({ is_time_tracking_enabled?: boolean } & object) | undefined;
@@ -65,6 +84,23 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     enabled ? () => timeTrackingService.getMyTasks(workspaceSlug, "", 15) : null
   );
   const isTracked = myTasks?.tracked === true;
+  // FORK: time-tracking-v2 S3b — pending requests aimed at this item's entries (own, plus those the viewer
+  // can review) drive the "Change pending" badge. One request per entry can be pending at a time.
+  const { data: pendingRequests } = useSWR(
+    enabled ? ISSUE_PENDING_KEY(workspaceSlug, issueId) : null,
+    enabled
+      ? async () => {
+          const params = { status: "pending", project_id: projectId, limit: 200 };
+          const [mine, review] = await Promise.all([
+            timeTrackingService.getTimeRequests(workspaceSlug, { scope: "mine", ...params }),
+            canReview
+              ? timeTrackingService.getTimeRequests(workspaceSlug, { scope: "review", ...params })
+              : Promise.resolve({ count: 0, results: [] as TTimeRequest[] }),
+          ]);
+          return [...mine.results, ...review.results];
+        }
+      : null
+  );
 
   const runningHere = Boolean(timer && timer.id && timer.issue === issueId);
   useEffect(() => {
@@ -90,6 +126,21 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
     projectId
   );
   const currentUserId = currentUser?.id ?? "";
+  // FORK: time-tracking-v2 S3b — workspace admins write time directly; everyone else asks their approver.
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  const pendingByEntry = new Map<string, TTimeRequest>();
+  (pendingRequests ?? []).forEach((r) => {
+    if (r.worklog_id && r.issue_id === issueId) pendingByEntry.set(r.worklog_id, r);
+  });
+  const pickedIssue = (() => {
+    const issue = getIssueById(issueId);
+    const identifier = getProjectById(projectId)?.identifier;
+    return {
+      id: issueId,
+      ref: identifier && issue?.sequence_id ? `${identifier}-${issue.sequence_id}` : "",
+      name: issue?.name ?? "",
+    };
+  })();
   // FORK: time-tracking-v2 — guests get only `{ total_minutes }`; internal roles get the entry list.
   const list = Array.isArray(worklogs) ? worklogs : [];
   const total = Array.isArray(worklogs)
@@ -185,6 +236,18 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                   onClick={handleStart}
                 />
               )}
+              {/* FORK: time-tracking-v2 S3b — members ask for time they could not track; workspace admins log directly */}
+              {isTracked && !isWorkspaceAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  stretch="auto"
+                  icon={<Icon icon={Plus} />}
+                  label="Request missing time"
+                  data-testid="worklog-request-missing"
+                  onClick={() => setRequestModal({ kind: "missing_time" })}
+                />
+              )}
               {/* Manual entry is a PM/admin function; members self-track with the timer. */}
               {isProjectAdmin && (
                 <Button
@@ -204,6 +267,12 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
               {list.slice(0, 6).map((w) => {
                 // Only PMs/admins, the resource, or whoever entered it may remove an entry.
                 const canModify = isProjectAdmin || w.logged_by === currentUserId || w.created_by === currentUserId;
+                // FORK: time-tracking-v2 S3b — own entries (unless workspace admin) change only by request;
+                // a project admin's edit of someone else's entry, and any workspace admin edit, is direct.
+                const isOwn = w.logged_by === currentUserId;
+                const needsRequest = isOwn && !isWorkspaceAdmin && isTracked;
+                const canEditDirect = isWorkspaceAdmin || (isProjectAdmin && !isOwn);
+                const pending = pendingByEntry.get(w.id);
                 const isSelfTracked = w.source === "timer";
                 return (
                   <div key={w.id} className="text-xs flex min-w-0 items-center justify-between gap-2 text-tertiary">
@@ -216,12 +285,37 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                       {w.is_billable ? "" : " · non-billable"}
                       {w.is_locked ? " · 🔒" : ""}
                     </span>
-                    {!disabled && !w.is_locked && canModify && (
+                    {pending && (
+                      <span
+                        className="text-xs shrink-0 rounded bg-warning-subtle px-1.5 py-0.5 text-warning-primary"
+                        title="A request to change this entry is waiting for review"
+                        data-testid="change-pending-badge"
+                      >
+                        Change pending
+                      </span>
+                    )}
+                    {!disabled && !w.is_locked && !pending && (needsRequest || canEditDirect) && (
                       <button
                         type="button"
-                        onClick={() => setPendingDeleteId(w.id)}
+                        onClick={() =>
+                          setRequestModal({ kind: "time_change", entry: w, direct: !needsRequest && canEditDirect })
+                        }
+                        className="shrink-0 text-tertiary hover:text-primary"
+                        aria-label={needsRequest ? "Request a time change" : "Edit time"}
+                        data-testid="worklog-edit-time"
+                      >
+                        <Pencil className="size-3" />
+                      </button>
+                    )}
+                    {!disabled && !w.is_locked && !pending && canModify && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          needsRequest ? setRequestModal({ kind: "deletion", entry: w }) : setPendingDeleteId(w.id)
+                        }
                         className="hover:text-danger shrink-0 text-tertiary"
-                        aria-label="Delete time entry"
+                        aria-label={needsRequest ? "Request deletion" : "Delete time entry"}
+                        data-testid="worklog-delete"
                       >
                         <X className="size-3" />
                       </button>
@@ -244,6 +338,21 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
         currentUserId={currentUser?.id ?? ""}
         onSaved={() => mutateWorklogs()}
       />
+
+      {/* FORK: time-tracking-v2 S3b */}
+      {requestModal && (
+        <RequestModal
+          isOpen
+          handleClose={() => setRequestModal(null)}
+          workspaceSlug={workspaceSlug}
+          timeZone={timeZone}
+          kind={requestModal.kind}
+          issue={requestModal.kind === "missing_time" ? pickedIssue : undefined}
+          entry={requestModal.entry}
+          direct={requestModal.direct}
+          onDone={() => void mutateWorklogs()}
+        />
+      )}
 
       {/* FORK: PSR-37 — confirm before a time-log entry is permanently deleted */}
       <ConfirmDialog

@@ -291,7 +291,7 @@ def submit(workspace_id, actor, data):
             ended_at = parse_instant(data.get("ended_at"), "ended_at")
             validate_interval(started_at, ended_at)
             check_tracked(workspace_id, actor.id, started_at, ended_at, tz)
-            check_overlap(workspace_id, actor.id, started_at, ended_at)
+            check_overlap(workspace_id, actor.id, started_at, ended_at, detail=True)
             # TODO(S6): estimate gate (400 ``estimate_required`` when the project requires one).
             req.project_id, req.issue_id = project.id, issue.id
             req.new_started_at, req.new_ended_at = started_at, ended_at
@@ -314,7 +314,7 @@ def submit(workspace_id, actor, data):
                 ended_at = parse_instant(data.get("ended_at"), "ended_at")
                 validate_interval(started_at, ended_at)
                 check_tracked(workspace_id, actor.id, started_at, ended_at, tz)
-                check_overlap(workspace_id, actor.id, started_at, ended_at, exclude_ids=[worklog.id])
+                check_overlap(workspace_id, actor.id, started_at, ended_at, exclude_ids=[worklog.id], detail=True)
                 req.new_started_at, req.new_ended_at = started_at, ended_at
             req.project_id, req.issue_id, req.worklog_id = worklog.project_id, worklog.issue_id, worklog.id
             req.work_date = worklog.logged_date

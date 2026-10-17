@@ -204,6 +204,152 @@ export type TLiveResponse = {
   rows: TLiveRow[];
 };
 
+// FORK: time-tracking-v2 S3b — time-entry requests (`time/requests/`), the approvals queue and its history.
+export type TTimeRequestType = "missing_time" | "time_change" | "deletion" | "auto_stop_review";
+export type TTimeRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
+export type TTimeRequestAction = "submitted" | "approved" | "rejected" | "applied" | "withdrawn" | "superseded";
+export type TTimeRequestRole = "member" | "project_admin" | "workspace_admin" | "system";
+
+export type TTimeRequestIssue = {
+  id: string;
+  name?: string;
+  identifier?: string;
+  sequence_id?: number;
+  state_name?: string | null;
+  state_group?: string | null;
+};
+
+export type TTimeRequest = {
+  id: string;
+  type: TTimeRequestType;
+  status: TTimeRequestStatus;
+  workspace_id: string;
+  project_id: string;
+  issue_id: string;
+  issue: TTimeRequestIssue;
+  worklog_id: string | null;
+  requester: TLiveUser | null;
+  work_date: string; // YYYY-MM-DD, workspace time zone
+  old_started_at: string | null;
+  old_ended_at: string | null;
+  old_duration: number | null;
+  new_started_at: string | null;
+  new_ended_at: string | null;
+  new_duration: number | null;
+  description: string;
+  reason: string;
+  reviewer: TLiveUser | null;
+  reviewer_role: TTimeRequestRole | null;
+  reviewed_at: string | null;
+  review_note: string;
+  created_at: string;
+  route: "project_admins" | "workspace_admins";
+  can_approve: boolean;
+  can_withdraw: boolean;
+};
+
+export type TTimeRequestList = { count: number; results: TTimeRequest[] };
+
+export type TTimeRequestEvent = {
+  id: string;
+  request_id: string;
+  action: TTimeRequestAction;
+  actor: TLiveUser | null;
+  actor_role: TTimeRequestRole;
+  note: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+  /** only on `time/requests/events/` */
+  request?: {
+    type: TTimeRequestType;
+    status: TTimeRequestStatus;
+    requester_id: string;
+    project_id: string;
+    issue_id: string;
+    work_date: string;
+  };
+};
+
+export type TTimeRequestEventList = { count: number; results: TTimeRequestEvent[] };
+export type TTimeRequestHistory = { request: TTimeRequest; events: TTimeRequestEvent[] };
+
+export type TTimeRequestListParams = {
+  scope?: "mine" | "review";
+  status?: string; // comma list
+  type?: string; // comma list
+  user_id?: string;
+  project_id?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type TTimeRequestEventParams = {
+  scope?: "mine" | "review";
+  start_date?: string;
+  end_date?: string;
+  action?: string;
+  user_id?: string;
+  project_id?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type TTimeRequestSubmit =
+  | {
+      type: "missing_time";
+      issue_id: string;
+      started_at: string;
+      ended_at: string;
+      reason: string;
+      description?: string;
+    }
+  | { type: "time_change"; worklog_id: string; started_at: string; ended_at: string; reason: string }
+  | { type: "deletion"; worklog_id: string; reason: string };
+
+/** `{ error, code }` payloads of the requests / entries endpoints. */
+export type TTimeRequestErrorCode =
+  | "invalid_type"
+  | "reason_required"
+  | "note_required"
+  | "edit_directly"
+  | "invalid_interval"
+  | "invalid_field"
+  | "invalid_filter"
+  | "overlap"
+  | "entry_locked"
+  | "project_tracking_disabled"
+  | "not_tracked"
+  | "tracking_disabled"
+  | "pending_exists"
+  | "not_pending"
+  | "stale"
+  | "own_request"
+  | "not_approver"
+  | "not_requester"
+  | "not_found"
+  | "request_required"
+  | "not_allowed";
+
+export type TTimeRequestApiError = {
+  error?: string;
+  code?: TTimeRequestErrorCode;
+  overlapping_ids?: string[];
+  /** the clashing entries, oldest first (submit-time overlap refusals only) */
+  overlapping?: { id: string; issue_ref: string; issue_name: string; started_at: string; ended_at: string }[];
+  overlaps_timer?: boolean;
+  /** pending_exists: the request already waiting on the entry */
+  request_id?: string;
+};
+
+export type TTimeEntryPatch = {
+  started_at?: string;
+  ended_at?: string;
+  logged_date?: string;
+  duration?: number;
+  description?: string;
+  work_type?: string | null;
+};
+
 export type TClient = {
   id: string;
   name: string;

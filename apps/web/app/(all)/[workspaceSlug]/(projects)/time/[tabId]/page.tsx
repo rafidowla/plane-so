@@ -13,6 +13,7 @@ import { Tab, Tabs, TabsList, TabsPanel } from "@makeplane/propel/components/tab
 import { PageHead } from "@/components/core/page-title";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useCanReviewTime, usePendingApprovalCount } from "@/plane-web/components/time/approvals/access";
 import { getTimeTabs } from "@/plane-web/components/time/tabs";
 import type { Route } from "./+types/page";
 
@@ -27,7 +28,10 @@ function TimePage({ params }: Route.ComponentProps) {
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.WORKSPACE
   );
-  const tabs = getTimeTabs();
+  // FORK: time-tracking-v2 S3b — Approvals only for reviewers; an unauthorized tabId falls back to the first tab.
+  const canReview = useCanReviewTime(workspaceSlug) && isInternal;
+  const pendingCount = usePendingApprovalCount(workspaceSlug, canReview);
+  const tabs = getTimeTabs({ canReview, pendingCount });
   const selected = tabs.find((tab) => tab.key === tabId) ?? tabs[0];
 
   const title = currentWorkspace?.name ? `${currentWorkspace.name} - Time` : undefined;

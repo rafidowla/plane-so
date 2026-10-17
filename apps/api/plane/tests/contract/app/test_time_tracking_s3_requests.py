@@ -93,6 +93,10 @@ class TestSubmit:
         with freeze_time(NOW):
             r = missing(c, s3, utc(2026, 6, 22, 5, 0), utc(2026, 6, 22, 7, 0))
             assert r.status_code == 400 and r.json()["code"] == "overlap"
+            # FORK: S3b — the clash is described so the UI can list it.
+            clash = r.json()["overlapping"]
+            assert [c_["id"] for c_ in clash] == r.json()["overlapping_ids"]
+            assert clash[0]["issue_ref"] and clash[0]["started_at"] and clash[0]["ended_at"]
             # Touching ends do not overlap.
             assert missing(c, s3, utc(2026, 6, 22, 6, 0), utc(2026, 6, 22, 7, 0)).status_code == 201
             # Someone else's entry at the same time is no overlap.

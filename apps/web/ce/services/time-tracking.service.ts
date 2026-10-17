@@ -20,6 +20,15 @@ import type {
   TJiraImportConfig,
   TJiraPreview,
   TJiraImportJob,
+  // FORK: time-tracking-v2 S3b
+  TTimeRequest,
+  TTimeRequestList,
+  TTimeRequestListParams,
+  TTimeRequestEventList,
+  TTimeRequestEventParams,
+  TTimeRequestHistory,
+  TTimeRequestSubmit,
+  TTimeEntryPatch,
 } from "@/plane-web/components/issues/worklog/types";
 
 export class TimeTrackingService extends APIService {
@@ -289,6 +298,79 @@ export class TimeTrackingService extends APIService {
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
     return this.get(`/api/workspaces/${workspaceSlug}/time/live/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 S3b — time-entry requests, approvals, direct entry edits ----
+  async getTimeRequests(workspaceSlug: string, params: TTimeRequestListParams = {}): Promise<TTimeRequestList> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/requests/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async submitTimeRequest(workspaceSlug: string, data: TTimeRequestSubmit): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async approveTimeRequest(
+    workspaceSlug: string,
+    requestId: string,
+    data: { note?: string; new_ended_at?: string } = {}
+  ): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/approve/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async rejectTimeRequest(workspaceSlug: string, requestId: string, note: string): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/reject/`, { note })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async withdrawTimeRequest(workspaceSlug: string, requestId: string): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/withdraw/`, {})
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getTimeRequestHistory(workspaceSlug: string, requestId: string): Promise<TTimeRequestHistory> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/history/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getTimeRequestEvents(
+    workspaceSlug: string,
+    params: TTimeRequestEventParams = {}
+  ): Promise<TTimeRequestEventList> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/requests/events/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Workspace admins' direct edit of a time entry (members go through a request instead). */
+  async updateTimeEntry(workspaceSlug: string, entryId: string, data: TTimeEntryPatch): Promise<unknown> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/entries/${entryId}/`, data)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

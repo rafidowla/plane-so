@@ -108,15 +108,30 @@ def overlapping(workspace_id, user_id, started_at, ended_at, exclude_ids=()):
     return list(entries), timer
 
 
-def check_overlap(workspace_id, user_id, started_at, ended_at, exclude_ids=(), status_code=400):
+def check_overlap(workspace_id, user_id, started_at, ended_at, exclude_ids=(), status_code=400, detail=False):
+    """409/400 ``overlap``. ``detail=True`` adds ``overlapping`` (what the clash is) — only for callers
+    whose actor *is* ``user_id``, so a project admin never learns about someone's other-project work."""
     ids, timer = overlapping(workspace_id, user_id, started_at, ended_at, exclude_ids)
     if ids or timer:
+        extra = {}
+        if detail and ids:
+            extra["overlapping"] = [
+                {
+                    "id": str(w.id),
+                    "issue_ref": w.issue_ref,
+                    "issue_name": w.issue_name,
+                    "started_at": w.started_at,
+                    "ended_at": w.ended_at,
+                }
+                for w in IssueWorklog.objects.filter(pk__in=ids).order_by("started_at")
+            ]
         refuse(
             "overlap",
             "This time overlaps another entry or the running timer.",
             status_code,
             overlapping_ids=[str(i) for i in ids],
             overlaps_timer=timer,
+            **extra,
         )
 
 
