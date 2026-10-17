@@ -40,6 +40,7 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.db.models.intake import IntakeIssueStatus
+from plane.utils.guest_work_item import guest_row_scope_q, restricted_guest_annotation  # FORK: guest-access PSR-119
 from plane.utils.host import base_host
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 
@@ -160,10 +161,16 @@ class ProjectViewSet(BaseViewSet):
                     is_active=True,
                 ).values("role")
             )
+            # FORK: guest-access PSR-119 — a restricted guest's intake badge counts only their own submissions,
+            # matching what IntakeIssueViewSet.list returns to them
+            .annotate(_restricted_guest=restricted_guest_annotation(self.request.user))
             .annotate(
                 intake_count=Count(
                     "project_intakeissue",
-                    filter=Q(
+                    # distinct: the member/network filter below joins every project member row, multiplying the count
+                    distinct=True,
+                    filter=guest_row_scope_q(self.request.user, "_restricted_guest", "project_intakeissue__created_by")
+                    & Q(
                         project_intakeissue__status=IntakeIssueStatus.PENDING.value,
                         project_intakeissue__deleted_at__isnull=True,
                     ),
@@ -310,6 +317,12 @@ class ProjectViewSet(BaseViewSet):
             serializer = ProjectListSerializer(project)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # FORK: put-permission — the urls route PUT to ``update``; without this override it fell through to
+    # ModelViewSet.update (IsAuthenticated only, writable ``workspace``), so any signed-in user could rewrite any
+    # project, flip its visibility, or move it into another workspace.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
     def partial_update(self, request, slug, pk=None):
         # try:
@@ -536,6 +549,20 @@ class DeployBoardViewSet(BaseViewSet):
     permission_classes = [ProjectMemberPermission]
     serializer_class = DeployBoardSerializer
     model = DeployBoard
+
+    # FORK: put-permission — PATCH/DELETE use the ModelViewSet defaults; with the base queryset
+    # (``DeployBoard.objects.all()``) a member of the URL project could edit or delete *any* project's deploy
+    # board by pk. Bind the lookup to the URL workspace + project.
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(
+                workspace__slug=self.kwargs.get("slug"),
+                entity_name="project",
+                entity_identifier=self.kwargs.get("project_id"),
+            )
+        )
 
     def list(self, request, slug, project_id):
         project_deploy_board = DeployBoard.objects.filter(

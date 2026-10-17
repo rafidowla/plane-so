@@ -21,12 +21,21 @@ type Props = {
   projectId: string;
   issueId: string;
   disabled: boolean;
+  attachmentsDisabled?: boolean; // FORK: guest-access (PSR-119)
   issueServiceType: TIssueServiceType;
   hideWidgets?: TWorkItemWidgets[];
 };
 
 export function IssueDetailWidgetActionButtons(props: Props) {
-  const { workspaceSlug, projectId, issueId, disabled, issueServiceType, hideWidgets } = props;
+  const {
+    workspaceSlug,
+    projectId,
+    issueId,
+    disabled,
+    attachmentsDisabled = disabled,
+    issueServiceType,
+    hideWidgets,
+  } = props;
   // translation
   const { t } = useTranslation();
 
@@ -82,10 +91,10 @@ export function IssueDetailWidgetActionButtons(props: Props) {
             <IssueDetailWidgetButton
               title={t("common.attach")}
               icon={<AttachOutline className="h-3.5 w-3.5 flex-shrink-0" />}
-              disabled={disabled}
+              disabled={attachmentsDisabled}
             />
           }
-          disabled={disabled}
+          disabled={attachmentsDisabled}
           issueServiceType={issueServiceType}
         />
       )}

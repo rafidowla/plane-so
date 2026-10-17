@@ -16,6 +16,8 @@ import { isEmptyHtmlString } from "@plane/utils";
 // hooks
 import { useIssueModal } from "@/hooks/context/use-issue-modal";
 import { useWorkspaceDraftIssues } from "@/hooks/store/workspace-draft";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // local imports
 import { ConfirmIssueDiscard } from "../confirm-issue-discard";
 import { IssueFormRoot } from "./form";
@@ -37,6 +39,8 @@ export const DraftIssueLayout = observer(function DraftIssueLayout(props: DraftI
   const { handleCreateUpdatePropertyValues } = useIssueModal();
   const { createIssue } = useWorkspaceDraftIssues();
   const { t } = useTranslation();
+  // FORK: guest-access (PSR-119) — guests cannot keep drafts, so closing the form never offers "save as draft"
+  const { isGuest } = useGuestWorkItemAccess(workspaceSlug?.toString(), changesMade?.project_id ?? projectId);
 
   const sanitizeChanges = (): Partial<TIssue> => {
     const sanitizedChanges = { ...changesMade };
@@ -59,7 +63,7 @@ export const DraftIssueLayout = observer(function DraftIssueLayout(props: DraftI
 
   const handleClose = () => {
     // If the user is updating an existing work item, we don't need to show the discard modal
-    if (data?.id) {
+    if (data?.id || isGuest) {
       onClose();
       setIssueDiscardModal(false);
     } else {
@@ -133,7 +137,7 @@ export const DraftIssueLayout = observer(function DraftIssueLayout(props: DraftI
 
   const handleDraftAndClose = () => {
     const sanitizedChanges = sanitizeChanges();
-    if (!data?.id && !isEmpty(sanitizedChanges)) {
+    if (!data?.id && !isGuest && !isEmpty(sanitizedChanges)) {
       handleCreateDraftIssue();
     }
     onClose();

@@ -32,6 +32,8 @@ import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserPermissions } from "@/hooks/store/user";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // FORK: move-work-item (PSR-91)
 import { MoveWorkItemModal, useMoveWorkItemAction } from "@/plane-web/components/issues/move-work-item";
 // helper
@@ -86,6 +88,9 @@ export const ProjectIssueQuickActions = observer(function ProjectIssueQuickActio
       workspaceSlug?.toString(),
       issue.project_id ?? undefined
     ) && !readOnly;
+  // FORK: guest-access (PSR-119) — guests may edit their own (non-archived) work items, nothing else
+  const { canGuestEdit } = useGuestWorkItemAccess(workspaceSlug?.toString(), issue.project_id, issue.created_by);
+  const isGuestEditAllowed = canGuestEdit && !issue.archived_at;
   const isArchivingAllowed = handleArchive && isEditingAllowed;
   const isInArchivableGroup = !!stateDetails && ARCHIVABLE_STATE_GROUPS.includes(stateDetails?.group);
   const isDeletingAllowed = isEditingAllowed;
@@ -106,6 +111,7 @@ export const ProjectIssueQuickActions = observer(function ProjectIssueQuickActio
     projectIdentifier,
     activeLayout,
     isEditingAllowed,
+    isGuestEditAllowed, // FORK: guest-access (PSR-119)
     isArchivingAllowed,
     isDeletingAllowed,
     isInArchivableGroup,

@@ -33,8 +33,23 @@ def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None):
                         status=status.HTTP_403_FORBIDDEN,
                     )
 
-                obj = model.objects.filter(id=kwargs["pk"], created_by=request.user).exists()
-                if obj:
+                # FORK: put-permission — the creator shortcut only checked workspace membership, so a user
+                # removed from a project (inactive ProjectMember) could still edit/delete everything they had
+                # created in it. On project routes, require an active project membership and match the object
+                # inside that project; otherwise fall through to the role checks below.
+                creator_filter = {"id": kwargs["pk"], "created_by": request.user}
+                project_id = kwargs.get("project_id")
+                is_creator_eligible = True
+                if project_id is not None:
+                    creator_filter["project_id"] = project_id
+                    is_creator_eligible = ProjectMember.objects.filter(
+                        member=request.user,
+                        workspace__slug=kwargs["slug"],
+                        project_id=project_id,
+                        is_active=True,
+                    ).exists()
+
+                if is_creator_eligible and model.objects.filter(**creator_filter).exists():
                     return view_func(instance, request, *args, **kwargs)
 
             # Convert allowed_roles to their values if they are enum members

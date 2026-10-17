@@ -8,7 +8,6 @@ import { useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { AddWorkItemOutline } from "@makeplane/propel/icons";
 import type { TIssue } from "@plane/types";
@@ -18,7 +17,7 @@ import { SidebarAddButton } from "@/components/sidebar/add-button";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useUser } from "@/hooks/store/user";
 import useLocalStorage from "@/hooks/use-local-storage";
 
 export const SidebarQuickActions = observer(function SidebarQuickActions() {
@@ -35,14 +34,13 @@ export const SidebarQuickActions = observer(function SidebarQuickActions() {
   // store hooks
   const { toggleCreateIssueModal } = useCommandPalette();
   const { joinedProjectIds } = useProject();
-  const { allowPermissions } = useUserPermissions();
+  const { canCreateWorkItemInAnyProject } = useUser();
   // local storage
   const { storedValue, setValue } = useLocalStorage<Record<string, Partial<TIssue>>>("draftedIssue", {});
   // derived values
-  const canCreateIssue = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // FORK: guest-access (PSR-119) — a workspace guest can still be a member (or guest) of projects they may raise work
+  // items in; the check follows project roles, not the workspace role
+  const canCreateIssue = canCreateWorkItemInAnyProject;
   const disabled = joinedProjectIds.length === 0 || !canCreateIssue;
   const workspaceDraftIssue = workspaceSlug ? (storedValue?.[workspaceSlug] ?? undefined) : undefined;
 

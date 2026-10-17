@@ -36,6 +36,8 @@ import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserProfile } from "@/hooks/store/user";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // components
 import { IssueParentSelectRoot } from "@/components/issues/parent-select-root";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
@@ -69,6 +71,9 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
   const { getStateById } = useProjectState();
   const { data: userProfile } = useUserProfile();
   const issue = getIssueById(issueId);
+  // FORK: guest-access (PSR-119) — a guest on their own work item can edit priority and labels only
+  const { canGuestEdit } = useGuestWorkItemAccess(workspaceSlug, projectId, issue?.created_by);
+  const isGuestEditable = canGuestEdit && !issue?.archived_at; // archived work items are read-only, as in the peek view
   if (!issue) return <></>;
 
   const createdByDetails = getUserDetails(issue.created_by);
@@ -121,7 +126,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                 testId="work-item-priority-select"
                 value={issue?.priority}
                 onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { priority: val })}
-                disabled={!isEditable}
+                disabled={!isEditable && !isGuestEditable} // FORK: guest-access (PSR-119)
                 variant="select-ghost-md"
                 tooltip
               />
@@ -239,7 +244,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                 workspaceSlug={workspaceSlug}
                 projectId={projectId}
                 issueId={issueId}
-                disabled={!isEditable}
+                disabled={!isEditable && !isGuestEditable} // FORK: guest-access (PSR-119)
               />
             </SidebarPropertyListItem>
 

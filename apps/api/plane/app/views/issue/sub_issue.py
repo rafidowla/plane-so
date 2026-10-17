@@ -28,6 +28,7 @@ from plane.utils.timezone_converter import user_timezone_converter
 from collections import defaultdict
 from plane.utils.host import base_host
 from plane.utils.order_queryset import order_issue_queryset
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 
 
 class SubIssuesEndpoint(BaseAPIView):
@@ -40,9 +41,7 @@ class SubIssuesEndpoint(BaseAPIView):
         # in it, so an unscoped filter leaks sub-issue metadata across projects in the
         # same workspace.
         sub_issues = (
-            Issue.issue_objects.filter(
-                parent_id=issue_id, workspace__slug=slug, project_id=project_id
-            )
+            Issue.issue_objects.filter(parent_id=issue_id, workspace__slug=slug, project_id=project_id)
             .annotate(
                 cycle_id=Subquery(
                     CycleIssue.objects.filter(issue=OuterRef("id"), deleted_at__isnull=True).values("cycle_id")[:1]
@@ -80,7 +79,7 @@ class SubIssuesEndpoint(BaseAPIView):
             .annotate(
                 sub_issues_count=Coalesce(
                     Subquery(
-                        Issue.issue_objects.filter(parent=OuterRef("id"))
+                        Issue.issue_objects.filter(guest_visible_issues_q(self.request.user), parent=OuterRef("id"))
                         .order_by()
                         .values("parent")
                         .annotate(count=Count("id"))
@@ -211,9 +210,7 @@ class SubIssuesEndpoint(BaseAPIView):
         # SECURITY: bind the parent issue to the URL workspace + project. A bare
         # pk lookup let any project member re-parent issues under a parent in a
         # different project/workspace.
-        parent_issue = Issue.issue_objects.filter(
-            pk=issue_id, workspace__slug=slug, project_id=project_id
-        ).first()
+        parent_issue = Issue.issue_objects.filter(pk=issue_id, workspace__slug=slug, project_id=project_id).first()
         if parent_issue is None:
             return Response(
                 {"error": "Parent issue not found"},
@@ -228,9 +225,7 @@ class SubIssuesEndpoint(BaseAPIView):
             )
 
         # Scope to workspace + project to prevent cross-project/cross-tenant IDOR
-        sub_issues = Issue.issue_objects.filter(
-            id__in=sub_issue_ids, workspace__slug=slug, project_id=project_id
-        )
+        sub_issues = Issue.issue_objects.filter(id__in=sub_issue_ids, workspace__slug=slug, project_id=project_id)
 
         for sub_issue in sub_issues:
             sub_issue.parent = parent_issue

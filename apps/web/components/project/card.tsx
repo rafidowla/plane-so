@@ -79,6 +79,8 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
   );
   // auth
   const isMemberOfProject = !!project.member_role;
+  // FORK: guest-access PSR-119 — workspace Guests cannot join projects (the API answers 403), so no Join actions
+  const canJoinProject = !allowPermissions([EUserPermissions.GUEST], EUserPermissionsLevel.WORKSPACE);
   const hasAdminRole = project.member_role === EUserPermissions.ADMIN;
   const hasMemberRole = project.member_role === EUserPermissions.MEMBER;
   // archive
@@ -153,7 +155,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
       action: () => setJoinProjectModal(true),
       title: "Join",
       icon: UserPlusOutline,
-      shouldRender: !isMemberOfProject && !isArchived,
+      shouldRender: !isMemberOfProject && !isArchived && canJoinProject,
     },
     {
       key: "open-new-tab",
@@ -369,7 +371,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
                       Joined
                     </span>
                   ))}
-                {!isMemberOfProject && (
+                {!isMemberOfProject && canJoinProject && (
                   <div className="flex items-center">
                     <Button
                       variant="ghost"

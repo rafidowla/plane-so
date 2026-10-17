@@ -26,7 +26,7 @@ import { Button } from "@makeplane/propel/components/button";
 import { setToast } from "@plane/blocks/toast";
 import type { TIssue } from "@plane/types";
 import { Switch } from "@makeplane/propel/components/switch";
-import { renderFormattedPayloadDate, getTabIndex } from "@plane/utils";
+import { renderFormattedPayloadDate, getTabIndex, pickGuestWorkItemPayload } from "@plane/utils";
 // hooks
 import { useProjectInbox } from "@/hooks/store/use-project-inbox";
 import { useWorkspace } from "@/hooks/store/use-workspace";
@@ -35,6 +35,8 @@ import useKeypress from "@/hooks/use-keypress";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // services
 import { FileService } from "@/services/file.service";
+// FORK: guest-access PSR-119
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // local imports
 import { InboxIssueDescription } from "./issue-description";
 import { InboxIssueProperties } from "./issue-properties";
@@ -79,6 +81,8 @@ export const InboxIssueCreateRoot = observer(function InboxIssueCreateRoot(props
   const workspaceId = getWorkspaceBySlug(workspaceSlug)?.id;
   const { isMobile } = usePlatformOS();
   const { t } = useTranslation();
+  // FORK: guest-access PSR-119 — a project Guest's intake submission carries title, description, priority and labels only
+  const { isGuest } = useGuestWorkItemAccess(workspaceSlug, projectId);
   // states
   const [createMore, setCreateMore] = useState<boolean>(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -139,7 +143,7 @@ export const InboxIssueCreateRoot = observer(function InboxIssueCreateRoot(props
       return;
     }
 
-    const payload: Partial<TIssue> = {
+    const fullPayload: Partial<TIssue> = {
       name: formData.name || "",
       description_html: formData.description_html || "<p></p>",
       priority: formData.priority || "none",
@@ -148,6 +152,8 @@ export const InboxIssueCreateRoot = observer(function InboxIssueCreateRoot(props
       assignee_ids: formData.assignee_ids || [],
       target_date: formData.target_date || null,
     };
+    // FORK: guest-access PSR-119 — drop the team-only fields (the API answers 400 for any with a value)
+    const payload: Partial<TIssue> = isGuest ? pickGuestWorkItemPayload(fullPayload) : fullPayload;
     setFormSubmitting(true);
 
     await createInboxIssue(workspaceSlug, projectId, payload)

@@ -47,6 +47,7 @@ from .. import BaseViewSet
 from plane.db.models import UserFavorite
 from plane.utils.filters import ComplexFilterBackend
 from plane.utils.filters import IssueFilterSet
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 
 
 class WorkspaceViewViewSet(BaseViewSet):
@@ -83,6 +84,11 @@ class WorkspaceViewViewSet(BaseViewSet):
         views = IssueViewSerializer(queryset, many=True, fields=fields if fields else None).data
         return Response(views, status=status.HTTP_200_OK)
 
+    # FORK: put-permission — PUT fell through to ModelViewSet.update (IsAuthenticated only), so anyone who
+    # could see a public workspace view could rewrite it; partial_update is owner-only.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @allow_permission(allowed_roles=[], level="WORKSPACE", creator=True, model=IssueView)
     def partial_update(self, request, slug, pk):
         with transaction.atomic():
@@ -105,6 +111,9 @@ class WorkspaceViewViewSet(BaseViewSet):
                 return Response(serializer.data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # FORK: put-permission — had no permission check, so a user from any workspace could read this
+    # workspace's public views; gate it like ``list``.
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def retrieve(self, request, slug, pk):
         issue_view = self.get_queryset().filter(pk=pk).first()
         serializer = IssueViewSerializer(issue_view)
@@ -190,7 +199,9 @@ class WorkspaceViewIssuesViewSet(BaseViewSet):
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -345,6 +356,11 @@ class IssueViewViewSet(BaseViewSet):
             user_id=request.user.id,
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # FORK: put-permission — PUT fell through to ModelViewSet.update (IsAuthenticated only), so any project
+    # member who could see a public view could rewrite it; partial_update is owner-only.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
     @allow_permission(allowed_roles=[], creator=True, model=IssueView)
     def partial_update(self, request, slug, project_id, pk):

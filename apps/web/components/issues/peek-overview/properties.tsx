@@ -40,6 +40,8 @@ import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserProfile } from "@/hooks/store/user";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // plane web components
 import { IssueParentSelectRoot } from "@/components/issues/parent-select-root";
 import type { TIssueOperations } from "../issue-detail";
@@ -68,6 +70,8 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
   const { data: userProfile } = useUserProfile();
   // derived values
   const issue = getIssueById(issueId);
+  // FORK: guest-access (PSR-119) — a guest on their own (non-archived) work item can edit priority and labels only
+  const { isGuestEditable } = useGuestWorkItemAccess(workspaceSlug, projectId, issue?.created_by, issue?.archived_at);
   if (!issue) return <></>;
   const createdByDetails = getUserDetails(issue?.created_by);
   const projectDetails = getProjectById(issue.project_id);
@@ -116,7 +120,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
             testId="work-item-priority-select"
             value={issue?.priority}
             onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { priority: val })}
-            disabled={disabled}
+            disabled={disabled && !isGuestEditable} // FORK: guest-access (PSR-119)
             variant="select-ghost-md"
             tooltip
           />
@@ -231,7 +235,12 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
         </SidebarPropertyListItem>
 
         <SidebarPropertyListItem icon={LabelsOutline} label={t("common.labels")}>
-          <IssueLabel workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />
+          <IssueLabel
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            issueId={issueId}
+            disabled={disabled && !isGuestEditable} // FORK: guest-access (PSR-119)
+          />
         </SidebarPropertyListItem>
 
         {/* FORK: time-tracking */}

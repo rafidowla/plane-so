@@ -59,6 +59,8 @@ import { TaskTypeHeaderSelect } from "@/plane-web/custom-properties";
 // FORK: create-modal-attachments (PSR-88)
 import { PendingAttachmentsField } from "@/plane-web/create-modal-attachments";
 import type { TPendingAttachmentQueue } from "@/plane-web/create-modal-attachments";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // FORK: draft-project-change (PSR-92)
 import { DraftProjectChangeNotice, useDraftProjectChange } from "@/plane-web/components/issues/draft-project-change";
 
@@ -173,6 +175,10 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
 
   const projectId = watch("project_id");
 
+  // FORK: guest-access (PSR-119) — in a project where the user is a Guest the form offers title, description,
+  // priority, labels and attachments only (the project can be switched in the form, so this follows the selection)
+  const { isGuest } = useGuestWorkItemAccess(workspaceSlug?.toString(), projectId);
+
   // FORK: draft-project-change (PSR-92) — switching a draft's project re-maps its fields instead of wiping them
   const previousProjectIdRef = useRef<string | null | undefined>(projectId);
   const {
@@ -264,7 +270,9 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
     }
 
     // check for required properties validation
+    // FORK: guest-access (PSR-119) — guests cannot fill custom properties, so they are not validated for them
     if (
+      !isGuest &&
       !handlePropertyValuesValidation({
         projectId: projectId,
         workspaceSlug: workspaceSlug?.toString(),
@@ -418,7 +426,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                     handleFormChange={handleFormChange}
                   />
                   {/* FORK: custom-properties — Task Type next to the project selector (improvement #20) */}
-                  {!data?.id && !data?.sourceIssueId && (
+                  {!isGuest && !data?.id && !data?.sourceIssueId && (
                     <TaskTypeHeaderSelect
                       workspaceSlug={workspaceSlug?.toString()}
                       projectId={projectId ?? null}
@@ -429,7 +437,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
               </div>
               {/* FORK: draft-project-change (PSR-92) */}
               <DraftProjectChangeNotice notice={draftProjectChangeNotice} onDismiss={dismissDraftProjectChangeNotice} />
-              {watch("parent_id") && selectedParentIssue && (
+              {!isGuest && watch("parent_id") && selectedParentIssue && (
                 <IssueParentTag
                   control={control}
                   selectedParentIssue={selectedParentIssue}
@@ -469,13 +477,16 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
               {attachmentQueue && !isDraft && !data?.id && (
                 <PendingAttachmentsField queue={attachmentQueue} disabled={isSubmitting} />
               )}
-              {/* FORK: custom-properties — upstream dropped this render slot with its ce/ tree */}
-              <WorkItemModalAdditionalProperties
-                isDraft={isDraft}
-                workItemId={data?.id ?? data?.sourceIssueId}
-                projectId={projectId}
-                workspaceSlug={workspaceSlug?.toString()}
-              />
+              {/* FORK: custom-properties — upstream dropped this render slot with its ce/ tree.
+                  FORK: guest-access (PSR-119) — hidden for guests (custom properties are team-only) */}
+              {!isGuest && (
+                <WorkItemModalAdditionalProperties
+                  isDraft={isDraft}
+                  workItemId={data?.id ?? data?.sourceIssueId}
+                  projectId={projectId}
+                  workspaceSlug={workspaceSlug?.toString()}
+                />
+              )}
             </DialogBody>
             <div className="shrink-0">
               <IssueDefaultProperties
@@ -488,6 +499,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 targetDate={watch("target_date")}
                 parentId={watch("parent_id")}
                 isDraft={isDraft}
+                isGuest={isGuest} // FORK: guest-access (PSR-119)
                 handleFormChange={handleFormChange}
                 setSelectedParentIssue={setSelectedParentIssue}
               />

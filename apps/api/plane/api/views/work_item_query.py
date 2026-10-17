@@ -18,7 +18,6 @@ created unless the project has ``guest_view_all_features``. It is applied as
 from collections import defaultdict
 from datetime import date
 
-from django.db.models import Q
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.response import Response
@@ -26,9 +25,10 @@ from rest_framework.response import Response
 from plane.api.pql import PQLContext, PQLParamError, compile_request_filters
 from plane.api.serializers import IssueSerializer
 from plane.api.views.base import BaseAPIView
+from plane.api.views.guest_access import visible_issues_q  # FORK: guest-access — moved to guest_access.py
 from plane.api.views.issue import IssueListCreateAPIEndpoint
-from plane.app.permissions import ROLE, WorkspaceEntityPermission
-from plane.db.models import CycleIssue, Issue, IssueAssignee, IssueLabel, ModuleIssue, ProjectMember
+from plane.app.permissions import WorkspaceEntityPermission
+from plane.db.models import CycleIssue, Issue, IssueAssignee, IssueLabel, ModuleIssue
 from plane.utils.openapi import (
     CURSOR_PARAMETER,
     EXPAND_PARAMETER,
@@ -68,22 +68,6 @@ THROUGH_GROUPS = {
 }
 SUPPORTED_GROUPS = (*DIRECT_GROUPS, *THROUGH_GROUPS)
 NONE_KEY = "None"
-
-
-def visible_issues_q(user, slug) -> Q:
-    """Issues ``user`` may see in workspace ``slug`` (see module docstring)."""
-    memberships = ProjectMember.objects.filter(
-        member=user,
-        is_active=True,
-        workspace__slug=slug,
-        project__archived_at__isnull=True,
-        project__deleted_at__isnull=True,
-    )
-    full_access = memberships.filter(
-        Q(role__gt=ROLE.GUEST.value) | Q(role=ROLE.GUEST.value, project__guest_view_all_features=True)
-    ).values("project_id")
-    own_only = memberships.filter(role=ROLE.GUEST.value, project__guest_view_all_features=False).values("project_id")
-    return Q(project_id__in=full_access) | Q(project_id__in=own_only, created_by=user)
 
 
 def _filter_q_or_error(request, slug):

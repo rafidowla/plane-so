@@ -13,7 +13,7 @@ import { EIssuesStoreType, EUserWorkspaceRoles } from "@plane/types";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useUser, useUserPermissions } from "@/hooks/store/user";
 
 export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
   // plane imports
@@ -22,6 +22,7 @@ export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
   const { workspaceProjectIds } = useProject();
   const { toggleCreateIssueModal, toggleCreateProjectModal } = useCommandPalette();
   const { allowPermissions } = useUserPermissions();
+  const { canCreateWorkItemInAnyProject } = useUser(); // FORK: guest-access (PSR-119)
   // derived values
   const hasMemberLevelPermission = allowPermissions(
     [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
@@ -61,7 +62,7 @@ export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
           onClick: () => {
             toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
           },
-          disabled: !hasMemberLevelPermission,
+          disabled: !canCreateWorkItemInAnyProject, // FORK: guest-access (PSR-119) — project guests can raise work items
           variant: "primary",
         },
       ]}

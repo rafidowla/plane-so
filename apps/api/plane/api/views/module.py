@@ -41,9 +41,11 @@ from plane.db.models import (
 )
 
 from .base import BaseAPIView
+from .guest_access import guest_count_q, visible_issues_q  # FORK: guest-access PSR-119
 from plane.bgtasks.webhook_task import model_activity
 from plane.utils.host import base_host
 from plane.utils.order_queryset import ISSUE_ORDER_BY_ALLOWLIST, MODULE_ORDER_BY_ALLOWLIST, sanitize_order_by
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 from plane.utils.openapi import (
     module_docs,
     module_issue_docs,
@@ -85,6 +87,8 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts only include the work items they can see
+        guest_scope = guest_count_q(self.request.user, self.kwargs.get("project_id"), "issue_module__issue")
         return (
             Module.objects.filter(project_id=self.kwargs.get("project_id"))
             .filter(workspace__slug=self.kwargs.get("slug"))
@@ -101,7 +105,8 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 total_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
                         issue_module__deleted_at__isnull=True,
@@ -112,7 +117,8 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 completed_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="completed",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -124,7 +130,8 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 cancelled_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="cancelled",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -136,7 +143,8 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 started_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="started",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -148,7 +156,8 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 unstarted_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="unstarted",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -160,7 +169,8 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 backlog_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="backlog",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -336,6 +346,8 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts only include the work items they can see
+        guest_scope = guest_count_q(self.request.user, self.kwargs.get("project_id"), "issue_module__issue")
         return (
             Module.objects.filter(project_id=self.kwargs.get("project_id"))
             .filter(workspace__slug=self.kwargs.get("slug"))
@@ -352,7 +364,8 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 total_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
                         issue_module__deleted_at__isnull=True,
@@ -363,7 +376,8 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 completed_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="completed",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -375,7 +389,8 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 cancelled_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="cancelled",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -387,7 +402,8 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 started_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="started",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -399,7 +415,8 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 unstarted_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="unstarted",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -411,7 +428,8 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 backlog_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="backlog",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -595,7 +613,9 @@ class ModuleIssueListCreateAPIEndpoint(BaseAPIView):
     def get_queryset(self):
         return (
             ModuleIssue.objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("issue"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("issue")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -651,7 +671,9 @@ class ModuleIssueListCreateAPIEndpoint(BaseAPIView):
         issues = (
             Issue.issue_objects.filter(issue_module__module_id=module_id, issue_module__deleted_at__isnull=True)
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -659,6 +681,9 @@ class ModuleIssueListCreateAPIEndpoint(BaseAPIView):
             .annotate(bridge_id=F("issue_module__id"))
             .filter(project_id=project_id)
             .filter(workspace__slug=slug)
+            .filter(
+                visible_issues_q(request.user, slug)
+            )  # FORK: guest-access PSR-119 — restricted guests see only their own
             .select_related("project")
             .select_related("workspace")
             .select_related("state")
@@ -801,7 +826,9 @@ class ModuleIssueDetailAPIEndpoint(BaseAPIView):
     def get_queryset(self):
         return (
             ModuleIssue.objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("issue"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("issue")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -861,7 +888,9 @@ class ModuleIssueDetailAPIEndpoint(BaseAPIView):
                 pk=issue_id,
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -869,6 +898,9 @@ class ModuleIssueDetailAPIEndpoint(BaseAPIView):
             .annotate(bridge_id=F("issue_module__id"))
             .filter(project_id=project_id)
             .filter(workspace__slug=slug)
+            .filter(
+                visible_issues_q(request.user, slug)
+            )  # FORK: guest-access PSR-119 — restricted guests see only their own
             .select_related("project")
             .select_related("workspace")
             .select_related("state")
@@ -943,6 +975,8 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts only include the work items they can see
+        guest_scope = guest_count_q(self.request.user, self.kwargs.get("project_id"), "issue_module__issue")
         return (
             Module.objects.filter(project_id=self.kwargs.get("project_id"))
             .filter(workspace__slug=self.kwargs.get("slug"))
@@ -960,7 +994,8 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 total_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
                         issue_module__deleted_at__isnull=True,
@@ -971,7 +1006,8 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 completed_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="completed",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -983,7 +1019,8 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 cancelled_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="cancelled",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -995,7 +1032,8 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 started_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="started",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -1007,7 +1045,8 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 unstarted_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="unstarted",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -1019,7 +1058,8 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 backlog_issues=Count(
                     "issue_module__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="backlog",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,

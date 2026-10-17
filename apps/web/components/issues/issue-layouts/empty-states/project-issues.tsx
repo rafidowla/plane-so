@@ -15,6 +15,8 @@ import { EIssuesStoreType, EUserProjectRoles } from "@plane/types";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useWorkItemFilterInstance } from "@/hooks/store/work-item-filters/use-work-item-filter-instance";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 
 export const ProjectEmptyState = observer(function ProjectEmptyState() {
   // router
@@ -25,6 +27,9 @@ export const ProjectEmptyState = observer(function ProjectEmptyState() {
   // store hooks
   const { toggleCreateIssueModal } = useCommandPalette();
   const { allowPermissions } = useUserPermissions();
+  const { workspaceSlug } = useParams();
+  // FORK: guest-access (PSR-119) — project guests can raise work items
+  const { canCreateWorkItem } = useGuestWorkItemAccess(workspaceSlug?.toString(), projectId);
   // derived values
   const projectWorkItemFilter = useWorkItemFilterInstance(EIssuesStoreType.PROJECT, projectId);
 
@@ -60,7 +65,7 @@ export const ProjectEmptyState = observer(function ProjectEmptyState() {
               onClick: () => {
                 toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
               },
-              disabled: !canPerformEmptyStateActions,
+              disabled: !canCreateWorkItem, // FORK: guest-access (PSR-119) — was canPerformEmptyStateActions
               variant: "primary",
             },
           ]}

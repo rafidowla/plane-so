@@ -155,7 +155,9 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
 
   // Calculate width for: projectIdentifier + "-" + dynamic sequence number digits
   // Use next_work_item_sequence from backend (static value from project endpoint)
-  const maxSequenceId = currentProjectNextSequenceId ?? 1;
+  // FORK: guest-access PSR-119 — restricted guests get no next sequence (it would reveal the project's item count),
+  // so size the key column to the row's own sequence id instead
+  const maxSequenceId = Math.max(currentProjectNextSequenceId ?? 1, issue?.sequence_id ?? 1);
   const keyMinWidth = displayProperties?.key
     ? calculateIdentifierWidth(projectIdentifier?.length ?? 0, maxSequenceId)
     : 0;

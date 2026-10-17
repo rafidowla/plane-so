@@ -22,12 +22,21 @@ type Props = {
   projectId: string;
   issueId: string;
   disabled: boolean;
+  attachmentsDisabled?: boolean; // FORK: guest-access (PSR-119)
   issueServiceType: TIssueServiceType;
   hideWidgets?: TWorkItemWidgets[];
 };
 
 export const IssueDetailWidgetCollapsibles = observer(function IssueDetailWidgetCollapsibles(props: Props) {
-  const { workspaceSlug, projectId, issueId, disabled, issueServiceType, hideWidgets } = props;
+  const {
+    workspaceSlug,
+    projectId,
+    issueId,
+    disabled,
+    attachmentsDisabled = disabled,
+    issueServiceType,
+    hideWidgets,
+  } = props;
   // store hooks
   const {
     issue: { getIssueById },
@@ -83,7 +92,7 @@ export const IssueDetailWidgetCollapsibles = observer(function IssueDetailWidget
           workspaceSlug={workspaceSlug}
           projectId={projectId}
           issueId={issueId}
-          disabled={disabled}
+          disabled={attachmentsDisabled}
           issueServiceType={issueServiceType}
         />
       )}

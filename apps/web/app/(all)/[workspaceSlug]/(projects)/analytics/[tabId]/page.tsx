@@ -15,6 +15,7 @@ import { Tab, Tabs, TabsList, TabsPanel } from "@makeplane/propel/components/tab
 // components
 import { cn } from "@plane/utils";
 import AnalyticsFilterActions from "@/components/analytics/analytics-filter-actions";
+import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view";
 import { PageHead } from "@/components/core/page-title";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
@@ -65,6 +66,9 @@ function AnalyticsPage({ params }: Route.ComponentProps) {
     setSelectedTab(value);
     router.push(`/${currentWorkspace?.slug}/analytics/${value}`);
   };
+
+  // FORK: guest-access PSR-119 — analytics are hidden from workspace guests (the API answers 403 as well)
+  if (!canPerformEmptyStateActions) return <NotAuthorizedView section="general" className="h-auto" />;
 
   return (
     <>

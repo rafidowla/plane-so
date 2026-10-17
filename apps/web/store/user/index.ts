@@ -9,6 +9,7 @@ import { action, makeObservable, observable, runInAction, computed } from "mobx"
 // plane imports
 import { EUserPermissions, API_BASE_URL } from "@plane/constants";
 import type { IUser, TUserPermissions } from "@plane/types";
+import { canCreateWorkItemInProject } from "@plane/utils";
 // plane web imports
 import type { RootStore } from "@/store/root.store";
 import type { IUserPermissionStore } from "@/store/user/base-permissions.store";
@@ -54,6 +55,9 @@ export interface IUserStore {
   // computed
   canPerformAnyCreateAction: boolean;
   projectsWithCreatePermissions: { [projectId: string]: number } | null;
+  // FORK: guest-access (PSR-119)
+  projectsWithWorkItemCreatePermissions: { [projectId: string]: number };
+  canCreateWorkItemInAnyProject: boolean;
 }
 
 export class UserStore implements IUserStore {
@@ -102,6 +106,9 @@ export class UserStore implements IUserStore {
       // computed
       canPerformAnyCreateAction: computed,
       projectsWithCreatePermissions: computed,
+      // FORK: guest-access (PSR-119)
+      projectsWithWorkItemCreatePermissions: computed,
+      canCreateWorkItemInAnyProject: computed,
     });
   }
 
@@ -303,5 +310,30 @@ export class UserStore implements IUserStore {
   get canPerformAnyCreateAction() {
     const filteredProjects = this.fetchProjectsWithCreatePermissions();
     return filteredProjects ? Object.keys(filteredProjects).length > 0 : false;
+  }
+
+  /**
+   * FORK: guest-access (PSR-119) — projects where the user may raise a work item: every project they are a member
+   * of, project Guests included (unlike `projectsWithCreatePermissions`, which stays Member+ for cycles, modules,
+   * exports and the like).
+   */
+  get projectsWithWorkItemCreatePermissions() {
+    const { workspaceSlug } = this.store.router;
+    const allWorkspaceProjectRoles = this.permission.getProjectRolesByWorkspaceSlug(workspaceSlug || "");
+    return Object.keys(allWorkspaceProjectRoles ?? {})
+      .filter((projectId) => canCreateWorkItemInProject(allWorkspaceProjectRoles[projectId]))
+      .reduce(
+        (res: { [projectId: string]: number }, projectId) => (
+          (res[projectId] = allWorkspaceProjectRoles[projectId]), res
+        ),
+        {}
+      );
+  }
+
+  /**
+   * FORK: guest-access (PSR-119) — true if the user can raise a work item in at least one project (guests included)
+   */
+  get canCreateWorkItemInAnyProject() {
+    return Object.keys(this.projectsWithWorkItemCreatePermissions).length > 0;
   }
 }

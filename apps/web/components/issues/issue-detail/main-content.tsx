@@ -21,6 +21,8 @@ import { useMember } from "@/hooks/store/use-member";
 import { useUser } from "@/hooks/store/user";
 import useReloadConfirmations from "@/hooks/use-reload-confirmation";
 import useSize from "@/hooks/use-window-size";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // services
 import { WorkItemVersionService } from "@/services/issue";
 // local imports
@@ -61,6 +63,9 @@ export const IssueMainContent = observer(function IssueMainContent(props: Props)
   const { setShowAlert } = useReloadConfirmations(isSubmitting === "submitting");
   // derived values
   const issue = issueId ? getIssueById(issueId) : undefined;
+  // FORK: guest-access (PSR-119) — a guest can edit the title and description of their own work item, and attach files
+  const { canGuestEdit, isGuest } = useGuestWorkItemAccess(workspaceSlug, projectId, issue?.created_by);
+  const isTextEditable = isEditable || canGuestEdit;
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -102,14 +107,14 @@ export const IssueMainContent = observer(function IssueMainContent(props: Props)
           isSubmitting={isSubmitting}
           setIsSubmitting={(value) => setIsSubmitting(value)}
           issueOperations={issueOperations}
-          disabled={isArchived || !isEditable}
+          disabled={isArchived || !isTextEditable}
           value={issue.name}
         />
 
         <DescriptionInput
           issueSequenceId={issue.sequence_id}
           containerClassName="-ml-6 border-none p-0! pl-6!"
-          disabled={isArchived || !isEditable}
+          disabled={isArchived || !isTextEditable}
           editorRef={editorRef}
           entityId={issue.id}
           fileAssetType={EFileAssetType.ISSUE_DESCRIPTION}
@@ -166,6 +171,8 @@ export const IssueMainContent = observer(function IssueMainContent(props: Props)
         projectId={projectId}
         issueId={issueId}
         disabled={!isEditable || isArchived}
+        attachmentsDisabled={!(isEditable || canGuestEdit) || isArchived} // FORK: guest-access (PSR-119)
+        hideActionButtons={isGuest && isArchived} // FORK: guest-access (PSR-119)
         renderWidgetModals={!isPeekModeActive}
         issueServiceType={EIssueServiceType.ISSUES}
       />

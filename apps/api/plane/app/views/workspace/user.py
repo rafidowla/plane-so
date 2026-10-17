@@ -58,6 +58,7 @@ from plane.utils.grouper import (
     issue_on_results,
     issue_queryset_grouper,
 )
+from plane.utils.guest_work_item import guest_active_project_q, guest_visible_issues_q  # FORK: guest-access PSR-119
 from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import ACTIVITY_ORDER_BY_ALLOWLIST, order_issue_queryset, sanitize_order_by
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
@@ -124,7 +125,9 @@ class WorkspaceUserProfileIssuesEndpoint(BaseAPIView):
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -137,6 +140,8 @@ class WorkspaceUserProfileIssuesEndpoint(BaseAPIView):
 
         order_by_param = request.GET.get("order_by", "-created_at")
         issue_queryset = Issue.issue_objects.filter(
+            # FORK: guest-access PSR-119 — a guest only lists work items they could open
+            guest_visible_issues_q(request.user),
             id__in=Issue.issue_objects.filter(
                 Q(assignees__in=[user_id]) | Q(created_by_id=user_id) | Q(issue_subscribers__subscriber_id=user_id),
                 workspace__slug=slug,
@@ -380,6 +385,8 @@ class WorkspaceUserActivityEndpoint(BaseAPIView):
 
         queryset = IssueActivity.objects.filter(
             ~Q(field__in=["comment", "vote", "reaction", "draft"]),
+            # FORK: guest-access PSR-119 — no activity on work items hidden from a guest
+            guest_visible_issues_q(request.user, creator_path="issue__created_by"),
             workspace__slug=slug,
             project__project_projectmember__member=request.user,
             project__project_projectmember__is_active=True,
@@ -405,9 +412,12 @@ class WorkspaceUserActivityEndpoint(BaseAPIView):
 class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
     def get(self, request, slug, user_id):
         filters = issue_filters(request.query_params, "GET")
+        # FORK: guest-access PSR-119 — in projects that hide others' work items a guest only counts their own
+        guest_visible = guest_visible_issues_q(request.user)
 
         state_distribution = (
             Issue.issue_objects.filter(
+                guest_visible,
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
@@ -424,6 +434,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
 
         priority_distribution = (
             Issue.issue_objects.filter(
+                guest_visible,
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
@@ -445,6 +456,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
 
         created_issues = (
             Issue.issue_objects.filter(
+                guest_visible,
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
                 project__project_projectmember__is_active=True,
@@ -456,6 +468,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
 
         assigned_issues_count = (
             Issue.issue_objects.filter(
+                guest_visible,
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
@@ -467,6 +480,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
 
         pending_issues_count = (
             Issue.issue_objects.filter(
+                guest_visible,
                 ~Q(state__group__in=["completed", "cancelled"]),
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
@@ -479,6 +493,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
 
         completed_issues_count = (
             Issue.issue_objects.filter(
+                guest_visible,
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 state__group="completed",
@@ -491,6 +506,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
 
         subscribed_issues_count = (
             IssueSubscriber.objects.filter(
+                guest_visible_issues_q(request.user, creator_path="issue__created_by"),
                 workspace__slug=slug,
                 subscriber_id=user_id,
                 project__project_projectmember__member=request.user,
@@ -501,13 +517,21 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
             .count()
         )
 
+        # FORK: guest-access PSR-119 — cycle names come only from work items the viewer can open, in projects they
+        # are still an active member of (a cycle name would otherwise reveal where others' items are planned)
+        cycle_guest_scope = guest_visible_issues_q(
+            request.user, creator_path="issue__created_by"
+        ) & guest_active_project_q(request.user, slug)
+
         upcoming_cycles = CycleIssue.objects.filter(
+            cycle_guest_scope,
             workspace__slug=slug,
             cycle__start_date__gt=timezone.now(),
             issue__assignees__in=[user_id],
         ).values("cycle__name", "cycle__id", "cycle__project_id")
 
         present_cycle = CycleIssue.objects.filter(
+            cycle_guest_scope,
             workspace__slug=slug,
             cycle__start_date__lt=timezone.now(),
             cycle__end_date__gt=timezone.now(),

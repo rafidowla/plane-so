@@ -87,6 +87,22 @@ from plane.utils.order_queryset import (
 )
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from .base import BaseAPIView
+from .guest_access import (  # FORK: guest-access — v1 enforces the same guest/ownership rules as the app
+    MODIFY_DENIED_MESSAGE,
+    ProjectGuestWritePermission,
+    can_modify_owned,
+    issue_view_denied,
+    visible_issues_q,
+)
+from plane.utils.guest_work_item import (  # FORK: guest-access PSR-119 — guests raise/edit their own work items
+    audit_created_at,
+    audit_created_by,
+    guest_archived_comment_denied,
+    guest_delete_denied,
+    guest_edit_denied,
+    guest_work_item_payload,
+    is_workspace_admin,
+)
 from plane.utils.host import base_host
 from plane.utils.issue_relation_mapper import get_actual_relation
 from plane.bgtasks.webhook_task import model_activity
@@ -161,6 +177,7 @@ from plane.utils.openapi import (
 from plane.bgtasks.work_item_link_task import crawl_work_item_link_title
 from plane.api.pql import PQLContext, PQLParamError, compile_request_filters  # FORK: PSR-85
 from plane.utils.openapi.pql_parameters import FILTERS_PARAMETER, PQL_PARAMETER  # FORK: PSR-85
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 
 
 def user_has_issue_permission(user_id, project_id, issue=None, allowed_roles=None, allow_creator=True):
@@ -197,7 +214,9 @@ class WorkspaceIssueAPIEndpoint(BaseAPIView):
     def get_queryset(self):
         return (
             Issue.issue_objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -244,7 +263,9 @@ class WorkspaceIssueAPIEndpoint(BaseAPIView):
             if not issue_identifier.isdecimal():
                 return Response({"error": "Work item not found"}, status=status.HTTP_404_NOT_FOUND)
             issue = Issue.issue_objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -253,6 +274,10 @@ class WorkspaceIssueAPIEndpoint(BaseAPIView):
                 project__identifier=project_identifier,
                 sequence_id=issue_identifier,
             )
+            # FORK: guest-access — restricted guests may only open their own work items (app returns the same 403)
+            denied = issue_view_denied(request, issue.project_id, issue=issue)
+            if denied:
+                return denied
             return Response(
                 IssueSerializer(issue, fields=self.fields, expand=self.expand).data,
                 status=status.HTTP_200_OK,
@@ -266,14 +291,18 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
 
     model = Issue
     webhook_event = "issue"
-    permission_classes = [ProjectEntityPermission]
+    # FORK: guest-access PSR-119 — a project Guest may create work items (allowed fields only)
+    permission_classes = [ProjectGuestWritePermission]
+    guest_write_methods = ("POST",)
     serializer_class = IssueSerializer
     use_read_replica = True
 
     def get_queryset(self):
         return (
             Issue.issue_objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -481,8 +510,14 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
         """
         project = Project.objects.get(pk=project_id)
 
+        # FORK: guest-access PSR-119 — a Guest may only send the allow-listed fields (state is always the
+        # project default); anything else with a value is a 400. Non-guests are unaffected.
+        data, error = guest_work_item_payload(request, project_id)
+        if error:
+            return error
+
         serializer = IssueSerializer(
-            data=request.data,
+            data=data,
             context={
                 "project_id": project_id,
                 "workspace_id": project.workspace_id,
@@ -518,14 +553,15 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             serializer.save()
             # Refetch the issue
             issue = Issue.objects.filter(workspace__slug=slug, project_id=project_id, pk=serializer.data["id"]).first()
-            issue.created_at = request.data.get("created_at", timezone.now())
-            issue.created_by_id = request.data.get("created_by", request.user.id)
+            # FORK: guest-access PSR-119 — only a workspace Admin may back-date / re-attribute (imports)
+            issue.created_at = audit_created_at(request, slug)
+            issue.created_by_id = audit_created_by(request, slug)
             issue.save(update_fields=["created_at", "created_by"])
 
             # Track the issue
             issue_activity.delay(
                 type="issue.activity.created",
-                requested_data=json.dumps(self.request.data, cls=DjangoJSONEncoder),
+                requested_data=json.dumps(data, cls=DjangoJSONEncoder),
                 actor_id=str(request.user.id),
                 issue_id=str(serializer.data.get("id", None)),
                 project_id=str(project_id),
@@ -539,7 +575,7 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             model_activity.delay(
                 model_name="issue",
                 model_id=str(serializer.data["id"]),
-                requested_data=request.data,
+                requested_data=data,
                 current_instance=None,
                 actor_id=request.user.id,
                 slug=slug,
@@ -554,14 +590,18 @@ class IssueDetailAPIEndpoint(BaseAPIView):
 
     model = Issue
     webhook_event = "issue"
-    permission_classes = [ProjectEntityPermission]
+    # FORK: guest-access PSR-119 — a project Guest may edit (PATCH) work items they created; never PUT/DELETE
+    permission_classes = [ProjectGuestWritePermission]
+    guest_write_methods = ("PATCH",)
     serializer_class = IssueSerializer
     use_read_replica = True
 
     def get_queryset(self):
         return (
             Issue.issue_objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -607,11 +647,17 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         """
 
         issue = Issue.issue_objects.annotate(
-            sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+            sub_issues_count=Issue.issue_objects.filter(
+                guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+            )
             .order_by()
             .annotate(count=Func(F("id"), function="Count"))
             .values("count")
         ).get(workspace__slug=slug, project_id=project_id, pk=pk)
+        # FORK: guest-access — restricted guests may only open their own work items (app returns the same 403)
+        denied = issue_view_denied(request, project_id, issue=issue)
+        if denied:
+            return denied
         return Response(
             IssueSerializer(issue, fields=self.fields, expand=self.expand).data,
             status=status.HTTP_200_OK,
@@ -740,8 +786,9 @@ class IssueDetailAPIEndpoint(BaseAPIView):
                     # If any of the created_at or created_by is present, update
                     # the issue with the provided data, else return with the
                     # default states given.
-                    issue.created_at = request.data.get("created_at", timezone.now())
-                    issue.created_by_id = request.data.get("created_by", request.user.id)
+                    # FORK: guest-access PSR-119 — only a workspace Admin may back-date / re-attribute
+                    issue.created_at = audit_created_at(request, slug)
+                    issue.created_by_id = audit_created_by(request, slug)
                     issue.save(update_fields=["created_at", "created_by"])
 
                     issue_activity.delay(
@@ -803,15 +850,25 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         """
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         project = Project.objects.get(pk=project_id)
+        # FORK: guest-access PSR-119 — a Guest may only edit their own work items, allow-listed fields only
+        denied = guest_edit_denied(request.user, project_id, issue.created_by_id)
+        if denied:
+            return denied
+        data, error = guest_work_item_payload(request, project_id)
+        if error:
+            return error
         current_instance = json.dumps(IssueSerializer(issue).data, cls=DjangoJSONEncoder)
-        requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
+        requested_data = json.dumps(data, cls=DjangoJSONEncoder)
         serializer = IssueSerializer(
             issue,
-            data=request.data,
+            data=data,
             context={"project_id": project_id, "workspace_id": project.workspace_id},
             partial=True,
         )
         if serializer.is_valid():
+            # FORK: guest-access PSR-119 — authorship is only (re)assignable by a workspace Admin
+            if "created_by" in serializer.validated_data and not is_workspace_admin(request.user, slug):
+                serializer.validated_data.pop("created_by")
             if (
                 request.data.get("external_id")
                 and (issue.external_id != str(request.data.get("external_id")))
@@ -846,7 +903,7 @@ class IssueDetailAPIEndpoint(BaseAPIView):
             model_activity.delay(
                 model_name="issue",
                 model_id=str(pk),
-                requested_data=request.data,
+                requested_data=data,
                 current_instance=current_instance,
                 actor_id=request.user.id,
                 slug=slug,
@@ -875,6 +932,10 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         Only admins or the item creator can perform this action.
         """
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
+        # FORK: guest-access PSR-119 — guests can never delete work items, not even their own
+        denied = guest_delete_denied(request.user, project_id)
+        if denied:
+            return denied
         if issue.created_by_id != request.user.id and (
             not ProjectMember.objects.filter(
                 workspace__slug=slug,
@@ -1186,6 +1247,10 @@ class IssueLinkListCreateAPIEndpoint(BaseAPIView):
 
         Retrieve all links associated with a work item.
         """
+        # FORK: guest-access — a restricted guest must not read links of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         return self.paginate(
             request=request,
             queryset=(self.get_queryset()),
@@ -1225,7 +1290,7 @@ class IssueLinkListCreateAPIEndpoint(BaseAPIView):
             serializer.save(project_id=project_id, issue_id=issue_id)
             crawl_work_item_link_title.delay(serializer.instance.id, serializer.instance.url)
             link = IssueLink.objects.get(pk=serializer.instance.id)
-            link.created_by_id = request.data.get("created_by", request.user.id)
+            link.created_by_id = audit_created_by(request, slug)  # FORK: guest-access PSR-119 — admin-only override
             link.save(update_fields=["created_by"])
             issue_activity.delay(
                 type="link.activity.created",
@@ -1290,6 +1355,10 @@ class IssueLinkDetailAPIEndpoint(BaseAPIView):
 
         Retrieve details of a specific work item link.
         """
+        # FORK: guest-access — a restricted guest must not read links of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         if pk is None:
             issue_links = self.get_queryset()
             serializer = IssueLinkSerializer(issue_links, fields=self.fields, expand=self.expand)
@@ -1447,6 +1516,10 @@ class IssueCommentListCreateAPIEndpoint(BaseAPIView):
 
         Retrieve all comments for a work item.
         """
+        # FORK: guest-access — a restricted guest must not read comments of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         return self.paginate(
             request=request,
             queryset=(self.get_queryset()),
@@ -1482,6 +1555,25 @@ class IssueCommentListCreateAPIEndpoint(BaseAPIView):
         Add a new comment to a work item with HTML content.
         Supports external ID tracking for integration purposes.
         """
+        # FORK: guest-access — bind the work item to the URL project and refuse restricted guests on items
+        # they cannot see (same 404 / 400 the app returns on comment create)
+        issue = Issue.objects.filter(pk=issue_id, workspace__slug=slug, project_id=project_id).first()
+        if issue is None:
+            return Response({"error": "Issue not found"}, status=status.HTTP_404_NOT_FOUND)
+        denied = issue_view_denied(
+            request,
+            project_id,
+            issue=issue,
+            message="You are not allowed to comment on the issue",
+            http_status=status.HTTP_400_BAD_REQUEST,
+        )
+        if denied:
+            return denied
+        # FORK: guest-access PSR-119 — guests cannot comment on archived work items
+        denied = guest_archived_comment_denied(request.user, project_id, issue)
+        if denied:
+            return denied
+
         # Validation check if the issue already exists
         if (
             request.data.get("external_id")
@@ -1512,9 +1604,11 @@ class IssueCommentListCreateAPIEndpoint(BaseAPIView):
             serializer.save(project_id=project_id, issue_id=issue_id, actor=request.user)
             issue_comment = IssueComment.objects.get(pk=serializer.instance.id)
             # Update the created_at and the created_by and save the comment
-            issue_comment.created_at = request.data.get("created_at", timezone.now())
-            issue_comment.created_by_id = request.data.get("created_by", request.user.id)
-            issue_comment.actor_id = request.data.get("created_by", request.user.id)
+            # FORK: guest-access PSR-119 — only a workspace Admin may back-date / re-attribute (imports)
+            created_by_id = audit_created_by(request, slug)
+            issue_comment.created_at = audit_created_at(request, slug)
+            issue_comment.created_by_id = created_by_id
+            issue_comment.actor_id = created_by_id
             issue_comment.save(update_fields=["created_at", "created_by"])
 
             issue_activity.delay(
@@ -1599,6 +1693,10 @@ class IssueCommentDetailAPIEndpoint(BaseAPIView):
 
         Retrieve details of a specific comment.
         """
+        # FORK: guest-access — a restricted guest must not read comments of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         issue_comment = self.get_queryset().get(pk=pk)
         serializer = IssueCommentSerializer(issue_comment, fields=self.fields, expand=self.expand)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1632,6 +1730,13 @@ class IssueCommentDetailAPIEndpoint(BaseAPIView):
         Validates external ID uniqueness if provided.
         """
         issue_comment = IssueComment.objects.get(workspace__slug=slug, project_id=project_id, issue_id=issue_id, pk=pk)
+        # FORK: guest-access — only the author or a project/workspace admin may edit a comment (as in the app)
+        if not can_modify_owned(request.user, slug, project_id, issue_comment.created_by_id):
+            return Response({"error": MODIFY_DENIED_MESSAGE}, status=status.HTTP_403_FORBIDDEN)
+        # FORK: guest-access PSR-119 — guests cannot edit comments on archived work items
+        denied = guest_archived_comment_denied(request.user, project_id, issue_comment.issue)
+        if denied:
+            return denied
         requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
         current_instance = json.dumps(IssueCommentSerializer(issue_comment).data, cls=DjangoJSONEncoder)
 
@@ -1701,6 +1806,9 @@ class IssueCommentDetailAPIEndpoint(BaseAPIView):
         Records deletion activity for audit purposes.
         """
         issue_comment = IssueComment.objects.get(workspace__slug=slug, project_id=project_id, issue_id=issue_id, pk=pk)
+        # FORK: guest-access — only the author or a project/workspace admin may delete a comment (as in the app)
+        if not can_modify_owned(request.user, slug, project_id, issue_comment.created_by_id):
+            return Response({"error": MODIFY_DENIED_MESSAGE}, status=status.HTTP_403_FORBIDDEN)
         current_instance = json.dumps(IssueCommentSerializer(issue_comment).data, cls=DjangoJSONEncoder)
         issue_comment.delete()
         issue_activity.delay(
@@ -1747,6 +1855,10 @@ class IssueActivityListAPIEndpoint(BaseAPIView):
         Retrieve chronological activity logs for an issue.
         Excludes comment, vote, reaction, and draft activities.
         """
+        # FORK: guest-access — a restricted guest must not read the activity of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         issue_activities = (
             IssueActivity.objects.filter(issue_id=issue_id, workspace__slug=slug, project_id=project_id)
             .filter(
@@ -1804,6 +1916,10 @@ class IssueActivityDetailAPIEndpoint(BaseAPIView):
         Retrieve details of a specific activity.
         Excludes comment, vote, reaction, and draft activities.
         """
+        # FORK: guest-access — a restricted guest must not read the activity of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         issue_activity = (
             (
                 IssueActivity.objects.filter(issue_id=issue_id, workspace__slug=slug, project_id=project_id, id=pk)
@@ -1835,6 +1951,8 @@ class IssueAttachmentListCreateAPIEndpoint(BaseAPIView):
 
     serializer_class = IssueAttachmentSerializer
     model = FileAsset
+    # FORK: guest-access — was IsAuthenticated only; require active project membership
+    permission_classes = [ProjectLitePermission]
     use_read_replica = True
 
     @issue_attachment_docs(
@@ -1914,6 +2032,10 @@ class IssueAttachmentListCreateAPIEndpoint(BaseAPIView):
         Validates file type and size before creating the attachment record.
         """
         issue = Issue.objects.get(pk=issue_id, workspace__slug=slug, project_id=project_id)
+        # FORK: guest-access — a restricted guest cannot attach files to work items they cannot see
+        denied = issue_view_denied(request, project_id, issue=issue)
+        if denied:
+            return denied
         # if the user is creator or admin,member then allow the upload
         if not user_has_issue_permission(
             request.user.id,
@@ -2038,6 +2160,10 @@ class IssueAttachmentListCreateAPIEndpoint(BaseAPIView):
 
         List all attachments for an issue.
         """
+        # FORK: guest-access — a restricted guest must not list attachments of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         # Get all the attachments
         issue_attachments = FileAsset.objects.filter(
             issue_id=issue_id,
@@ -2056,6 +2182,8 @@ class IssueAttachmentDetailAPIEndpoint(BaseAPIView):
 
     serializer_class = IssueAttachmentSerializer
     model = FileAsset
+    # FORK: guest-access — was IsAuthenticated only; require active project membership
+    permission_classes = [ProjectLitePermission]
     use_read_replica = True
 
     @issue_attachment_docs(
@@ -2075,21 +2203,14 @@ class IssueAttachmentDetailAPIEndpoint(BaseAPIView):
         Soft delete an attachment from a work item by marking it as deleted.
         Records deletion activity and triggers metadata cleanup.
         """
-        issue = Issue.objects.get(pk=issue_id, workspace__slug=slug, project_id=project_id)
-        # if the request user is creator or admin then delete the attachment
-        if not user_has_issue_permission(
-            request.user.id,
-            project_id=project_id,
-            issue=issue,
-            allowed_roles=[ROLE.ADMIN.value, ROLE.MEMBER.value, ROLE.GUEST.value],
-            allow_creator=True,
-        ):
+        # FORK: guest-access — tie the attachment to the URL work item, and only the uploader or a
+        # project/workspace admin may delete it (as in the app); was: any project member/guest could
+        issue_attachment = FileAsset.objects.get(pk=pk, workspace__slug=slug, project_id=project_id, issue_id=issue_id)
+        if not can_modify_owned(request.user, slug, project_id, issue_attachment.created_by_id):
             return Response(
                 {"error": "You are not allowed to delete this attachment"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
-        issue_attachment = FileAsset.objects.get(pk=pk, workspace__slug=slug, project_id=project_id)
         issue_attachment.is_deleted = True
         issue_attachment.deleted_at = timezone.now()
         issue_attachment.save()
@@ -2162,8 +2283,13 @@ class IssueAttachmentDetailAPIEndpoint(BaseAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Get the asset
-        asset = FileAsset.objects.get(id=pk, workspace__slug=slug, project_id=project_id)
+        # FORK: guest-access — a restricted guest cannot download attachments of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
+
+        # Get the asset (FORK: guest-access — tied to the URL work item)
+        asset = FileAsset.objects.get(id=pk, workspace__slug=slug, project_id=project_id, issue_id=issue_id)
 
         # Check if the asset is uploaded
         if not asset.is_uploaded:
@@ -2214,6 +2340,10 @@ class IssueAttachmentDetailAPIEndpoint(BaseAPIView):
         """
 
         issue = Issue.objects.get(pk=issue_id, workspace__slug=slug, project_id=project_id)
+        # FORK: guest-access — a restricted guest cannot touch attachments of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue=issue)
+        if denied:
+            return denied
         # if the user is creator or admin then allow the upload
         if not user_has_issue_permission(
             request.user.id,
@@ -2227,7 +2357,8 @@ class IssueAttachmentDetailAPIEndpoint(BaseAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        issue_attachment = FileAsset.objects.get(pk=pk, workspace__slug=slug, project_id=project_id)
+        # FORK: guest-access — tied to the URL work item
+        issue_attachment = FileAsset.objects.get(pk=pk, workspace__slug=slug, project_id=project_id, issue_id=issue_id)
         serializer = IssueAttachmentSerializer(issue_attachment)
 
         # Send this activity only if the attachment is not uploaded before
@@ -2246,7 +2377,8 @@ class IssueAttachmentDetailAPIEndpoint(BaseAPIView):
 
             # Update the attachment
             issue_attachment.is_uploaded = True
-            issue_attachment.created_by = request.user
+            # FORK: guest-access — created_by is set at creation and must not be reassigned by whoever
+            # confirms the upload (the app dropped this line for GHSA-5mxw-g5mw-3v3w); ownership now gates delete
 
         # Get the storage metadata
         if not issue_attachment.storage_metadata:
@@ -2316,7 +2448,7 @@ class IssueSearchEndpoint(BaseAPIView):
             project__project_projectmember__is_active=True,
             project__archived_at__isnull=True,
             workspace__slug=slug,
-        )
+        ).filter(visible_issues_q(request.user, slug))  # FORK: guest-access — guests only find visible items
 
         # Apply project filter if not searching across workspace
         if workspace_search == "false" and project_id:
@@ -2409,9 +2541,18 @@ class IssueRelationListCreateAPIEndpoint(BaseAPIView):
         Retrieve all relationships for a work item organized by relation type.
         Returns a structured response with relations grouped by type.
         """
+        # FORK: guest-access — a restricted guest must not read relations of work items they cannot see
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
+        # FORK: guest-access PSR-119 — only list related work items the caller may see (ids of hidden items
+        # would otherwise leak to a restricted guest, or across projects the caller does not belong to)
+        visible_issue_ids = Issue.objects.filter(visible_issues_q(request.user, slug)).values("id")
         relations = IssueRelation.objects.filter(
             Q(issue_id=issue_id) | Q(related_issue_id=issue_id),
             workspace__slug=slug,
+            issue_id__in=visible_issue_ids,
+            related_issue_id__in=visible_issue_ids,
         ).values(
             "relation_type",
             "issue_id",

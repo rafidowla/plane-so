@@ -59,6 +59,7 @@ from plane.utils.cycle_transfer_issues import transfer_cycle_issues
 from .. import BaseAPIView, BaseViewSet
 from plane.bgtasks.webhook_task import model_activity
 from plane.utils.timezone_converter import convert_to_utc, user_timezone_converter
+from plane.utils.guest_work_item import guest_count_q, is_restricted_guest  # FORK: guest-access PSR-119
 
 
 class CycleViewSet(BaseViewSet):
@@ -74,6 +75,9 @@ class CycleViewSet(BaseViewSet):
             project_id=self.kwargs.get("project_id"),
             workspace__slug=self.kwargs.get("slug"),
         )
+
+        # FORK: guest-access PSR-119 — a restricted guest's counts/assignees only include work items they created
+        guest_scope = guest_count_q(self.request.user, self.kwargs.get("project_id"), "issue_cycle__issue")
 
         project = Project.objects.get(id=self.kwargs.get("project_id"))
 
@@ -115,7 +119,8 @@ class CycleViewSet(BaseViewSet):
                 total_issues=Count(
                     "issue_cycle__issue__id",
                     distinct=True,
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
                         issue_cycle__deleted_at__isnull=True,
@@ -127,7 +132,8 @@ class CycleViewSet(BaseViewSet):
                 completed_issues=Count(
                     "issue_cycle__issue__id",
                     distinct=True,
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="completed",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -140,7 +146,8 @@ class CycleViewSet(BaseViewSet):
                 cancelled_issues=Count(
                     "issue_cycle__issue__id",
                     distinct=True,
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group__in=["cancelled"],
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -170,7 +177,8 @@ class CycleViewSet(BaseViewSet):
                     ArrayAgg(
                         "issue_cycle__issue__assignees__id",
                         distinct=True,
-                        filter=~Q(issue_cycle__issue__assignees__id__isnull=True)
+                        filter=guest_scope
+                        & ~Q(issue_cycle__issue__assignees__id__isnull=True)
                         & (Q(issue_cycle__issue__issue_assignee__deleted_at__isnull=True)),
                     ),
                     Value([], output_field=ArrayField(UUIDField())),
@@ -179,6 +187,14 @@ class CycleViewSet(BaseViewSet):
             .order_by("-is_favorite", "name")
             .distinct()
         )
+
+    def _hide_snapshot_from_guest(self, request, project_id, data):
+        # FORK: guest-access PSR-119 — ``progress_snapshot`` was frozen over every work item (including ones a
+        # restricted guest cannot see), so it is blanked for them; the live ``*_issues`` counts above are scoped.
+        if is_restricted_guest(request.user, project_id):
+            for cycle in data:
+                cycle["progress_snapshot"] = {}
+        return data
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def list(self, request, slug, project_id):
@@ -234,7 +250,7 @@ class CycleViewSet(BaseViewSet):
             data = user_timezone_converter(data, datetime_fields, project_timezone)
 
             if data:
-                return Response(data, status=status.HTTP_200_OK)
+                return Response(self._hide_snapshot_from_guest(request, project_id, data), status=status.HTTP_200_OK)
 
         data = queryset.values(
             # necessary fields
@@ -265,7 +281,7 @@ class CycleViewSet(BaseViewSet):
         )
         datetime_fields = ["start_date", "end_date"]
         data = user_timezone_converter(data, datetime_fields, project_timezone)
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(self._hide_snapshot_from_guest(request, project_id, data), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def create(self, request, slug, project_id):
@@ -331,6 +347,11 @@ class CycleViewSet(BaseViewSet):
                 {"error": "Both start date and end date are either required or are to be null"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    # FORK: put-permission — PUT fell through to ModelViewSet.update (IsAuthenticated only), so project
+    # guests could write cycle fields; route it through the role-checked partial_update.
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def partial_update(self, request, slug, project_id, pk):
@@ -658,11 +679,15 @@ class CycleUserPropertiesEndpoint(BaseAPIView):
 class CycleProgressEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id, cycle_id):
+        # FORK: guest-access PSR-119 — a restricted guest only sees counts of the work items they created
+        guest_q = guest_count_q(request.user, project_id)
+        restricted_guest = is_restricted_guest(request.user, project_id)
         cycle = Cycle.objects.filter(workspace__slug=slug, project_id=project_id, id=cycle_id).first()
         if not cycle:
             return Response({"error": "Cycle not found"}, status=status.HTTP_404_NOT_FOUND)
         aggregate_estimates = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
@@ -709,7 +734,8 @@ class CycleProgressEndpoint(BaseAPIView):
                 total_estimate_points=Sum("value_as_float", default=Value(0), output_field=FloatField()),
             )
         )
-        if cycle.progress_snapshot:
+        # FORK: guest-access PSR-119 — the snapshot covers every work item, so a restricted guest gets live counts
+        if cycle.progress_snapshot and not restricted_guest:
             backlog_issues = cycle.progress_snapshot.get("backlog_issues", 0)
             unstarted_issues = cycle.progress_snapshot.get("unstarted_issues", 0)
             started_issues = cycle.progress_snapshot.get("started_issues", 0)
@@ -718,6 +744,7 @@ class CycleProgressEndpoint(BaseAPIView):
             total_issues = cycle.progress_snapshot.get("total_issues", 0)
         else:
             backlog_issues = Issue.issue_objects.filter(
+                guest_q,
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -726,6 +753,7 @@ class CycleProgressEndpoint(BaseAPIView):
             ).count()
 
             unstarted_issues = Issue.issue_objects.filter(
+                guest_q,
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -734,6 +762,7 @@ class CycleProgressEndpoint(BaseAPIView):
             ).count()
 
             started_issues = Issue.issue_objects.filter(
+                guest_q,
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -742,6 +771,7 @@ class CycleProgressEndpoint(BaseAPIView):
             ).count()
 
             cancelled_issues = Issue.issue_objects.filter(
+                guest_q,
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -750,6 +780,7 @@ class CycleProgressEndpoint(BaseAPIView):
             ).count()
 
             completed_issues = Issue.issue_objects.filter(
+                guest_q,
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -758,6 +789,7 @@ class CycleProgressEndpoint(BaseAPIView):
             ).count()
 
             total_issues = Issue.issue_objects.filter(
+                guest_q,
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -786,6 +818,9 @@ class CycleProgressEndpoint(BaseAPIView):
 class CycleAnalyticsEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id, cycle_id):
+        # FORK: guest-access PSR-119 — a restricted guest only sees distributions of the work items they created
+        guest_q = guest_count_q(request.user, project_id)
+        guest_scope = guest_count_q(request.user, project_id, "issue_cycle__issue")
         analytic_type = request.GET.get("type", "issues")
         cycle = (
             Cycle.objects.filter(workspace__slug=slug, project_id=project_id, id=cycle_id)
@@ -793,7 +828,8 @@ class CycleAnalyticsEndpoint(BaseAPIView):
                 total_issues=Count(
                     "issue_cycle__issue__id",
                     distinct=True,
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
                         issue_cycle__issue__deleted_at__isnull=True,
@@ -818,7 +854,8 @@ class CycleAnalyticsEndpoint(BaseAPIView):
         else issues were not transferred to the new cycle then generate the stats from the cycle issue bridge tables
         """
 
-        if cycle.progress_snapshot:
+        # FORK: guest-access PSR-119 — the snapshot covers every work item; a restricted guest gets the live view
+        if cycle.progress_snapshot and not is_restricted_guest(request.user, project_id):
             distribution = cycle.progress_snapshot.get("distribution", {})
             return Response(
                 {
@@ -843,6 +880,7 @@ class CycleAnalyticsEndpoint(BaseAPIView):
         if analytic_type == "points" and estimate_type:
             assignee_distribution = (
                 Issue.issue_objects.filter(
+                    guest_q,
                     issue_cycle__cycle_id=cycle_id,
                     issue_cycle__deleted_at__isnull=True,
                     workspace__slug=slug,
@@ -897,6 +935,7 @@ class CycleAnalyticsEndpoint(BaseAPIView):
 
             label_distribution = (
                 Issue.issue_objects.filter(
+                    guest_q,
                     issue_cycle__cycle_id=cycle_id,
                     issue_cycle__deleted_at__isnull=True,
                     workspace__slug=slug,
@@ -935,11 +974,13 @@ class CycleAnalyticsEndpoint(BaseAPIView):
                 project_id=project_id,
                 plot_type="points",
                 cycle_id=cycle_id,
+                guest_scope=guest_q,
             )
 
         if analytic_type == "issues":
             assignee_distribution = (
                 Issue.issue_objects.filter(
+                    guest_q,
                     issue_cycle__cycle_id=cycle_id,
                     issue_cycle__deleted_at__isnull=True,
                     project_id=project_id,
@@ -999,6 +1040,7 @@ class CycleAnalyticsEndpoint(BaseAPIView):
 
             label_distribution = (
                 Issue.issue_objects.filter(
+                    guest_q,
                     issue_cycle__cycle_id=cycle_id,
                     issue_cycle__deleted_at__isnull=True,
                     project_id=project_id,
@@ -1037,6 +1079,7 @@ class CycleAnalyticsEndpoint(BaseAPIView):
                 project_id=project_id,
                 cycle_id=cycle_id,
                 plot_type="issues",
+                guest_scope=guest_q,
             )
 
         return Response(

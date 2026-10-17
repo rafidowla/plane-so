@@ -11,20 +11,29 @@ import { EmptyStateDetailed } from "@plane/blocks/empty-state";
 
 type TProps = {
   isWorkspaceAdmin: boolean;
+  /** FORK: guest-access PSR-119 — a workspace Guest cannot join projects (the API answers 403), so no Join button */
+  isWorkspaceGuest?: boolean;
   handleJoinProject: () => void;
   isJoinButtonDisabled: boolean;
   errorStatusCode: number | undefined;
 };
 
 export const ProjectAccessRestriction = observer(function ProjectAccessRestriction(props: TProps) {
-  const { isWorkspaceAdmin, handleJoinProject, isJoinButtonDisabled, errorStatusCode } = props;
+  const {
+    isWorkspaceAdmin,
+    isWorkspaceGuest = false,
+    handleJoinProject,
+    isJoinButtonDisabled,
+    errorStatusCode,
+  } = props;
   // plane hooks
   const { t } = useTranslation();
 
   // Show join project screen if:
   // - User lacks project membership (409 Conflict)
   // - User lacks permission to access the private project (403 Forbidden) but is a workspace admin (can join any project)
-  if (errorStatusCode === 409 || (errorStatusCode === 403 && isWorkspaceAdmin))
+  // FORK: guest-access PSR-119 — never for a workspace Guest: they fall through to the "no access" screen below
+  if (!isWorkspaceGuest && (errorStatusCode === 409 || (errorStatusCode === 403 && isWorkspaceAdmin)))
     return (
       <div className="grid h-full w-full place-items-center bg-surface-1">
         <EmptyStateDetailed
@@ -47,7 +56,8 @@ export const ProjectAccessRestriction = observer(function ProjectAccessRestricti
 
   // Show no access screen if:
   // - User lacks permission to access the private project (403 Forbidden)
-  if (errorStatusCode === 403) {
+  // - FORK: guest-access PSR-119 — a workspace Guest is not a member of the project (409 Conflict) and cannot join
+  if (errorStatusCode === 403 || (isWorkspaceGuest && errorStatusCode === 409)) {
     return (
       <div className="grid h-full w-full place-items-center bg-surface-1">
         <EmptyStateDetailed

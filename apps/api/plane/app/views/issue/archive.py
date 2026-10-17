@@ -48,6 +48,7 @@ from plane.utils.host import base_host
 from .. import BaseViewSet, BaseAPIView
 from plane.utils.filters import ComplexFilterBackend
 from plane.utils.filters import IssueFilterSet
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 
 
 class IssueArchiveViewSet(BaseViewSet):
@@ -85,7 +86,7 @@ class IssueArchiveViewSet(BaseViewSet):
             )
             .annotate(
                 sub_issues_count=Subquery(
-                    Issue.issue_objects.filter(parent=OuterRef("id"))
+                    Issue.issue_objects.filter(guest_visible_issues_q(self.request.user), parent=OuterRef("id"))
                     .values("parent")
                     .annotate(count=Count("id"))
                     .values("count")

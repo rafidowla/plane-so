@@ -20,6 +20,7 @@ from rest_framework.response import Response
 
 # Module imports
 from ..base import BaseViewSet
+from plane.utils.guest_work_item import guest_delete_denied, guest_work_item_payload  # FORK: guest-access PSR-119
 from plane.app.permissions import allow_permission, ROLE
 from plane.db.models import (
     Intake,
@@ -52,6 +53,7 @@ from plane.utils.timezone_converter import user_timezone_converter
 from plane.utils.global_paginator import paginate
 from plane.utils.host import base_host
 from plane.db.models.intake import SourceType
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 
 
 class IntakeViewSet(BaseViewSet):
@@ -78,6 +80,16 @@ class IntakeViewSet(BaseViewSet):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def perform_create(self, serializer):
         serializer.save(project_id=self.kwargs.get("project_id"))
+
+    # FORK: put-permission — retrieve/PATCH were the ModelViewSet defaults (IsAuthenticated only, queryset
+    # scoped by URL slug/project only), so any signed-in user could read or rewrite any project's intake settings.
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def destroy(self, request, slug, project_id, pk):
@@ -133,7 +145,9 @@ class IntakeIssueViewSet(BaseViewSet):
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -241,6 +255,13 @@ class IntakeIssueViewSet(BaseViewSet):
             return Response({"error": "Invalid priority"}, status=status.HTTP_400_BAD_REQUEST)
 
         project = Project.objects.get(pk=project_id)
+
+        # FORK: guest-access PSR-119 — a Guest's intake submission is limited to the same allow-listed fields as a
+        # work item (state is forced to triage below); anything else with a value is a 400
+        guest_issue, error = guest_work_item_payload(request, project_id, data=request.data.get("issue"))
+        if error:
+            return error
+        request.data["issue"] = guest_issue
 
         # get the triage state
         triage_state = State.triage_objects.filter(project_id=project_id, workspace__slug=slug).first()
@@ -357,6 +378,11 @@ class IntakeIssueViewSet(BaseViewSet):
             member=request.user,
             role=ROLE.ADMIN.value,
         ).exists()
+
+        # FORK: guest-access PSR-119 — skip_activity (description-migration flag) is never honoured for a Guest:
+        # their edits are always recorded in the activity log
+        if project_member and project_member.role <= ROLE.GUEST.value:
+            skip_activity = False
 
         if not project_member and not is_workspace_admin:
             return Response(
@@ -551,6 +577,10 @@ class IntakeIssueViewSet(BaseViewSet):
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], creator=True, model=Issue)
     def destroy(self, request, slug, project_id, pk):
+        # FORK: guest-access PSR-119 — guests can never delete work items, including their own intake submissions
+        denied = guest_delete_denied(request.user, project_id)
+        if denied:
+            return denied
         intake_id = Intake.objects.filter(workspace__slug=slug, project_id=project_id).first()
         intake_issue = IntakeIssue.objects.get(
             issue_id=pk,

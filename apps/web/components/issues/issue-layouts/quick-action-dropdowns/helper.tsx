@@ -94,6 +94,8 @@ export interface MenuItemFactoryProps {
   projectIdentifier?: string;
   activeLayout?: string;
   isEditingAllowed: boolean;
+  /** FORK: guest-access (PSR-119) — a project guest on their own work item may edit title, description, priority, labels */
+  isGuestEditAllowed?: boolean;
   isArchivingAllowed?: boolean;
   isDeletingAllowed: boolean;
   isRestoringAllowed?: boolean;
@@ -186,6 +188,7 @@ export const useMenuItemFactory = (props: MenuItemFactoryProps) => {
     issue,
     activeLayout = "",
     isEditingAllowed,
+    isGuestEditAllowed = false, // FORK: guest-access (PSR-119)
     isArchivingAllowed = false,
     isDeletingAllowed,
     isRestoringAllowed = false,
@@ -211,7 +214,7 @@ export const useMenuItemFactory = (props: MenuItemFactoryProps) => {
         setIssueToEdit(issue);
         setCreateUpdateIssueModal(true);
       }),
-    shouldRender: isEditingAllowed,
+    shouldRender: isEditingAllowed || isGuestEditAllowed, // FORK: guest-access (PSR-119)
   });
 
   const createCopyMenuItem = (workspaceSlug?: string): TContextMenuItem => {

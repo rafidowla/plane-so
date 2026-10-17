@@ -73,6 +73,8 @@ export const ProjectAuthWrapper = observer(function ProjectAuthWrapper(props: IP
   );
   const currentProjectRole = getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId);
   const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
+  // FORK: guest-access PSR-119 — workspace Guests cannot join a project (the API answers 403)
+  const isWorkspaceGuest = allowPermissions([EUserPermissions.GUEST], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
   // Initialize module timeline chart
   useEffect(() => {
     initGantt();
@@ -151,6 +153,7 @@ export const ProjectAuthWrapper = observer(function ProjectAuthWrapper(props: IP
       <ProjectAccessRestriction
         errorStatusCode={projectDetailsError?.status}
         isWorkspaceAdmin={isWorkspaceAdmin}
+        isWorkspaceGuest={isWorkspaceGuest}
         handleJoinProject={handleJoinProject}
         isJoinButtonDisabled={isJoiningProject}
       />

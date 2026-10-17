@@ -6,12 +6,16 @@
 
 import { useRef } from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 // types
 import type { IIssueDisplayProperties, TIssue } from "@plane/types";
 // constants
 import { SPREADSHEET_COLUMNS } from "../utils";
 // components
 import { shouldRenderColumn } from "@/helpers/issue-filter.helper";
+// FORK: guest-access PSR-119
+import { isGuestInlineEditableProperty } from "@plane/utils";
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 import { WithDisplayPropertiesHOC } from "../properties/with-display-properties-HOC";
 
 type Props = {
@@ -25,7 +29,16 @@ type Props = {
 
 export const IssueColumn = observer(function IssueColumn(props: Props) {
   const { displayProperties, issueDetail, disableUserActions, property, updateIssue } = props;
-  // router
+  // FORK: guest-access PSR-119 — a guest on a work item they created can edit the priority and labels cells (as in the
+  // peek view); every other cell stays disabled for guests
+  const { workspaceSlug } = useParams();
+  const { isGuestEditable } = useGuestWorkItemAccess(
+    workspaceSlug?.toString(),
+    issueDetail.project_id,
+    issueDetail.created_by,
+    issueDetail.archived_at
+  );
+  const isDisabled = disableUserActions && !(isGuestEditable && isGuestInlineEditableProperty(property));
   const tableCellRef = useRef<HTMLTableCellElement | null>(null);
 
   const shouldRenderProperty = shouldRenderColumn(property);
@@ -52,7 +65,7 @@ export const IssueColumn = observer(function IssueColumn(props: Props) {
         <Column
           issue={issueDetail}
           onChange={handleUpdateIssue}
-          disabled={disableUserActions}
+          disabled={isDisabled}
           onClose={() => tableCellRef?.current?.focus()}
         />
       </td>

@@ -17,6 +17,10 @@ type Props = {
   projectId: string;
   issueId: string;
   disabled: boolean;
+  /** FORK: guest-access (PSR-119) — attachments can stay enabled for a guest on their own work item while the rest is read-only */
+  attachmentsDisabled?: boolean;
+  /** FORK: guest-access (PSR-119) — a guest on an archived work item gets no "Add …" buttons, only the read-only lists */
+  hideActionButtons?: boolean;
   renderWidgetModals?: boolean;
   issueServiceType: TIssueServiceType;
   hideWidgets?: TWorkItemWidgets[];
@@ -28,6 +32,8 @@ export function IssueDetailWidgets(props: Props) {
     projectId,
     issueId,
     disabled,
+    attachmentsDisabled = disabled,
+    hideActionButtons = false,
     renderWidgetModals = true,
     issueServiceType,
     hideWidgets,
@@ -36,19 +42,23 @@ export function IssueDetailWidgets(props: Props) {
   return (
     <>
       <div className="flex flex-col space-y-4">
-        <IssueDetailWidgetActionButtons
-          workspaceSlug={workspaceSlug}
-          projectId={projectId}
-          issueId={issueId}
-          disabled={disabled}
-          issueServiceType={issueServiceType}
-          hideWidgets={hideWidgets}
-        />
+        {!hideActionButtons && (
+          <IssueDetailWidgetActionButtons
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            issueId={issueId}
+            disabled={disabled}
+            attachmentsDisabled={attachmentsDisabled}
+            issueServiceType={issueServiceType}
+            hideWidgets={hideWidgets}
+          />
+        )}
         <IssueDetailWidgetCollapsibles
           workspaceSlug={workspaceSlug}
           projectId={projectId}
           issueId={issueId}
           disabled={disabled}
+          attachmentsDisabled={attachmentsDisabled}
           issueServiceType={issueServiceType}
           hideWidgets={hideWidgets}
         />
