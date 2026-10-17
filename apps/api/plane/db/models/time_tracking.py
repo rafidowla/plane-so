@@ -3,7 +3,8 @@
 # See the LICENSE file for details.
 
 """FORK: time-tracking-v2 — workspace time settings, per-member tracking status
-history and the time-tracking audit log.
+history, the time-tracking audit log (S1) and time-entry requests with their
+append-only event history (S3).
 
 The two history tables are append-only: no soft delete (so the generic
 ``hard_delete`` sweep, which only touches models with ``deleted_at``, never
@@ -22,6 +23,7 @@ from django.db import models
 
 # Module imports
 from .base import BaseModel
+from .project import ProjectBaseModel
 
 
 def default_work_days():
@@ -165,3 +167,171 @@ class TimeTrackingAuditLog(AppendOnlyModel):
 
     def __str__(self):
         return f"{self.action} {self.target_type}:{self.target_id}"
+
+
+# ---------------------------------------------------------------------------
+# S3 — time-entry requests, approvals and their append-only history (mig 0129)
+# ---------------------------------------------------------------------------
+
+
+class TimeEntryRequestType(models.TextChoices):
+    MISSING_TIME = "missing_time", "Missing time"
+    TIME_CHANGE = "time_change", "Time change"
+    DELETION = "deletion", "Deletion"
+    AUTO_STOP_REVIEW = "auto_stop_review", "Auto-stop review"
+
+
+class TimeEntryRequestStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+    WITHDRAWN = "withdrawn", "Withdrawn"
+
+
+class TimeEntryActorRole(models.TextChoices):
+    MEMBER = "member", "Member"
+    PROJECT_ADMIN = "project_admin", "Project admin"
+    WORKSPACE_ADMIN = "workspace_admin", "Workspace admin"
+    SYSTEM = "system", "System"
+
+
+class TimeEntryRequestAction(models.TextChoices):
+    SUBMITTED = "submitted", "Submitted"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+    APPLIED = "applied", "Applied"
+    WITHDRAWN = "withdrawn", "Withdrawn"
+    SUPERSEDED = "superseded", "Superseded"
+
+
+class TimeEntryRequest(ProjectBaseModel):
+    """A member's request to add, change or delete time, or a system review item.
+
+    ``missing_time`` creates entries on approval; ``time_change`` / ``deletion``
+    target ``worklog`` (the member's own finished entry, which keeps its old
+    values until approved); ``auto_stop_review`` is opened by the 14 h auto-stop
+    for the entry's approver (``worklog`` = the last piece of the stopped run).
+    ``old_*`` is the entry as it was when the request was made (approval is
+    refused as stale when the entry no longer matches it). The approver is
+    resolved at read time (``plane.utils.time_tracking.approvers``), so a request
+    follows its work item to another project. Rows are never deleted through the
+    ORM; the history lives in ``TimeEntryRequestEvent``.
+    """
+
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="time_entry_requests"
+    )
+    # Same survival rule as IssueWorklog.issue: a request outlives its work item.
+    issue = models.ForeignKey(
+        "db.Issue", on_delete=models.DO_NOTHING, db_constraint=False, related_name="time_entry_requests"
+    )
+    worklog = models.ForeignKey(
+        "db.IssueWorklog",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        null=True,
+        blank=True,
+        related_name="time_entry_requests",
+    )
+    type = models.CharField(max_length=20, choices=TimeEntryRequestType.choices)
+    work_date = models.DateField()
+    old_started_at = models.DateTimeField(null=True, blank=True)
+    old_ended_at = models.DateTimeField(null=True, blank=True)
+    old_duration = models.PositiveIntegerField(null=True, blank=True)
+    new_started_at = models.DateTimeField(null=True, blank=True)
+    new_ended_at = models.DateTimeField(null=True, blank=True)
+    description = models.TextField(blank=True, default="")
+    reason = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=20, choices=TimeEntryRequestStatus.choices, default=TimeEntryRequestStatus.PENDING
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_time_entry_requests",
+    )
+    reviewer_role = models.CharField(max_length=20, choices=TimeEntryActorRole.choices, blank=True, default="")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "Time Entry Request"
+        verbose_name_plural = "Time Entry Requests"
+        db_table = "time_entry_requests"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["worklog"],
+                condition=models.Q(status="pending", deleted_at__isnull=True, worklog__isnull=False),
+                name="time_entry_request_one_pending_per_worklog",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(type__in=["missing_time", "time_change"])
+                | models.Q(new_ended_at__gt=models.F("new_started_at")),
+                name="time_entry_request_new_interval_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["workspace", "status", "created_at"], name="tt_request_ws_status_idx"),
+            models.Index(fields=["workspace", "requester", "created_at"], name="tt_request_ws_user_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.type}:{self.status} by {self.requester_id}"
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("TimeEntryRequest rows are never deleted; withdraw or reject them instead")
+
+
+class TimeEntryRequestEventQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValueError("TimeEntryRequestEvent rows are append-only")
+
+    def delete(self):
+        raise ValueError("TimeEntryRequestEvent rows are append-only")
+
+
+class TimeEntryRequestEvent(AppendOnlyModel):
+    """Append-only history of a request: submitted, approved/rejected, applied, withdrawn, superseded.
+
+    Enforced three ways: ``save()`` refuses updates, instance and queryset
+    ``delete()`` / ``update()`` refuse, and a Postgres trigger (migration 0129)
+    rejects any UPDATE and any direct DELETE. ``request`` is DO_NOTHING here with
+    the real ``ON DELETE CASCADE`` constraint created in SQL by the migration, so
+    a workspace / project / user hard delete still removes the history (the
+    cascade runs inside Postgres, which the trigger allows) while a plain
+    ``DELETE FROM time_entry_request_events`` is refused. ``actor`` has no DB
+    constraint for the same reason (SET_NULL would be an UPDATE).
+    """
+
+    request = models.ForeignKey(
+        "db.TimeEntryRequest", on_delete=models.DO_NOTHING, db_constraint=False, related_name="events"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        null=True,
+        blank=True,
+        related_name="time_entry_request_events",
+    )
+    actor_role = models.CharField(max_length=20, choices=TimeEntryActorRole.choices)
+    action = models.CharField(max_length=20, choices=TimeEntryRequestAction.choices)
+    note = models.TextField(blank=True, default="")
+    payload = models.JSONField(null=True, blank=True, encoder=DjangoJSONEncoder)
+
+    objects = TimeEntryRequestEventQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = "Time Entry Request Event"
+        verbose_name_plural = "Time Entry Request Events"
+        db_table = "time_entry_request_events"
+        ordering = ("created_at",)
+        indexes = [
+            models.Index(fields=["request", "created_at"], name="tt_request_event_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.action} on {self.request_id}"

@@ -267,4 +267,13 @@ from .time_tracking import (
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
     JiraImportJobDetailEndpoint,
+    # FORK: time-tracking-v2 S3 — requests/approvals and workspace-level manual entries
+    TimeEntryRequestEndpoint,
+    TimeEntryRequestApproveEndpoint,
+    TimeEntryRequestRejectEndpoint,
+    TimeEntryRequestWithdrawEndpoint,
+    TimeEntryRequestHistoryEndpoint,
+    TimeEntryRequestEventsEndpoint,
+    TimeEntryEndpoint,
+    TimeEntryDetailEndpoint,
 )

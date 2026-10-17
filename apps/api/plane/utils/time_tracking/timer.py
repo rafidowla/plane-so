@@ -174,8 +174,6 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
                 approval_status=WorklogApprovalStatus.DRAFT,
                 session_id=session_id,
                 # FORK: time-tracking-v2 S2 — flags for the 14 h auto-stop and the idle check.
-                # TODO(S3): an auto_stopped entry must open an ``auto_stop_review`` request
-                # for its approver (DESIGN §2 item 9 / §4 sweep). The entry already counts.
                 auto_stopped=limit == limits.LIMIT_AUTO_STOP,
                 idle_stopped=limit == limits.LIMIT_IDLE,
             )
@@ -191,6 +189,12 @@ def stop_timer(timer, user=None, description=None, ended_at=None, actor=None, re
                 TimeTrackingAuditAction.AUTO_STOP,
                 after={**audit.worklog_state(worklog), "reason": reason, "timer_id": timer.id},
             )
+    if limit == limits.LIMIT_AUTO_STOP:
+        # S3: the 14 h auto-stop opens a review for the entry's approver (DESIGN §2 item 9).
+        # The entry counts as saved meanwhile. An idle-check stop opens no review.
+        from plane.utils.time_tracking.entry_requests import open_auto_stop_review
+
+        open_auto_stop_review(worklogs)
     return worklogs
 
 

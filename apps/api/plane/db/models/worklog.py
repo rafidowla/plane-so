@@ -88,6 +88,10 @@ class IssueWorklog(ProjectBaseModel):
     # Stopped by the 14 h backstop (S2) / by an unanswered "still working?" check (S2).
     auto_stopped = models.BooleanField(default=False)
     idle_stopped = models.BooleanField(default=False)
+    # FORK: time-tracking-v2 S3 — the approved request this entry was created/changed by.
+    request = models.ForeignKey(
+        "db.TimeEntryRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="applied_worklogs"
+    )
 
     class Meta:
         verbose_name = "Issue Worklog"

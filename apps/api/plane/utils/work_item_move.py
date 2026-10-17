@@ -58,6 +58,7 @@ from plane.db.models import (
     User,
     UserRecentVisit,
     WorklogTimer,
+    TimeEntryRequest,  # FORK: time-tracking-v2 S3
 )
 from plane.utils.time_tracking.snapshot import refresh_worklog_snapshots  # FORK: time-tracking-v2
 from plane.db.models.issue import IssueAttachment
@@ -114,6 +115,9 @@ REPOINT_BY_ISSUE = [
     (IssueDescriptionVersion, "issue"),
     (IssueWorklog, "issue"),
     (WorklogTimer, "issue"),
+    # FORK: time-tracking-v2 S3 — requests follow the item; approvers are resolved from the
+    # request's project at read time, so pending requests re-route to the new project's admins.
+    (TimeEntryRequest, "issue"),
     (FileAsset, "issue"),
     (IssueRelation, "issue"),  # the moved item's own side of a relation
     (IssueBlocker, "block"),

@@ -25,6 +25,15 @@ from plane.app.views import (
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
     JiraImportJobDetailEndpoint,
+    # FORK: time-tracking-v2 S3 — requests/approvals and workspace-level manual entries
+    TimeEntryRequestEndpoint,
+    TimeEntryRequestApproveEndpoint,
+    TimeEntryRequestRejectEndpoint,
+    TimeEntryRequestWithdrawEndpoint,
+    TimeEntryRequestHistoryEndpoint,
+    TimeEntryRequestEventsEndpoint,
+    TimeEntryEndpoint,
+    TimeEntryDetailEndpoint,
 )
 
 urlpatterns = [
@@ -139,6 +148,47 @@ urlpatterns = [
         "workspaces/<str:slug>/time/live/",
         TimeLiveDashboardEndpoint.as_view(),
         name="time-live",
+    ),
+    # FORK: time-tracking-v2 S3 — time-entry requests, approvals, history; manual entries
+    path(
+        "workspaces/<str:slug>/time/requests/",
+        TimeEntryRequestEndpoint.as_view(),
+        name="time-requests",
+    ),
+    path(
+        "workspaces/<str:slug>/time/requests/events/",
+        TimeEntryRequestEventsEndpoint.as_view(),
+        name="time-request-events",
+    ),
+    path(
+        "workspaces/<str:slug>/time/requests/<uuid:pk>/approve/",
+        TimeEntryRequestApproveEndpoint.as_view(),
+        name="time-request-approve",
+    ),
+    path(
+        "workspaces/<str:slug>/time/requests/<uuid:pk>/reject/",
+        TimeEntryRequestRejectEndpoint.as_view(),
+        name="time-request-reject",
+    ),
+    path(
+        "workspaces/<str:slug>/time/requests/<uuid:pk>/withdraw/",
+        TimeEntryRequestWithdrawEndpoint.as_view(),
+        name="time-request-withdraw",
+    ),
+    path(
+        "workspaces/<str:slug>/time/requests/<uuid:pk>/history/",
+        TimeEntryRequestHistoryEndpoint.as_view(),
+        name="time-request-history",
+    ),
+    path(
+        "workspaces/<str:slug>/time/entries/",
+        TimeEntryEndpoint.as_view(),
+        name="time-entries",
+    ),
+    path(
+        "workspaces/<str:slug>/time/entries/<uuid:pk>/",
+        TimeEntryDetailEndpoint.as_view(),
+        name="time-entry-detail",
     ),
     # Jira import (self-service)
     path(

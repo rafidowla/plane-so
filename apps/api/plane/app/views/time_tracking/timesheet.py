@@ -13,13 +13,23 @@ from rest_framework.response import Response
 from plane.app.views.base import BaseViewSet
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.serializers import TimesheetSerializer
+from plane.utils.time_tracking import limits  # FORK: time-tracking-v2 S3
 from plane.db.models import (
     WorkspaceMember,
     Timesheet,
     IssueWorklog,
     TimesheetStatus,
     WorklogApprovalStatus,
+    Workspace,
 )
+
+
+def _weekly_approval_disabled():
+    # FORK: time-tracking-v2 S3 — read-only settings lookup (never creates the row).
+    return Response(
+        {"error": "Weekly timesheet approval is turned off for this workspace.", "code": "weekly_approval_disabled"},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 
 def is_workspace_admin(slug, user):
@@ -60,8 +70,6 @@ class TimesheetViewSet(BaseViewSet):
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def submit(self, request, slug):
         """Submit a period for approval: bundle the user's worklogs in range."""
-        from plane.db.models import Workspace
-
         period_start = request.data.get("period_start")
         period_end = request.data.get("period_end")
         if not period_start or not period_end:
@@ -70,6 +78,9 @@ class TimesheetViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         workspace = Workspace.objects.get(slug=slug)
+        # FORK: time-tracking-v2 S3 — weekly approval is opt-in per workspace (off by default).
+        if not limits.read_settings(workspace.id).weekly_approval_enabled:
+            return _weekly_approval_disabled()
         timesheet, _ = Timesheet.objects.get_or_create(
             workspace_id=workspace.id,
             user=request.user,
@@ -98,6 +109,9 @@ class TimesheetViewSet(BaseViewSet):
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
     def review(self, request, slug, pk):
         """Approve or reject a submitted timesheet (PM/admin only)."""
+        # FORK: time-tracking-v2 S3 — weekly approval is opt-in per workspace (off by default).
+        if not limits.read_settings(Workspace.objects.only("id").get(slug=slug).id).weekly_approval_enabled:
+            return _weekly_approval_disabled()
         action = request.data.get("action")
         note = request.data.get("note", "")
         if action not in ("approve", "reject"):

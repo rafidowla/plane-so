@@ -28,6 +28,7 @@ from plane.db.models import (
     ResourceCapacity,
     State,
     Timesheet,
+    TimeTrackingSetting,
     User,
     WorklogTimer,
     WorkspaceMember,
@@ -531,6 +532,10 @@ class TestTimerConcurrency:
 @pytest.mark.django_db
 class TestTimesheetApproval:
     def test_submit_then_approve_locks(self, session_client, tt):
+        # S3: weekly approval is opt-in (submit/review → 400 when the setting is off).
+        TimeTrackingSetting.objects.update_or_create(
+            workspace=tt["workspace"], defaults={"weekly_approval_enabled": True}
+        )
         slug, pid, iid = _ids(tt)
         session_client.post(
             _wl_url(slug, pid, iid), {"duration": 120, "logged_date": "2026-06-22"}, format="json"

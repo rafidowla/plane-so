@@ -2,9 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-# Python imports
-import uuid
-
 # Django imports
 from django.db.models import Sum
 from django.utils import timezone
@@ -19,19 +16,16 @@ from plane.app.permissions import ROLE, allow_permission
 from plane.app.serializers import IssueWorklogSerializer, WorklogTimerSerializer
 from plane.db.models import (
     Project,
-    ProjectMember,
     Issue,
     IssueWorklog,
     WorklogTimer,
-    TimeTrackingAuditAction,
-    TimeTrackingAuditTarget,
-    WorklogSource,
 )
 
 # FORK: time-tracking-v2 — timer start/stop and the shared helpers moved to a service
 # layer (plane.utils.time_tracking) so the sweep and the S2 endpoints reuse them. The
 # names below stay importable from here for existing callers.
-from plane.utils.time_tracking import audit
+# FORK: time-tracking-v2 S3 — manual create/edit/delete rules live in ``entries``.
+from plane.utils.time_tracking import entries
 from plane.utils.time_tracking.timer import (  # noqa: F401
     TimeTrackingError,
     TimerAlreadyRunning,
@@ -94,9 +88,9 @@ def stop_response(worklogs):
 class IssueWorklogViewSet(BaseViewSet):
     """Time entries logged against an issue.
 
-    Regular members log their own time. Project admins (PM) can log on behalf
-    of any resource by passing `logged_by`. Locked/approved entries are
-    read-only except for project admins.
+    FORK: time-tracking-v2 S3 — writes follow ``plane.utils.time_tracking.entries``
+    (workspace admins any entry; project admins other members' entries via
+    ``logged_by``; members description-only, time changes by request).
     """
 
     serializer_class = IssueWorklogSerializer
@@ -121,157 +115,50 @@ class IssueWorklogViewSet(BaseViewSet):
         # FORK: time-tracking-v2 S2 — guests (clients) get ONE figure, the total logged
         # on a work item they can see (PO answer 4): no entry list, no dates, no names.
         project = Project.objects.only("guest_view_all_features").get(pk=project_id)
-        if not project.guest_view_all_features and not Issue.objects.filter(
-            pk=issue_id, project_id=project_id, created_by=request.user
-        ).exists():
+        if (
+            not project.guest_view_all_features
+            and not Issue.objects.filter(pk=issue_id, project_id=project_id, created_by=request.user).exists()
+        ):
             return Response({"error": "You are not allowed to view this issue"}, status=status.HTTP_403_FORBIDDEN)
         total = worklogs.aggregate(total=Sum("duration"))["total"] or 0
         return Response({"total_minutes": total}, status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def create(self, request, slug, project_id, issue_id):
-        # FORK: time-tracking-v2 S2 — guests never track time (DESIGN §2 item 13).
-        if not is_project_member(slug, project_id, request.user):
-            return Response(
-                {"error": "Guests can't track time.", "code": "not_tracked"}, status=status.HTTP_403_FORBIDDEN
-            )
-        project = Project.objects.get(pk=project_id)
-        if not project.is_time_tracking_enabled:
-            return Response(
-                {"error": "Time tracking is not enabled for this project."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Manual time entry is a PM/admin function. Regular members self-track via
-        # the start/stop timer (source=timer); an admin entering time on their
-        # behalf produces source=manual ("PM reported"). Keeping the two paths
-        # distinct is what lets us tell self-reported from PM-reported time.
-        if not is_project_admin(slug, project_id, request.user):
-            return Response(
-                {
-                    "error": "Only project admins/PMs can enter time manually. "
-                    "Members log their own time with the start/stop timer."
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        # FORK: security — the work item must live in the project (and workspace) of the URL.
-        # Project-admin rights on one project must not let an admin log time against a work
-        # item of another project or workspace just by knowing its UUID.
-        if not Issue.objects.filter(pk=issue_id, project_id=project_id, workspace__slug=slug).exists():
+        # FORK: time-tracking-v2 S3 — same rules as POST time/entries/ (one service):
+        # workspace admins any entry; project admins entries for OTHER active members of
+        # this project (never themselves); members their own only when the workspace allows
+        # manual entry, else 403 ``request_required``; guests 403 ``not_tracked``. Forced
+        # source=manual, audited, split at local midnight. Response: the last piece's fields
+        # plus ``pieces`` / ``total_duration`` (a superset of the old single-entry body).
+        project = Project.objects.only("workspace_id").filter(pk=project_id, workspace__slug=slug).first()
+        if project is None:
             return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # The resource the time belongs to (defaults to the admin entering it). FORK: security —
-        # on-behalf entries are only for people who are active members of THIS project; otherwise
-        # an admin could attach time (and billing) to any user id, including users outside the
-        # project/workspace.
-        logged_by_id = request.data.get("logged_by") or request.user.id
-        if str(logged_by_id) != str(request.user.id):
-            try:
-                logged_by_id = uuid.UUID(str(logged_by_id))
-            except (ValueError, AttributeError):
-                return Response({"error": "logged_by is not a valid user."}, status=status.HTTP_400_BAD_REQUEST)
-            # FORK: guests are typically client users, so time can't be logged on their behalf.
-            if not ProjectMember.objects.filter(
-                workspace__slug=slug,
-                project_id=project_id,
-                member_id=logged_by_id,
-                is_active=True,
-                role__gte=ROLE.MEMBER.value,
-            ).exists():
-                return Response(
-                    {"error": "logged_by must be an active member or admin of this project."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        serializer = IssueWorklogSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        # Snapshot the billable rate if billable and none supplied.
-        is_billable = serializer.validated_data.get("is_billable", True)
-        billable_rate = serializer.validated_data.get("billable_rate")
-        currency = serializer.validated_data.get("currency", "USD")
-        if is_billable and billable_rate is None:
-            billable_rate, currency = resolve_billable_rate(project, logged_by_id)
-
-        # Force source=manual: this endpoint is the manual/PM-reported path. The
-        # timer endpoint is the only producer of source=timer, so the client
-        # cannot relabel a manually entered record as self-tracked.
-        worklog = serializer.save(
-            project_id=project_id,
-            issue_id=issue_id,
-            logged_by_id=logged_by_id,
-            billable_rate=billable_rate,
-            currency=currency,
-            source=WorklogSource.MANUAL,
-        )
-        # FORK: time-tracking-v2 — audit every manual change.
-        audit.record(
-            worklog.workspace_id,
-            request.user,
-            TimeTrackingAuditTarget.WORKLOG,
-            worklog.id,
-            TimeTrackingAuditAction.CREATE,
-            after=audit.worklog_state(worklog),
-        )
-        return Response(IssueWorklogSerializer(worklog).data, status=status.HTTP_201_CREATED)
+        try:
+            rows = entries.create_entry(project.workspace_id, project_id, issue_id, request.user, request.data)
+        except TimeTrackingError as exc:
+            return Response(exc.payload, status=exc.status_code)
+        return Response(stop_response(rows), status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def partial_update(self, request, slug, project_id, issue_id, pk):
+        # FORK: time-tracking-v2 S3 — members edit only the description of their own entries;
+        # time fields → 403 ``request_required`` (a change request). Admin rules as in create.
         worklog = self.get_queryset().get(pk=pk)
-        admin = is_project_admin(slug, project_id, request.user)
-        if worklog.is_locked and not admin:
-            return Response(
-                {"error": "This entry is locked and can no longer be edited."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if worklog.logged_by_id != request.user.id and worklog.created_by_id != request.user.id and not admin:
-            return Response(
-                {"error": "You can only edit your own time entries."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        before = audit.worklog_state(worklog)
-        serializer = IssueWorklogSerializer(worklog, data=request.data, partial=True)
-        if serializer.is_valid():
-            worklog = serializer.save()
-            # FORK: time-tracking-v2 — audit every manual change.
-            audit.record(
-                worklog.workspace_id,
-                request.user,
-                TimeTrackingAuditTarget.WORKLOG,
-                worklog.id,
-                TimeTrackingAuditAction.UPDATE,
-                before=before,
-                after=audit.worklog_state(worklog),
-            )
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            rows = entries.update_entry(worklog, request.user, request.data)
+        except TimeTrackingError as exc:
+            return Response(exc.payload, status=exc.status_code)
+        return Response(stop_response(rows), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def destroy(self, request, slug, project_id, issue_id, pk):
+        # FORK: time-tracking-v2 S3 — a member deleting their own entry → 403 ``request_required``.
         worklog = self.get_queryset().get(pk=pk)
-        admin = is_project_admin(slug, project_id, request.user)
-        if worklog.is_locked and not admin:
-            return Response(
-                {"error": "This entry is locked and can no longer be deleted."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if worklog.logged_by_id != request.user.id and worklog.created_by_id != request.user.id and not admin:
-            return Response(
-                {"error": "You can only delete your own time entries."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        # FORK: time-tracking-v2 — audit every manual change.
-        audit.record(
-            worklog.workspace_id,
-            request.user,
-            TimeTrackingAuditTarget.WORKLOG,
-            worklog.id,
-            TimeTrackingAuditAction.DELETE,
-            before=audit.worklog_state(worklog),
-        )
-        worklog.delete()
+        try:
+            entries.delete_entry(worklog, request.user)
+        except TimeTrackingError as exc:
+            return Response(exc.payload, status=exc.status_code)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

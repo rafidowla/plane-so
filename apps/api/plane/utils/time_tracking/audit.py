@@ -21,6 +21,8 @@ WORKLOG_FIELDS = (
     "auto_stopped",
     "idle_stopped",
     "issue_ref",
+    # S3: the approved request that created/changed the entry.
+    "request_id",
 )
 
 SETTING_FIELDS = (

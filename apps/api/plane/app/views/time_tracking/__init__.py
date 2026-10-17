@@ -22,3 +22,14 @@ from .jira_import import (
     JiraImportEndpoint,
     JiraImportJobDetailEndpoint,
 )
+
+# FORK: time-tracking-v2 S3 — requests/approvals and workspace-level manual entries
+from .requests import (
+    TimeEntryRequestEndpoint,
+    TimeEntryRequestApproveEndpoint,
+    TimeEntryRequestRejectEndpoint,
+    TimeEntryRequestWithdrawEndpoint,
+    TimeEntryRequestHistoryEndpoint,
+    TimeEntryRequestEventsEndpoint,
+)
+from .entries import TimeEntryEndpoint, TimeEntryDetailEndpoint

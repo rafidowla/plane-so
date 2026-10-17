@@ -63,6 +63,10 @@ class IssueWorklogSerializer(BaseSerializer):
             "session_id",
             "auto_stopped",
             "idle_stopped",
+            # FORK: time-tracking-v2 S3 — set by the server only (request that created/changed it;
+            # source is forced to manual on the manual path).
+            "request",
+            "source",
         ]
 
 

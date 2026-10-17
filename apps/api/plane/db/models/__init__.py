@@ -112,6 +112,13 @@ from .time_tracking import (
     TimeTrackingAuditLog,
     TimeTrackingAuditTarget,
     TimeTrackingAuditAction,
+    # FORK: time-tracking-v2 S3 — requests, approvals and their append-only history
+    TimeEntryRequest,
+    TimeEntryRequestEvent,
+    TimeEntryRequestType,
+    TimeEntryRequestStatus,
+    TimeEntryRequestAction,
+    TimeEntryActorRole,
 )
 
 from .description import Description, DescriptionVersion
