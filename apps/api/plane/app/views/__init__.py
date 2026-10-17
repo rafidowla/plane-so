@@ -278,4 +278,7 @@ from .time_tracking import (
     TimeEntryDetailEndpoint,
     # FORK: time-tracking-v2 S6 — per-work-item time estimates
     IssueTimeEstimateEndpoint,
+    # FORK: time-tracking-v2 S5 — Reports v2 + per-member capacity override
+    TimeReportV2Endpoint,
+    TimeTrackingMemberCapacityEndpoint,
 )
