@@ -30,6 +30,15 @@ import type {
   TTimeRequestSubmit,
   TTimeEntryPatch,
 } from "@/plane-web/components/issues/worklog/types";
+// FORK: time-tracking-v2 S5 — Reports tab + Settings tab shapes
+import type {
+  TCapacityResponse,
+  TTimeReportParams,
+  TTimeReportV2,
+  TTimeSettings,
+  TTimeSettingsPatch,
+  TTrackingMembersResponse,
+} from "@/plane-web/components/time/reports/types";
 
 export class TimeTrackingService extends APIService {
   constructor() {
@@ -371,6 +380,79 @@ export class TimeTrackingService extends APIService {
   /** Workspace admins' direct edit of a time entry (members go through a request instead). */
   async updateTimeEntry(workspaceSlug: string, entryId: string, data: TTimeEntryPatch): Promise<unknown> {
     return this.patch(`/api/workspaces/${workspaceSlug}/time/entries/${entryId}/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 S5 — Reports tab ----
+  private reportQuery(params: TTimeReportParams): string {
+    const qs = new URLSearchParams({ from: params.from, to: params.to, user: params.user });
+    if (params.taskLimit) qs.set("task_limit", String(params.taskLimit));
+    return qs.toString();
+  }
+
+  async getTimeReportV2(workspaceSlug: string, params: TTimeReportParams): Promise<TTimeReportV2> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/report/?${this.reportQuery(params)}`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Entry-level CSV of the same range/person (the browser downloads it; the server sets the filename). */
+  timeReportV2CsvUrl(workspaceSlug: string, params: TTimeReportParams): string {
+    return `${API_BASE_URL}/api/workspaces/${workspaceSlug}/time/report.csv?${this.reportQuery(params)}`;
+  }
+
+  // ---- FORK: time-tracking-v2 S5 — Settings tab ----
+  async getTimeSettings(workspaceSlug: string): Promise<TTimeSettings> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/settings/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateTimeSettings(workspaceSlug: string, data: TTimeSettingsPatch): Promise<TTimeSettings> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/settings/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getTrackingMembers(workspaceSlug: string): Promise<TTrackingMembersResponse> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/members/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Turn a member's tracking on/off from `effective_from` (YYYY-MM-DD, default today). */
+  async setMemberTracking(
+    workspaceSlug: string,
+    userId: string,
+    data: { is_tracked: boolean; effective_from?: string }
+  ): Promise<unknown> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/members/${userId}/tracking/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Weekly capacity override in minutes; `null` = follow the workspace work week. */
+  async setMemberCapacity(
+    workspaceSlug: string,
+    userId: string,
+    weeklyMinutes: number | null
+  ): Promise<TCapacityResponse> {
+    return this.put(`/api/workspaces/${workspaceSlug}/time/members/${userId}/capacity/`, {
+      weekly_minutes: weeklyMinutes,
+    })
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

@@ -31,7 +31,9 @@ function TimePage({ params }: Route.ComponentProps) {
   // FORK: time-tracking-v2 S3b — Approvals only for reviewers; an unauthorized tabId falls back to the first tab.
   const canReview = useCanReviewTime(workspaceSlug) && isInternal;
   const pendingCount = usePendingApprovalCount(workspaceSlug, canReview);
-  const tabs = getTimeTabs({ canReview, pendingCount });
+  // FORK: time-tracking-v2 S5 — Settings is for workspace admins only.
+  const canAdminister = isInternal && allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  const tabs = getTimeTabs({ canReview, pendingCount, canAdminister });
   const selected = tabs.find((tab) => tab.key === tabId) ?? tabs[0];
 
   const title = currentWorkspace?.name ? `${currentWorkspace.name} - Time` : undefined;
