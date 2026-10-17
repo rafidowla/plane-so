@@ -25,6 +25,7 @@ import { revalidateRunningTimer, useRunningTimer, useTimerElapsed } from "@/plan
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 // FORK: time-tracking-v2
 import { isOverReminder } from "@/plane-web/components/time/timer/idle-check";
+import { DAY_LIMIT_CLAMPED_MESSAGE } from "@/plane-web/components/time/timer/timer-actions";
 import { formatElapsed, formatLoggedMinutes } from "./timer-utils";
 import { useIsTimerFooterMounted, useRegisterTimerFooter } from "./timer-footer-registry";
 
@@ -64,7 +65,8 @@ const RunningTimerIndicator = observer(function RunningTimerIndicator({ variant 
       ]);
       setToast({
         type: "success",
-        title: `Stopped timer on ${detail.ref} (${formatLoggedMinutes(worklog?.duration ?? 0)} logged)`,
+        title: `Stopped timer on ${detail.ref} (${formatLoggedMinutes(worklog?.total_duration ?? worklog?.duration ?? 0)} logged)`,
+        message: worklog?.day_limit_clamped ? DAY_LIMIT_CLAMPED_MESSAGE : undefined,
       });
     } catch (err) {
       setToast({ type: "error", title: "Cannot stop timer", message: asApiError(err).error ?? "Try again." });

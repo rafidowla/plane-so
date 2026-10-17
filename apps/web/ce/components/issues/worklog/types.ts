@@ -63,11 +63,14 @@ export type TTimerIssueRef = {
 // FORK: PSR-101 — present on the start response when a running timer on another
 // work item was stopped (and logged) to make room for the new one.
 export type TStoppedTimer = {
-  worklog: TWorklog;
+  /** null when the person's day was already at 24 h, so nothing was saved (FORK: PSR-121) */
+  worklog: TWorklog | null;
   /** minutes logged for the stopped timer */
   duration: number;
   /** null when the work item can no longer be resolved (deleted/archived) */
   issue: TTimerIssueRef | null;
+  /** FORK: PSR-121 — the run was cut where the person's day reached 24 h */
+  day_limit_clamped?: boolean;
 };
 
 export type TWorklogTimer = {
@@ -115,6 +118,8 @@ export type TTimerStopResponse = TWorklog & {
   pieces?: TWorklog[];
   total_duration?: number;
   issue_detail?: TTimerIssueRef | null;
+  /** FORK: PSR-121 — the run was cut where the person's day reached 24 h (may have saved nothing) */
+  day_limit_clamped?: boolean;
 };
 
 /** API error codes of the timer endpoints (`code` on the error payload). */
