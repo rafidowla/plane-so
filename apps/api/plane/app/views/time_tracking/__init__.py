@@ -33,3 +33,6 @@ from .requests import (
     TimeEntryRequestEventsEndpoint,
 )
 from .entries import TimeEntryEndpoint, TimeEntryDetailEndpoint
+
+# FORK: time-tracking-v2 S6 — per-work-item time estimates
+from .estimate import IssueTimeEstimateEndpoint

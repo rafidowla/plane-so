@@ -237,6 +237,10 @@ def create_entry(workspace_id, project_id, issue_id, actor, data):
         refuse("not_tracked", "Guests can't track time.", 403)
     if not project.is_time_tracking_enabled:
         refuse("project_tracking_disabled", "Time tracking is not enabled for this project.")
+    # FORK: time-tracking-v2 S6 — "required" projects need an estimate before time is logged.
+    from plane.utils.time_tracking.estimate import check_can_log
+
+    check_can_log(issue)
 
     target = data.get("logged_by") or actor.id
     try:

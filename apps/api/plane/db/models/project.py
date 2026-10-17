@@ -98,6 +98,13 @@ class Project(ChangeTrackerMixin, BaseModel):
     page_view = models.BooleanField(default=True)
     intake_view = models.BooleanField(default=False)
     is_time_tracking_enabled = models.BooleanField(default=False)
+    # FORK: time-tracking-v2 S6 — per-task time estimates: off | optional | required
+    # (``plane.db.models.time_tracking.TimeEstimateMode``; required gates starting work).
+    time_estimate_mode = models.CharField(
+        max_length=16,
+        choices=(("off", "Off"), ("optional", "Optional"), ("required", "Required")),
+        default="off",
+    )
     is_issue_type_enabled = models.BooleanField(default=False)
     # FORK: time-tracking
     client = models.ForeignKey(

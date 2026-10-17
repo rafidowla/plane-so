@@ -257,7 +257,7 @@ def start_timer(slug, project_id, issue_id, user, description=""):
     issue not in project 404 · guest / not an active project admin-member 403
     ``not_tracked`` · project tracking off 400 ``project_tracking_disabled`` ·
     member tracking turned off 403 ``tracking_disabled`` · Cancelled item 400
-    ``issue_cancelled``.
+    ``issue_cancelled`` · no estimate on a "required" project 400 ``estimate_required``.
     """
     project = Project.objects.get(pk=project_id)
     # FORK: security — the work item must live in this project. Without this a member
@@ -288,6 +288,10 @@ def start_timer(slug, project_id, issue_id, user, description=""):
         )
     if issue.state is not None and issue.state.group == StateGroup.CANCELLED.value:
         raise TimeTrackingError({"error": "This work item is cancelled.", "code": "issue_cancelled"}, 400)
+    # FORK: time-tracking-v2 S6 — "required" projects need an estimate before a timer starts.
+    from plane.utils.time_tracking.estimate import check_can_log
+
+    check_can_log(issue)
     # FORK: PSR-101 — starting a timer while another one runs elsewhere stops
     # the running one (logging its time as a normal worklog) and starts the new
     # one, all in ONE transaction under a per-user row lock: no window where two

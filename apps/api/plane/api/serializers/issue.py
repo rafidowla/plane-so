@@ -160,6 +160,11 @@ class IssueSerializer(BaseSerializer):
         ):
             raise serializers.ValidationError("Estimate point is not valid please pass a valid estimate_point_id")
 
+        # FORK: time-tracking-v2 S6 — "required" projects: no Started/Completed without an estimate
+        from plane.utils.time_tracking.estimate import gate_state_change
+
+        gate_state_change(self.instance, data.get("state"), self.context.get("project_id"))
+
         return data
 
     def create(self, validated_data):

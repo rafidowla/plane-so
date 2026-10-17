@@ -54,6 +54,7 @@ from plane.utils.time_tracking.entries import (
     rewrite,
     validate_interval,
 )
+from plane.utils.time_tracking.estimate import check_can_log
 from plane.utils.time_tracking.snapshot import issue_snapshot
 from plane.utils.time_tracking.timer import lock_user_timers, resolve_billable_rate
 from plane.utils.time_tracking.tz import local_date, total_minutes, workspace_tz
@@ -292,7 +293,7 @@ def submit(workspace_id, actor, data):
             validate_interval(started_at, ended_at)
             check_tracked(workspace_id, actor.id, started_at, ended_at, tz)
             check_overlap(workspace_id, actor.id, started_at, ended_at, detail=True)
-            # TODO(S6): estimate gate (400 ``estimate_required`` when the project requires one).
+            check_can_log(issue)
             req.project_id, req.issue_id = project.id, issue.id
             req.new_started_at, req.new_ended_at = started_at, ended_at
             req.work_date = local_date(started_at, tz)
@@ -453,6 +454,8 @@ def _apply(req, actor, new_ended_at):
     requester = User.objects.get(pk=req.requester_id)
     if req.type == TimeEntryRequestType.MISSING_TIME:
         check_overlap(req.workspace_id, requester.id, req.new_started_at, req.new_ended_at, status_code=409)
+        # S6: approving missing time is logging time — "required" projects need an estimate.
+        check_can_log(Issue.all_objects.get(pk=req.issue_id))
         project = Project.objects.get(pk=req.project_id)
         billable_rate, currency = resolve_billable_rate(project, requester.id)
         issue_ref, issue_name = issue_snapshot(req.issue_id)

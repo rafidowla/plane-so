@@ -119,6 +119,11 @@ from .time_tracking import (
     TimeEntryRequestStatus,
     TimeEntryRequestAction,
     TimeEntryActorRole,
+    # FORK: time-tracking-v2 S6 — per-work-item time estimates and their revisions
+    TimeEstimateMode,
+    TimeEstimateRevisionKind,
+    IssueTimeEstimate,
+    IssueTimeEstimateRevision,
 )
 
 from .description import Description, DescriptionVersion
