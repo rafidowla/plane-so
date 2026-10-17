@@ -55,6 +55,20 @@ the real check is random, 20-80 min); set `E2E_SKIP_SLOW=1` to skip it.
 `is_setup_done` set. Audio chime and the browser notification are not asserted
 headlessly; check them by hand.
 
+## Time reports spec (`time-reports.spec.ts`)
+
+Time tracking v2 Reports and Settings tabs: admin team view (tiles, per-person
+switch, breakdown tables), member self-only view and the 403 codes
+(`forbidden_scope`, `forbidden_user`), CSV download, a per-member capacity
+override changing Expected, Settings validation and save, the old Analytics
+Time tab redirecting to Reports, and the billing / weekly-approval switches.
+The spec flips workspace settings and member capacity through
+`PATCH time/settings/` and `time/members/...`, and restores them in `finally`.
+It reads the date range from the page's own inputs, so it does not depend on
+today's date. Uses the same seeded users (admin, member, other) as the
+dashboard spec; no seed change needed. `E2E_SHOT_DIR=<dir>` saves review
+screenshots.
+
 ## Adding a flow
 
 Create `apps/web/e2e/<flow>.spec.ts`, use the API helpers in `helpers.ts` to

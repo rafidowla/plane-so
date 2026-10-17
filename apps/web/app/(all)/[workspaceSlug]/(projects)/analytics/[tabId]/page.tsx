@@ -23,6 +23,8 @@ import { useProject } from "@/hooks/store/use-project";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useAnalyticsTabs } from "@/components/analytics/use-analytics-tabs";
+// FORK: time-tracking-v2 S5
+import { useTimeSettings } from "@/plane-web/components/time/use-time-settings";
 import type { Route } from "./+types/page";
 
 function AnalyticsPage({ params }: Route.ComponentProps) {
@@ -51,7 +53,23 @@ function AnalyticsPage({ params }: Route.ComponentProps) {
   );
 
   const workspaceSlug = params.workspaceSlug;
-  const ANALYTICS_TABS = useAnalyticsTabs(workspaceSlug.toString());
+  // FORK: time-tracking-v2 S5 — Timesheets shows only while weekly approval is on; the old Time tab
+  // now lives in the Time area (Reports), so a stale /analytics/time link is sent there.
+  const { data: timeSettings, error: timeSettingsError } = useTimeSettings(
+    workspaceSlug.toString(),
+    canPerformEmptyStateActions
+  );
+  const ANALYTICS_TABS = useAnalyticsTabs(workspaceSlug.toString(), timeSettings?.weekly_approval_enabled === true);
+  const timeSettingsKnown = !!timeSettings || !!timeSettingsError;
+  useEffect(() => {
+    if (tabId === "time") router.replace(`/${workspaceSlug}/time/reports/`);
+    else if (
+      tabId === "timesheets" &&
+      timeSettingsKnown &&
+      !ANALYTICS_TABS.some((tab) => (tab.key as string) === "timesheets")
+    )
+      router.replace(`/${workspaceSlug}/analytics/overview/`);
+  }, [tabId, timeSettingsKnown, ANALYTICS_TABS, router, workspaceSlug]);
 
   const [selectedTab, setSelectedTab] = useState(tabId || ANALYTICS_TABS[0]?.key);
 
