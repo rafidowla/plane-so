@@ -34,7 +34,9 @@ function TimePage({ params }: Route.ComponentProps) {
   // FORK: time-tracking-v2 S5 — Settings is for workspace admins only.
   const canAdminister = isInternal && allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
   const tabs = getTimeTabs({ canReview, pendingCount, canAdminister });
-  const selected = tabs.find((tab) => tab.key === tabId) ?? tabs[0];
+  // FORK: time-tracking-v2 S4 — S3b's old /time/requests/ link now lands on My timesheet, which holds My requests.
+  const wantedKey = tabId === "requests" ? "timesheet" : tabId;
+  const selected = tabs.find((tab) => tab.key === wantedKey) ?? tabs[0];
 
   const title = currentWorkspace?.name ? `${currentWorkspace.name} - Time` : undefined;
 

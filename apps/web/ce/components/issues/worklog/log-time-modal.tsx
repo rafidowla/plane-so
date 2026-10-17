@@ -24,16 +24,22 @@ import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { asApiError } from "@/plane-web/components/analytics/api-error";
 // FORK: time-tracking-v2 S6
 import { handleEstimateRequired } from "./estimate/estimate-required";
+import { IssuePicker, type TPickedIssue } from "@/plane-web/components/time/requests/issue-picker";
+import { timeTimesheetService } from "@/plane-web/services/time-timesheet.service";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 
 type Props = {
   isOpen: boolean;
   handleClose: () => void;
   workspaceSlug: string;
-  projectId: string;
-  issueId: string;
-  isProjectAdmin: boolean;
-  currentUserId: string;
+  // FORK: time-tracking-v2 S4 — without projectId/issueId this is the timesheet's "Add time": it asks which
+  // work item, posts to `time/entries/`, and leaves out the resource select and billing (the timesheet has neither).
+  projectId?: string;
+  issueId?: string;
+  isProjectAdmin?: boolean;
+  currentUserId?: string;
+  /** timesheet mode: the workspace's today, as YYYY-MM-DD (the browser's day may differ) */
+  defaultDate?: string;
   onSaved: () => void;
 };
 
@@ -53,8 +59,12 @@ function todayStr(): string {
 }
 
 export function LogTimeModal(props: Props) {
-  const { isOpen, handleClose, workspaceSlug, projectId, issueId, isProjectAdmin, currentUserId, onSaved } = props;
+  const { isOpen, handleClose, workspaceSlug, projectId, issueId, isProjectAdmin = false, onSaved } = props;
+  const currentUserId = props.currentUserId ?? "";
+  const standalone = !projectId || !issueId;
+  const startDate = props.defaultDate || todayStr();
   const [loggedBy, setLoggedBy] = useState<string | null>(currentUserId);
+  const [pickedIssue, setPickedIssue] = useState<TPickedIssue | null>(null);
 
   const {
     control,
@@ -62,15 +72,16 @@ export function LogTimeModal(props: Props) {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<TForm>({
-    defaultValues: { hours: 0, minutes: 0, logged_date: todayStr(), description: "", work_type: "", is_billable: true },
+    defaultValues: { hours: 0, minutes: 0, logged_date: startDate, description: "", work_type: "", is_billable: true },
   });
 
   useEffect(() => {
     if (isOpen) {
-      reset({ hours: 0, minutes: 0, logged_date: todayStr(), description: "", work_type: "", is_billable: true });
+      reset({ hours: 0, minutes: 0, logged_date: startDate, description: "", work_type: "", is_billable: true });
       setLoggedBy(currentUserId);
+      setPickedIssue(null);
     }
-  }, [isOpen, currentUserId, reset]);
+  }, [isOpen, currentUserId, startDate, reset]);
 
   const onSubmit = async (data: TForm) => {
     const duration = Number(data.hours || 0) * 60 + Number(data.minutes || 0);
@@ -78,21 +89,36 @@ export function LogTimeModal(props: Props) {
       setToast({ type: "error", title: "Invalid duration", message: "Enter a duration greater than zero." });
       return;
     }
+    if (standalone && !pickedIssue) {
+      setToast({ type: "error", title: "Choose a work item", message: "Pick the work item the time was spent on." });
+      return;
+    }
     try {
-      await timeTrackingService.createWorklog(workspaceSlug, projectId, issueId, {
-        duration,
-        logged_date: data.logged_date,
-        description: data.description,
-        work_type: data.work_type || null,
-        is_billable: data.is_billable,
-        ...(isProjectAdmin && loggedBy && loggedBy !== currentUserId ? { logged_by: loggedBy } : {}),
-      });
+      if (standalone) {
+        await timeTimesheetService.createEntry(workspaceSlug, {
+          issue_id: pickedIssue!.id,
+          logged_date: data.logged_date,
+          duration,
+          description: data.description,
+          work_type: data.work_type || null,
+        });
+      } else {
+        await timeTrackingService.createWorklog(workspaceSlug, projectId, issueId, {
+          duration,
+          logged_date: data.logged_date,
+          description: data.description,
+          work_type: data.work_type || null,
+          is_billable: data.is_billable,
+          ...(isProjectAdmin && loggedBy && loggedBy !== currentUserId ? { logged_by: loggedBy } : {}),
+        });
+      }
       setToast({ type: "success", title: "Time logged", message: "Your time entry was saved." });
       onSaved();
       handleClose();
     } catch (err) {
-      // FORK: time-tracking-v2 S6 — no estimate on a project that needs one: close and open the estimate field
-      if (handleEstimateRequired(err, { issueId, workspaceSlug, projectId })) {
+      // FORK: time-tracking-v2 S6 — no estimate on a project that needs one: close and open the estimate field.
+      // From the timesheet (S4) the item comes from the picker; the error payload carries its project.
+      if (handleEstimateRequired(err, { issueId: issueId ?? pickedIssue?.id, workspaceSlug, projectId })) {
         handleClose();
         return;
       }
@@ -118,22 +144,32 @@ export function LogTimeModal(props: Props) {
         "outside click" and collapses the peek, taking the modal with it.
       */}
       <DialogContent size="sm" data-prevent-outside-click>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="flex min-h-0 flex-1 flex-col"
+          data-testid={standalone ? "add-time-modal" : undefined}
+        >
           <DialogMain>
             <DialogHeader>
               <DialogHeading>
-                <DialogTitle>Log time</DialogTitle>
+                <DialogTitle>{standalone ? "Add time" : "Log time"}</DialogTitle>
               </DialogHeading>
             </DialogHeader>
             <DialogBody tabIndex={0}>
               <div className="space-y-4">
-                {isProjectAdmin && (
+                {standalone && (
+                  <div>
+                    <span className="text-sm mb-1 block text-tertiary">Work item</span>
+                    <IssuePicker workspaceSlug={workspaceSlug} value={pickedIssue} onChange={setPickedIssue} />
+                  </div>
+                )}
+                {!standalone && isProjectAdmin && (
                   <div>
                     <span className="text-sm mb-1 block text-tertiary">Resource</span>
                     <MemberSelect
                       value={loggedBy}
                       onChange={(val) => setLoggedBy(val)}
-                      projectId={projectId}
+                      projectId={projectId!}
                       multiple={false}
                       placeholder="Select resource"
                       variant="select-md"
@@ -220,20 +256,22 @@ export function LogTimeModal(props: Props) {
                       )}
                     />
                   </div>
-                  <span className="text-sm flex items-center gap-2 pt-5">
-                    <Controller
-                      control={control}
-                      name="is_billable"
-                      render={({ field }) => (
-                        <input
-                          type="checkbox"
-                          checked={field.value}
-                          onChange={(e) => field.onChange(e.target.checked)}
-                        />
-                      )}
-                    />
-                    Billable
-                  </span>
+                  {!standalone && (
+                    <span className="text-sm flex items-center gap-2 pt-5">
+                      <Controller
+                        control={control}
+                        name="is_billable"
+                        render={({ field }) => (
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                          />
+                        )}
+                      />
+                      Billable
+                    </span>
+                  )}
                 </div>
               </div>
             </DialogBody>
@@ -246,7 +284,7 @@ export function LogTimeModal(props: Props) {
               stretch="auto"
               type="submit"
               loading={isSubmitting}
-              label={isSubmitting ? "Saving" : "Log time"}
+              label={isSubmitting ? "Saving" : standalone ? "Add time" : "Log time"}
             />
           </DialogActions>
         </form>

@@ -43,3 +43,5 @@ from .estimate import IssueTimeEstimateEndpoint
 
 # FORK: time-tracking-v2 S7 — estimate accuracy report
 from .estimate_accuracy import EstimateAccuracyEndpoint
+# FORK: time-tracking-v2 S4 — My timesheet (week grid + entries by date)
+from .timesheet_week import TimesheetWeekEndpoint, TimesheetPeopleEndpoint

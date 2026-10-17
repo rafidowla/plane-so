@@ -283,4 +283,7 @@ from .time_tracking import (
     TimeTrackingMemberCapacityEndpoint,
     # FORK: time-tracking-v2 S7 — estimate accuracy report
     EstimateAccuracyEndpoint,
+    # FORK: time-tracking-v2 S4 — My timesheet
+    TimesheetWeekEndpoint,
+    TimesheetPeopleEndpoint,
 )

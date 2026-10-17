@@ -38,6 +38,9 @@ from plane.app.views import (
     IssueTimeEstimateEndpoint,
     # FORK: time-tracking-v2 S5 — Reports v2 + per-member capacity override
     TimeReportV2Endpoint,
+    # FORK: time-tracking-v2 S4 — My timesheet
+    TimesheetWeekEndpoint,
+    TimesheetPeopleEndpoint,
     TimeTrackingMemberCapacityEndpoint,
     # FORK: time-tracking-v2 S7 — estimate accuracy report
     EstimateAccuracyEndpoint,
@@ -213,6 +216,17 @@ urlpatterns = [
         "workspaces/<str:slug>/time/members/<uuid:user_id>/capacity/",
         TimeTrackingMemberCapacityEndpoint.as_view(),
         name="time-tracking-member-capacity",
+    ),
+    # FORK: time-tracking-v2 S4 — My timesheet (week grid + entries by date)
+    path(
+        "workspaces/<str:slug>/time/timesheet/",
+        TimesheetWeekEndpoint.as_view(),
+        name="time-timesheet-week",
+    ),
+    path(
+        "workspaces/<str:slug>/time/timesheet/people/",
+        TimesheetPeopleEndpoint.as_view(),
+        name="time-timesheet-people",
     ),
     # Jira import (self-service)
     path(

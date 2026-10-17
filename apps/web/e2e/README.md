@@ -79,6 +79,14 @@ settings estimate-mode select, and that guests see no estimate controls. The see
 guest in; override with `E2E_GUEST_EMAIL`).
 The spec restores the project to estimate mode `off` afterwards.
 
+## Time timesheet spec (`time-timesheet.spec.ts`)
+
+Time tracking v2 S4, the My timesheet tab (`/<ws>/time/timesheet/`): start a timer
+from the timesheet's own bar (keyboard only), stop it on the work item, and the one
+entry shows in both the week grid and the entries-by-date list; an admin can open a
+member's week read-only; a member sees no person select and can ask for time on a
+past day. Fast (~20 s). The instance needs `is_setup_done` set.
+
 ## Adding a flow
 
 Create `apps/web/e2e/<flow>.spec.ts`, use the API helpers in `helpers.ts` to
