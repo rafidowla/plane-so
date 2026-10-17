@@ -384,10 +384,12 @@ export type TTimeReportGroup = {
   key: string | null;
   name: string;
   total_minutes: number;
-  billable_minutes: number;
-  non_billable_minutes: number;
-  billable_amount: number;
+  // FORK: time-tracking-v2 S5 — billing fields are only sent while billing is on
+  billable_minutes?: number;
+  non_billable_minutes?: number;
+  billable_amount?: number;
   entry_count: number;
+  is_other?: boolean;
   expected_minutes?: number | null;
   utilization_pct?: number | null;
   issue_id?: string | null;
@@ -402,12 +404,14 @@ export type TTimeReport = {
   groups: TTimeReportGroup[];
   totals: {
     total_minutes: number;
-    billable_minutes: number;
-    billable_amount: number;
+    billable_minutes?: number;
+    billable_amount?: number;
     entry_count: number;
   };
   truncated?: boolean;
   limit?: number | null;
+  scope?: "all" | "projects" | "self";
+  billing_enabled?: boolean;
 };
 
 export type TJiraImportConfig = {

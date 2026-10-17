@@ -29,8 +29,8 @@ const GROUPS: { key: TGroupBy; label: string; column: string }[] = [
   { key: "issue", label: "By task", column: "Task" },
 ];
 
-export function hrs(minutes: number): string {
-  return `${(minutes / 60).toFixed(2)}h`;
+export function hrs(minutes: number | null | undefined): string {
+  return `${((minutes ?? 0) / 60).toFixed(2)}h`;
 }
 
 export const TimeReport = observer(function TimeReport() {
@@ -68,6 +68,8 @@ export const TimeReport = observer(function TimeReport() {
   const totals = data?.totals;
   const isResource = groupBy === "resource";
   const isIssueGroup = groupBy === "issue";
+  // FORK: time-tracking-v2 S5 — the server omits billing fields while billing is off
+  const billing = data?.billing_enabled === true;
 
   // Auto-expand the single resource row when exactly one member is selected and
   // exactly one row comes back; reset expansion whenever filters or data change.
@@ -85,7 +87,7 @@ export const TimeReport = observer(function TimeReport() {
     setExpandedKey((prev) => (prev === key ? null : key));
   };
 
-  const columnCount = 1 + (isIssueGroup ? 1 : 0) + 5 + (isResource ? 2 : 0);
+  const columnCount = 1 + (isIssueGroup ? 1 : 0) + (billing ? 5 : 2) + (isResource ? 2 : 0);
 
   return (
     <AnalyticsWrapper i18nTitle="">
@@ -156,9 +158,13 @@ export const TimeReport = observer(function TimeReport() {
                 <th className="px-4 py-2 font-medium">{GROUPS.find((g) => g.key === groupBy)?.column}</th>
                 {isIssueGroup && <th className="px-4 py-2 font-medium">Project</th>}
                 <th className="px-4 py-2 text-right font-medium">Total</th>
-                <th className="px-4 py-2 text-right font-medium">Billable</th>
-                <th className="px-4 py-2 text-right font-medium">Non-billable</th>
-                <th className="px-4 py-2 text-right font-medium">Amount</th>
+                {billing && (
+                  <>
+                    <th className="px-4 py-2 text-right font-medium">Billable</th>
+                    <th className="px-4 py-2 text-right font-medium">Non-billable</th>
+                    <th className="px-4 py-2 text-right font-medium">Amount</th>
+                  </>
+                )}
                 <th className="px-4 py-2 text-right font-medium">Entries</th>
                 {isResource && <th className="px-4 py-2 text-right font-medium">Utilization</th>}
               </tr>
@@ -201,9 +207,13 @@ export const TimeReport = observer(function TimeReport() {
                       </td>
                       {isIssueGroup && <td className="px-4 py-2 text-tertiary">{g.project_name ?? "—"}</td>}
                       <td className="px-4 py-2 text-right">{hrs(g.total_minutes)}</td>
-                      <td className="px-4 py-2 text-right">{hrs(g.billable_minutes)}</td>
-                      <td className="px-4 py-2 text-right">{hrs(g.non_billable_minutes)}</td>
-                      <td className="px-4 py-2 text-right">${g.billable_amount.toFixed(2)}</td>
+                      {billing && (
+                        <>
+                          <td className="px-4 py-2 text-right">{hrs(g.billable_minutes)}</td>
+                          <td className="px-4 py-2 text-right">{hrs(g.non_billable_minutes)}</td>
+                          <td className="px-4 py-2 text-right">${(g.billable_amount ?? 0).toFixed(2)}</td>
+                        </>
+                      )}
                       <td className="px-4 py-2 text-right">{g.entry_count}</td>
                       {isResource && (
                         <td className="px-4 py-2 text-right">
@@ -234,9 +244,15 @@ export const TimeReport = observer(function TimeReport() {
                   <td className="px-4 py-2">Total</td>
                   {isIssueGroup && <td className="px-4 py-2" />}
                   <td className="px-4 py-2 text-right">{hrs(totals.total_minutes)}</td>
-                  <td className="px-4 py-2 text-right">{hrs(totals.billable_minutes)}</td>
-                  <td className="px-4 py-2 text-right">{hrs(totals.total_minutes - totals.billable_minutes)}</td>
-                  <td className="px-4 py-2 text-right">${totals.billable_amount.toFixed(2)}</td>
+                  {billing && (
+                    <>
+                      <td className="px-4 py-2 text-right">{hrs(totals.billable_minutes)}</td>
+                      <td className="px-4 py-2 text-right">
+                        {hrs(totals.total_minutes - (totals.billable_minutes ?? 0))}
+                      </td>
+                      <td className="px-4 py-2 text-right">${(totals.billable_amount ?? 0).toFixed(2)}</td>
+                    </>
+                  )}
                   <td className="px-4 py-2 text-right">{totals.entry_count}</td>
                   {isResource && <td className="px-4 py-2" />}
                 </tr>

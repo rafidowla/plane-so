@@ -31,6 +31,8 @@ export const TaskBreakdown = observer(function TaskBreakdown({ workspaceSlug, us
   );
 
   const groups = data?.groups ?? [];
+  // FORK: time-tracking-v2 S5 — the server omits billing fields while billing is off
+  const billing = data?.billing_enabled === true;
 
   if (isLoading) {
     return (
@@ -58,7 +60,7 @@ export const TaskBreakdown = observer(function TaskBreakdown({ workspaceSlug, us
             <th className="px-4 py-2 font-medium">Task</th>
             <th className="px-4 py-2 font-medium">Project</th>
             <th className="px-4 py-2 text-right font-medium">Total</th>
-            <th className="px-4 py-2 text-right font-medium">Billable</th>
+            {billing && <th className="px-4 py-2 text-right font-medium">Billable</th>}
             <th className="px-4 py-2 text-right font-medium">Entries</th>
           </tr>
         </thead>
@@ -84,7 +86,7 @@ export const TaskBreakdown = observer(function TaskBreakdown({ workspaceSlug, us
                 </td>
                 <td className="px-4 py-2 text-tertiary">{g.project_name ?? "—"}</td>
                 <td className="px-4 py-2 text-right">{hrs(g.total_minutes)}</td>
-                <td className="px-4 py-2 text-right">{hrs(g.billable_minutes)}</td>
+                {billing && <td className="px-4 py-2 text-right">{hrs(g.billable_minutes)}</td>}
                 <td className="px-4 py-2 text-right">{g.entry_count}</td>
               </tr>
             );
