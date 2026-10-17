@@ -330,7 +330,13 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
       return response;
     } catch (error: any) {
       // FORK: time-tracking-v2 secfix — "Add an estimate first" has its own toast; skip the generic one.
-      if (!handleEstimateRequired(error, { workspaceSlug: workspaceSlug?.toString(), projectId: payload.project_id })) {
+      if (
+        !handleEstimateRequired(error, {
+          workspaceSlug: workspaceSlug?.toString(),
+          projectId: payload.project_id,
+          context: "create",
+        })
+      ) {
         setToast({
           type: "error",
           title: t("error"),

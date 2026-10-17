@@ -13,6 +13,8 @@ export type TEstimateRequiredDetail = {
   issueId?: string | null;
   workspaceSlug?: string | null;
   projectId?: string | null;
+  /** "create": refused while creating the item, so there is no work item to set the estimate on yet. */
+  context?: "create";
 };
 
 type TListener = (detail: TEstimateRequiredDetail) => void;
@@ -61,3 +63,6 @@ export const isEstimateFieldMounted = (issueId: string | null | undefined): bool
 export const ESTIMATE_REQUIRED_TITLE = "Add an estimate first";
 export const ESTIMATE_REQUIRED_MESSAGE =
   "This project needs an estimate before work starts. Set one on the work item, then try again.";
+// FORK: time-tracking-v2 — the create modal has no work item yet, so point at the create-then-move route.
+export const ESTIMATE_REQUIRED_CREATE_MESSAGE =
+  "This project needs an estimate before work starts. Create the item in a not-started state, add an estimate, then move it.";

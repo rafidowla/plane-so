@@ -14,6 +14,7 @@ import { useAppRouter } from "@/hooks/use-app-router";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
 import {
+  ESTIMATE_REQUIRED_CREATE_MESSAGE,
   ESTIMATE_REQUIRED_MESSAGE,
   ESTIMATE_REQUIRED_TITLE,
   isEstimateFieldMounted,
@@ -53,9 +54,12 @@ export function EstimateRequiredHost() {
           id: `estimate-required-${issueId ?? "x"}`,
           type: "warning",
           title: ESTIMATE_REQUIRED_TITLE,
-          message: onScreen
-            ? "Set the estimate in the Time tracking section, then try again."
-            : ESTIMATE_REQUIRED_MESSAGE,
+          message:
+            detail.context === "create"
+              ? ESTIMATE_REQUIRED_CREATE_MESSAGE
+              : onScreen
+                ? "Set the estimate in the Time tracking section, then try again."
+                : ESTIMATE_REQUIRED_MESSAGE,
           ...(href ? { actionItems: [{ label: "Open work item", primary: true, onClick: () => r.push(href) }] } : {}),
         });
       }),
