@@ -281,4 +281,6 @@ from .time_tracking import (
     # FORK: time-tracking-v2 S5 — Reports v2 + per-member capacity override
     TimeReportV2Endpoint,
     TimeTrackingMemberCapacityEndpoint,
+    # FORK: time-tracking-v2 S7 — estimate accuracy report
+    EstimateAccuracyEndpoint,
 )

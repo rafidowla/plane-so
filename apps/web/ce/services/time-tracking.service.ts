@@ -30,6 +30,8 @@ import type {
   TTimeRequestSubmit,
   TTimeEntryPatch,
 } from "@/plane-web/components/issues/worklog/types";
+// FORK: time-tracking-v2 S7
+import type { TAccuracyParams, TAccuracyResponse } from "@/plane-web/components/time/estimate-accuracy/types";
 
 export class TimeTrackingService extends APIService {
   constructor() {
@@ -371,6 +373,18 @@ export class TimeTrackingService extends APIService {
   /** Workspace admins' direct edit of a time entry (members go through a request instead). */
   async updateTimeEntry(workspaceSlug: string, entryId: string, data: TTimeEntryPatch): Promise<unknown> {
     return this.patch(`/api/workspaces/${workspaceSlug}/time/entries/${entryId}/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // FORK: time-tracking-v2 S7 — estimate accuracy (estimates vs. logged time on completed work)
+  async getEstimateAccuracy(workspaceSlug: string, params: TAccuracyParams = {}): Promise<TAccuracyResponse> {
+    const { solo, include_grandfathered, ...rest } = params;
+    return this.get(`/api/workspaces/${workspaceSlug}/time/estimate-accuracy/`, {
+      params: { ...rest, ...(solo ? { solo: 1 } : {}), ...(include_grandfathered ? { include_grandfathered: 1 } : {}) },
+    })
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

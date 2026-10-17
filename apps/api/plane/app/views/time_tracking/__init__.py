@@ -40,3 +40,6 @@ from .entries import TimeEntryEndpoint, TimeEntryDetailEndpoint
 
 # FORK: time-tracking-v2 S6 — per-work-item time estimates
 from .estimate import IssueTimeEstimateEndpoint
+
+# FORK: time-tracking-v2 S7 — estimate accuracy report
+from .estimate_accuracy import EstimateAccuracyEndpoint

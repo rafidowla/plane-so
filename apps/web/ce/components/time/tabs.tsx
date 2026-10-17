@@ -9,6 +9,7 @@ import type { ComponentType } from "react";
 import { TimeDashboard } from "./dashboard/root";
 import { ApprovalsTab } from "./approvals/root";
 import { MyRequests } from "./requests/my-requests";
+import { EstimateAccuracyTab } from "./estimate-accuracy/root"; // FORK: time-tracking-v2 S7
 
 export type TTimeTab = { key: string; label: string; content: ComponentType };
 
@@ -24,6 +25,8 @@ type TTabOptions = {
 export const getTimeTabs = ({ canReview = false, pendingCount = 0 }: TTabOptions = {}): TTimeTab[] => [
   { key: "dashboard", label: "Dashboard", content: TimeDashboard },
   { key: "requests", label: "My requests", content: MyRequests },
+  // FORK: time-tracking-v2 S7 — estimate accuracy; the server scopes rows by role (members see their own)
+  { key: "estimates", label: "Estimates", content: EstimateAccuracyTab },
   ...(canReview
     ? [
         {

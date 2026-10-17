@@ -39,6 +39,8 @@ from plane.app.views import (
     # FORK: time-tracking-v2 S5 — Reports v2 + per-member capacity override
     TimeReportV2Endpoint,
     TimeTrackingMemberCapacityEndpoint,
+    # FORK: time-tracking-v2 S7 — estimate accuracy report
+    EstimateAccuracyEndpoint,
 )
 
 urlpatterns = [
@@ -238,5 +240,11 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/time-estimate/",
         IssueTimeEstimateEndpoint.as_view(),
         name="issue-time-estimate",
+    ),
+    # FORK: time-tracking-v2 S7 — estimate accuracy (task / project / person tables, trend)
+    path(
+        "workspaces/<str:slug>/time/estimate-accuracy/",
+        EstimateAccuracyEndpoint.as_view(),
+        name="time-estimate-accuracy",
     ),
 ]
