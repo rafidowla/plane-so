@@ -19,8 +19,11 @@ test.describe("My timesheet", () => {
   test.use({ storageState: "e2e/.auth/admin.json" });
 
   test("start in the timesheet bar, stop on the work item: one entry in both", async ({ page, request }) => {
+    // Unique per run: deleting the item keeps its time ("(deleted)"), so a fixed name would match an
+    // earlier run's entry on the same day.
+    const name = `E2E: timesheet round trip ${Date.now()}`;
     const project = await getE2EProject(request);
-    const issue = await createIssue(request, project.id, "E2E: timesheet round trip");
+    const issue = await createIssue(request, project.id, name);
     const me = await (await request.get("/api/users/me/")).json();
     await request.patch(`/api/workspaces/${E2E_WS}/projects/${project.id}/issues/${issue.id}/`, {
       data: { assignee_ids: [me.id] },
@@ -36,10 +39,10 @@ test.describe("My timesheet", () => {
       const input = page.getByTestId("time-task-picker-input");
       await expect(input).toBeVisible();
       await input.click();
-      await input.fill("timesheet round trip");
-      await expect(page.getByTestId("time-task-option").first()).toContainText("E2E: timesheet round trip");
+      await input.fill(name);
+      await expect(page.getByTestId("time-task-option").first()).toContainText(name);
       await input.press("Enter");
-      await expect(page.getByTestId("time-timer-bar")).toContainText("E2E: timesheet round trip", {
+      await expect(page.getByTestId("time-timer-bar")).toContainText(name, {
         timeout: 15_000,
       });
 
@@ -50,13 +53,11 @@ test.describe("My timesheet", () => {
 
       // 3. The timesheet shows the same single entry, without a manual refresh of the page's state.
       await page.goto(`/${E2E_WS}/time/timesheet/`);
-      const group = page.getByTestId("timesheet-group").filter({ hasText: "E2E: timesheet round trip" });
+      const group = page.getByTestId("timesheet-group").filter({ hasText: name });
       await expect(group).toHaveCount(1, { timeout: 30_000 });
       await expect(group.getByTestId("timesheet-entry")).toHaveCount(1);
       await expect(group.getByTestId("timesheet-group-badge")).toHaveCount(0); // a badge only for 2+ entries
-      await expect(
-        page.getByTestId("timesheet-issue-row").filter({ hasText: "E2E: timesheet round trip" })
-      ).toHaveCount(1);
+      await expect(page.getByTestId("timesheet-issue-row").filter({ hasText: name })).toHaveCount(1);
       // One minute minimum: the grid's week total is not empty.
       await expect(page.getByTestId("timesheet-week-total")).not.toHaveText("–");
     } finally {
