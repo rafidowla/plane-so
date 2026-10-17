@@ -32,6 +32,12 @@ import { RequestModal, type TRequestModalKind } from "@/plane-web/components/tim
 import { safeTimeZone } from "@/plane-web/components/time/requests/request-utils";
 import type { TTimeRequest, TTimerStartResponse, TWorklog } from "../types";
 import { formatElapsed, formatLoggedMinutes, getAutoStopToastTitle } from "../timer-utils";
+// FORK: time-tracking-v2 S6 — work item estimate
+import { IssueEstimateField, refreshIssueEstimate } from "../estimate/estimate-field";
+import { handleEstimateRequired } from "../estimate/estimate-required";
+
+// FORK: time-tracking-v2 S6 — an open work item re-reads its time every 10 s (DESIGN §5)
+const ITEM_REFRESH_MS = 10_000;
 
 type TIssueWorklogProperty = {
   workspaceSlug: string;
@@ -71,11 +77,14 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
 
   const { data: worklogs, mutate: mutateWorklogs } = useSWR(
     enabled ? `WORKLOGS_${workspaceSlug}_${issueId}` : null,
-    enabled ? () => timeTrackingService.getWorklogs(workspaceSlug, projectId, issueId) : null
+    enabled ? () => timeTrackingService.getWorklogs(workspaceSlug, projectId, issueId) : null,
+    // FORK: time-tracking-v2 S6 — keep an open item current (other people's entries, a timer started elsewhere)
+    { refreshInterval: ITEM_REFRESH_MS, refreshWhenHidden: false }
   );
   const { data: timer, mutate: mutateTimer } = useSWR(
     enabled ? `WORKLOG_TIMER_${workspaceSlug}_${issueId}` : null,
-    enabled ? () => timeTrackingService.getTimer(workspaceSlug, projectId, issueId) : null
+    enabled ? () => timeTrackingService.getTimer(workspaceSlug, projectId, issueId) : null,
+    { refreshInterval: ITEM_REFRESH_MS, refreshWhenHidden: false }
   );
   // FORK: time-tracking-v2 — whether the caller is a tracked user at all (guests never are). Shares the
   // task picker's cache key, so it costs one request per page.
@@ -168,8 +177,16 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
       // FORK: time-tracking-v2 — "Moved to In Progress" when starting advanced the item's state
       const movedTitle = getStateChangeToastTitle((started as TTimerStartResponse).state_change);
       if (movedTitle) setToast({ type: "success", title: movedTitle });
-      await Promise.all([mutateTimer(), mutateWorklogs(), revalidateRunningTimer(workspaceSlug)]);
+      await Promise.all([
+        mutateTimer(),
+        mutateWorklogs(),
+        revalidateRunningTimer(workspaceSlug),
+        // FORK: time-tracking-v2 S6 — starting work locks the original estimate
+        refreshIssueEstimate(workspaceSlug, issueId),
+      ]);
     } catch (err) {
+      // FORK: time-tracking-v2 S6 — the project needs an estimate first: the estimate field opens
+      if (handleEstimateRequired(err, { issueId, workspaceSlug, projectId })) return;
       const info = describeTimerError(err);
       setToast({ type: info.alreadyRunning ? "info" : "error", title: info.title, message: info.message });
       if (info.alreadyRunning) await Promise.all([mutateTimer(), revalidateRunningTimer(workspaceSlug)]);
@@ -213,6 +230,17 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
       <SidebarPropertyListItem icon={Timer} label="Time tracking" childrenClassName="min-w-0 flex-col items-start">
         <div className="flex w-full min-w-0 flex-col gap-2">
           <span className="text-sm font-medium">{formatLoggedMinutes(total)} logged</span>
+          {/* FORK: time-tracking-v2 S6 — estimate, history and logged-vs-estimate; admins and members only (guests: total only) */}
+          {canSeeDetails && (
+            <IssueEstimateField
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              issueId={issueId}
+              loggedMinutes={total}
+              disabled={disabled}
+              timeZone={timeZone}
+            />
+          )}
           {canSeeDetails && !disabled && (
             <div className="flex flex-wrap items-center gap-2">
               {/* FORK: time-tracking-v2 — the timer button is for tracked users only (guests/untracked never see it) */}
@@ -336,7 +364,11 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
         issueId={issueId}
         isProjectAdmin={isProjectAdmin}
         currentUserId={currentUser?.id ?? ""}
-        onSaved={() => mutateWorklogs()}
+        onSaved={() => {
+          void mutateWorklogs();
+          // FORK: time-tracking-v2 S6 — the first entry locks the original estimate
+          void refreshIssueEstimate(workspaceSlug, issueId);
+        }}
       />
 
       {/* FORK: time-tracking-v2 S3b */}

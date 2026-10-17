@@ -47,6 +47,8 @@ outsider = ensure_user("uat-outsider@example.com")
 # second member who belongs only to the SECRET project (live-dashboard redaction specs).
 member = ensure_user("qa-member@plane.test")
 other = ensure_user("qa-other@plane.test")
+# FORK: time-tracking-v2 S6 — a project guest (no estimate controls)
+guest = ensure_user("qa-guest@plane.test")
 
 ws, _ = Workspace.objects.get_or_create(
     slug="e2e",
@@ -56,6 +58,7 @@ WorkspaceMember.objects.get_or_create(workspace=ws, member=admin, defaults={"rol
 WorkspaceMember.objects.get_or_create(workspace=ws, member=outsider, defaults={"role": 15, "is_active": True})
 WorkspaceMember.objects.get_or_create(workspace=ws, member=member, defaults={"role": 15, "is_active": True})
 WorkspaceMember.objects.get_or_create(workspace=ws, member=other, defaults={"role": 15, "is_active": True})
+WorkspaceMember.objects.get_or_create(workspace=ws, member=guest, defaults={"role": 5, "is_active": True})
 
 project, _ = Project.objects.get_or_create(
     workspace=ws,
@@ -75,8 +78,17 @@ ProjectMember.objects.get_or_create(
 )
 # The outsider is deliberately NOT a project member.
 State.objects.get_or_create(
-    workspace=ws, project=project,
-    defaults={"name": "Todo", "group": "unstarted", "default": True, "created_by": admin},
+    workspace=ws, project=project, name="Todo",
+    defaults={"group": "unstarted", "default": True, "created_by": admin},
+)
+# FORK: time-tracking-v2 S6 — a started state (estimates lock when work starts) and the guest's membership
+State.objects.get_or_create(
+    workspace=ws, project=project, name="In Progress",
+    defaults={"group": "started", "created_by": admin},
+)
+ProjectMember.objects.get_or_create(
+    project=project, workspace=ws, member=guest,
+    defaults={"role": 5, "is_active": True},
 )
 
 # FORK: time-tracking-v2 — a second tracked project that only qa-other belongs to.

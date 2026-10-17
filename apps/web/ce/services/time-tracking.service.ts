@@ -29,6 +29,8 @@ import type {
   TTimeRequestHistory,
   TTimeRequestSubmit,
   TTimeEntryPatch,
+  // FORK: time-tracking-v2 S6
+  TIssueTimeEstimate,
 } from "@/plane-web/components/issues/worklog/types";
 // FORK: time-tracking-v2 S7
 import type { TAccuracyParams, TAccuracyResponse } from "@/plane-web/components/time/estimate-accuracy/types";
@@ -172,6 +174,29 @@ export class TimeTrackingService extends APIService {
 
   async getWorklogs(workspaceSlug: string, projectId: string, issueId: string): Promise<TWorklog[]> {
     return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/worklogs/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // FORK: time-tracking-v2 S6 — work item estimate (admins and members; guests get 403)
+  async getIssueEstimate(workspaceSlug: string, projectId: string, issueId: string): Promise<TIssueTimeEstimate> {
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/time-estimate/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** `minutes: null` clears an estimate that is not locked yet. `reason` only matters for a re-estimate. */
+  async setIssueEstimate(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    data: { minutes: number | null; reason?: string }
+  ): Promise<TIssueTimeEstimate> {
+    return this.put(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/time-estimate/`, data)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

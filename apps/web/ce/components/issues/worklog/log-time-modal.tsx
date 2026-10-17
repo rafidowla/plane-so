@@ -22,6 +22,8 @@ import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { setToast } from "@plane/blocks/toast";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { asApiError } from "@/plane-web/components/analytics/api-error";
+// FORK: time-tracking-v2 S6
+import { handleEstimateRequired } from "./estimate/estimate-required";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 
 type Props = {
@@ -89,6 +91,11 @@ export function LogTimeModal(props: Props) {
       onSaved();
       handleClose();
     } catch (err) {
+      // FORK: time-tracking-v2 S6 — no estimate on a project that needs one: close and open the estimate field
+      if (handleEstimateRequired(err, { issueId, workspaceSlug, projectId })) {
+        handleClose();
+        return;
+      }
       setToast({
         type: "error",
         title: "Error",

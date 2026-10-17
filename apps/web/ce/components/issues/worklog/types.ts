@@ -123,6 +123,8 @@ export type TTimerErrorCode =
   | "tracking_disabled"
   | "project_tracking_disabled"
   | "issue_cancelled"
+  // FORK: time-tracking-v2 S6 — the project requires an estimate before work starts
+  | "estimate_required"
   | "idle_stopped"
   | "auto_stopped"
   | "already_running";
@@ -328,7 +330,9 @@ export type TTimeRequestErrorCode =
   | "not_requester"
   | "not_found"
   | "request_required"
-  | "not_allowed";
+  | "not_allowed"
+  // FORK: time-tracking-v2 S6
+  | "estimate_required";
 
 export type TTimeRequestApiError = {
   error?: string;
@@ -467,3 +471,58 @@ export type TJiraImportJob = {
   created_at: string;
   initiated_by_detail?: TUserLite;
 };
+
+// FORK: time-tracking-v2 S6 — work item time estimate (`issues/<i>/time-estimate/`)
+export type TTimeEstimateMode = "off" | "optional" | "required";
+
+export type TEstimateUser = {
+  id: string;
+  display_name: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string;
+};
+
+export type TTimeEstimate = {
+  id: string;
+  original_minutes: number | null;
+  original_by: TEstimateUser | null;
+  original_set_at: string | null;
+  current_minutes: number | null;
+  current_by: TEstimateUser | null;
+  current_set_at: string | null;
+  /** the original no longer changes: later edits are re-estimates */
+  locked: boolean;
+  locked_at: string | null;
+  /** the item was already started when the project began requiring estimates */
+  grandfathered: boolean;
+};
+
+export type TTimeEstimateRevisionKind = "original_set" | "original_replaced" | "re_estimate" | "cleared";
+
+export type TTimeEstimateRevision = {
+  id: string;
+  kind: TTimeEstimateRevisionKind;
+  minutes: number | null;
+  set_by: TEstimateUser | null;
+  reason: string;
+  created_at: string;
+};
+
+export type TIssueTimeEstimate = {
+  issue_id: string;
+  project_id: string;
+  mode: TTimeEstimateMode;
+  required: boolean;
+  work_started: boolean;
+  grandfathered: boolean;
+  can_edit: boolean;
+  /** null until an estimate was ever set */
+  estimate: TTimeEstimate | null;
+  /** oldest first */
+  revisions: TTimeEstimateRevision[];
+};
+
+export type TTimeEstimateErrorCode = "estimates_off" | "invalid_minutes" | "estimate_locked" | "estimate_required";
+
+export type TTimeEstimateApiError = { error?: string; code?: TTimeEstimateErrorCode; issue_id?: string };
