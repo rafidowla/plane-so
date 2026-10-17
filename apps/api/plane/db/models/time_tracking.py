@@ -21,7 +21,7 @@ from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 # Module imports
@@ -143,12 +143,21 @@ class TimeTrackingAuditLog(AppendOnlyModel):
     """Who changed which time-tracking record, with before/after snapshots.
 
     ``actor`` null means the system (e.g. the timer sweep).
+
+    FORK: time-tracking-v2 secfix — append-only in the database too (migration 0132): a
+    trigger refuses any UPDATE / DELETE except the cascade of a workspace hard delete and
+    the ``actor`` -> NULL of a user hard delete. Both FKs are therefore DO_NOTHING here
+    with the real ``ON DELETE CASCADE`` / ``ON DELETE SET NULL`` constraints created in SQL
+    (Django's own cascade would issue a plain DELETE / UPDATE, which the trigger refuses).
     """
 
-    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="time_tracking_audit_logs")
+    workspace = models.ForeignKey(
+        "db.Workspace", on_delete=models.DO_NOTHING, db_constraint=False, related_name="time_tracking_audit_logs"
+    )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
         null=True,
         blank=True,
         related_name="time_tracking_audit_logs",
@@ -413,6 +422,37 @@ class IssueTimeEstimate(ProjectBaseModel):
         return f"{self.issue_id}: {self.current_minutes} min (original {self.original_minutes})"
 
 
+class IssueEstimateGrandfather(ProjectBaseModel):
+    """Marks a work item as already in progress when its project's estimate mode became
+    "required" (items in a Started/Completed state at that moment, see
+    ``plane.utils.time_tracking.estimate.grandfather_project``). A marked item is never blocked
+    by the estimate gate. The flag is stored, not derived from the item's current state: the
+    state is user-controlled, so deriving "grandfathered" from it let anyone skip the gate by
+    creating or moving an item straight into a Started state. Cleared when the item moves to
+    another project (the flag belongs to the project whose mode flip it records).
+    """
+
+    issue = models.ForeignKey(
+        "db.Issue", on_delete=models.DO_NOTHING, db_constraint=False, related_name="estimate_grandfathers"
+    )
+
+    class Meta:
+        verbose_name = "Issue Estimate Grandfather"
+        verbose_name_plural = "Issue Estimate Grandfathers"
+        db_table = "issue_estimate_grandfathers"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["issue"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="issue_estimate_grandfather_one_per_issue",
+            ),
+        ]
+
+    def __str__(self):
+        return f"grandfathered {self.issue_id}"
+
+
 class IssueTimeEstimateRevision(AppendOnlyModel):
     """Append-only history of an estimate: every set, replace, re-estimate or clear.
 
@@ -475,3 +515,30 @@ def _lock_estimate_on_entry(sender, instance, created, **kwargs):
         from plane.utils.time_tracking.estimate import lock_estimate
 
         lock_estimate(instance.issue_id)
+
+
+@receiver(pre_save, sender="db.Project", dispatch_uid="time_tracking_v2_estimate_mode_before")
+def _remember_estimate_gate(sender, instance, update_fields=None, **kwargs):
+    """Remember whether the estimate gate was in force before this save (see the post_save below)."""
+    instance._tt_gate_before = None
+    if instance.pk is None or (
+        update_fields is not None and not ({"time_estimate_mode", "is_time_tracking_enabled"} & set(update_fields))
+    ):
+        return
+    row = sender.objects.filter(pk=instance.pk).values_list("is_time_tracking_enabled", "time_estimate_mode").first()
+    if row is not None:
+        instance._tt_gate_before = bool(row[0]) and row[1] == TimeEstimateMode.REQUIRED.value
+
+
+@receiver(post_save, sender="db.Project", dispatch_uid="time_tracking_v2_estimate_mode_after")
+def _grandfather_on_gate_start(sender, instance, created, **kwargs):
+    """The gate just came into force (mode switched to required, or tracking switched on while the
+    mode is required): mark the items already in progress so they are not blocked."""
+    before = getattr(instance, "_tt_gate_before", None)
+    instance._tt_gate_before = None
+    if created or before is None or before:
+        return
+    if instance.is_time_tracking_enabled and instance.time_estimate_mode == TimeEstimateMode.REQUIRED.value:
+        from plane.utils.time_tracking.estimate import grandfather_project
+
+        grandfather_project(instance.pk)

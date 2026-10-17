@@ -61,7 +61,7 @@ class WorkspaceTimerStartEndpoint(BaseAPIView):
             )
         except TimeTrackingError as exc:
             return Response(exc.payload, status=exc.status_code)
-        return Response(start_response(timer, stopped, state_change), status=status.HTTP_201_CREATED)
+        return Response(start_response(timer, stopped, state_change, request.user), status=status.HTTP_201_CREATED)
 
 
 class WorkspaceTimerStopEndpoint(BaseAPIView):
@@ -72,7 +72,7 @@ class WorkspaceTimerStopEndpoint(BaseAPIView):
         label, worklogs = stop_running_timer(slug, request.user, description=request.data.get("description"))
         if not worklogs:
             return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
-        data = stop_response(worklogs)
+        data = stop_response(worklogs, request.user)
         data["issue_detail"] = label
         return Response(data, status=status.HTTP_201_CREATED)
 
@@ -98,7 +98,7 @@ class WorkspaceTimerConfirmEndpoint(BaseAPIView):
                 {
                     "error": "The timer was already stopped.",
                     "code": "auto_stopped" if auto else "idle_stopped",
-                    "stopped": stop_response(result),
+                    "stopped": stop_response(result, request.user),
                 },
                 status=status.HTTP_409_CONFLICT,
             )

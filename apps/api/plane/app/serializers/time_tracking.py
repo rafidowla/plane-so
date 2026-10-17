@@ -69,6 +69,23 @@ class IssueWorklogSerializer(BaseSerializer):
             "source",
         ]
 
+    def to_representation(self, instance):
+        # FORK: time-tracking-v2 secfix — billing fields only for a viewer who may manage
+        # rates (workspace admin / admin of the entry's project, billing on). Deny by default:
+        # a serializer built without a viewer strips them.
+        from plane.utils.time_tracking.billing import RATE_FIELDS, RateViewer
+
+        data = super().to_representation(instance)
+        viewer = self.context.get("rate_viewer")
+        if viewer is None:
+            request = self.context.get("request")
+            user = getattr(request, "user", None)
+            viewer = self.context["rate_viewer"] = RateViewer(user)
+        if not viewer.can_see(instance.workspace_id, instance.project_id):
+            for field in RATE_FIELDS:
+                data.pop(field, None)
+        return data
+
 
 class WorklogTimerSerializer(BaseSerializer):
     user_detail = UserLiteSerializer(read_only=True, source="user")
@@ -171,9 +188,7 @@ class TimeTrackingSettingSerializer(BaseSerializer):
             if value is not None and not 1 <= value <= 1440:
                 raise serializers.ValidationError({name: "Must be between 1 and 1440 minutes."})
         if remind is not None and auto_stop is not None and auto_stop <= remind:
-            raise serializers.ValidationError(
-                {"auto_stop_after_minutes": "Auto-stop must come after the reminder."}
-            )
+            raise serializers.ValidationError({"auto_stop_after_minutes": "Auto-stop must come after the reminder."})
         idle_min = attrs.get("idle_check_min_minutes", getattr(self.instance, "idle_check_min_minutes", 20))
         idle_max = attrs.get("idle_check_max_minutes", getattr(self.instance, "idle_check_max_minutes", 80))
         if not (idle_min == 0 and idle_max == 0):

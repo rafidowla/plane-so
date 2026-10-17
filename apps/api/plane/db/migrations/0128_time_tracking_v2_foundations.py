@@ -198,7 +198,10 @@ class Migration(migrations.Migration):
         # worklogs so reports can still name the time once the issue row is gone.
         # Reverse runs BEFORE the two AlterFields above are undone: the FK
         # constraints can only come back once rows pointing at missing issues are
-        # removed (time whose work item was hard-deleted after this migration).
+        # out of the live tables (time whose work item was hard-deleted after this
+        # migration). Those rows are MOVED, not dropped, into
+        # ``issue_worklogs_orphaned_0128`` / ``worklog_timers_orphaned_0128`` (plain
+        # copies of the tables, no constraints) so the time can be restored by hand.
         migrations.RunSQL(
             sql="""
                 UPDATE issue_worklogs AS w
@@ -209,8 +212,16 @@ class Migration(migrations.Migration):
                 WHERE w.issue_id = i.id AND w.issue_ref = '';
             """,
             reverse_sql="""
+                CREATE TABLE IF NOT EXISTS worklog_timers_orphaned_0128 (LIKE worklog_timers);
+                INSERT INTO worklog_timers_orphaned_0128
+                    SELECT t.* FROM worklog_timers AS t
+                    WHERE NOT EXISTS (SELECT 1 FROM issues AS i WHERE i.id = t.issue_id);
                 DELETE FROM worklog_timers AS t
                 WHERE NOT EXISTS (SELECT 1 FROM issues AS i WHERE i.id = t.issue_id);
+                CREATE TABLE IF NOT EXISTS issue_worklogs_orphaned_0128 (LIKE issue_worklogs);
+                INSERT INTO issue_worklogs_orphaned_0128
+                    SELECT w.* FROM issue_worklogs AS w
+                    WHERE NOT EXISTS (SELECT 1 FROM issues AS i WHERE i.id = w.issue_id);
                 DELETE FROM issue_worklogs AS w
                 WHERE NOT EXISTS (SELECT 1 FROM issues AS i WHERE i.id = w.issue_id);
             """,

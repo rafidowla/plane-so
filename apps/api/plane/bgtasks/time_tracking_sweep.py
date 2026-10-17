@@ -21,6 +21,13 @@ S2 adds two passes driven by the workspace settings (``utils.time_tracking.limit
   extra time.
 * ``reminded`` — the 10 h in-app reminder, once per timer (``reminded_at``).
 
+Security fix adds ``member_removed`` — a timer whose owner is no longer an active
+admin/member of the timer's project or an active non-guest member of the workspace
+(removed, left or demoted to guest) is stopped; nothing else reacts to a membership
+change, so the timer would otherwise run to the 14 h auto-stop and turn into time for
+someone who has lost access. Same stop as every other system stop; the time up to the
+sweep run counts (the sweep runs every minute).
+
 The task runs every minute (celery beat) so the 5-minute "still working?" grace
 is honoured to within a minute. Each pass is a fixed number of queries plus one
 write per timer that actually changes.
@@ -30,13 +37,15 @@ write per timer that actually changes.
 import logging
 
 # Django imports
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 # Third party imports
 from celery import shared_task
 
 # Module imports
-from plane.db.models import Issue, Notification, WorklogTimer
+from plane.app.permissions import ROLE
+from plane.db.models import Issue, Notification, ProjectMember, WorklogTimer, WorkspaceMember
 from plane.utils.time_tracking import limits
 from plane.utils.time_tracking.timer import system_stop_timer
 from plane.utils.time_tracking.tracking import status_row_on
@@ -72,6 +81,29 @@ def _sweep_tracking_disabled():
         if row is None or row.is_tracked:
             continue
         if system_stop_timer(timer_id, day_start(row.effective_from, tz), "tracking_disabled"):
+            stopped += 1
+    return stopped
+
+
+def _sweep_removed_members():
+    """Stop timers whose owner can no longer track on the timer's project (see module docstring)."""
+    stopped = 0
+    active_project_member = ProjectMember.objects.filter(
+        project_id=OuterRef("project_id"), member_id=OuterRef("user_id"), is_active=True, role__gte=ROLE.MEMBER.value
+    )
+    active_workspace_member = WorkspaceMember.objects.filter(
+        workspace_id=OuterRef("workspace_id"),
+        member_id=OuterRef("user_id"),
+        is_active=True,
+        role__gte=ROLE.MEMBER.value,
+    )
+    timer_ids = list(
+        WorklogTimer.objects.filter(~Exists(active_project_member) | ~Exists(active_workspace_member)).values_list(
+            "id", flat=True
+        )
+    )
+    for timer_id in timer_ids:
+        if system_stop_timer(timer_id, None, "member_removed"):
             stopped += 1
     return stopped
 
@@ -164,10 +196,11 @@ def _sweep_reminders():
 
 @shared_task
 def time_tracking_timer_sweep():
-    result = {"issue_deleted": 0, "tracking_disabled": 0, "limits": 0, "reminded": 0}
+    result = {"issue_deleted": 0, "tracking_disabled": 0, "member_removed": 0, "limits": 0, "reminded": 0}
     passes = (
         ("issue_deleted", _sweep_deleted_issues),
         ("tracking_disabled", _sweep_tracking_disabled),
+        ("member_removed", _sweep_removed_members),
         ("limits", _sweep_limits),
         ("reminded", _sweep_reminders),
     )

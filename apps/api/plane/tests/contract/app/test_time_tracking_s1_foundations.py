@@ -319,7 +319,13 @@ class TestTimerSweep:
 
     def test_live_timers_are_left_alone(self, session_client, tt):
         session_client.post(_timer_url(tt), {}, format="json")
-        assert time_tracking_timer_sweep() == {"issue_deleted": 0, "tracking_disabled": 0, "limits": 0, "reminded": 0}
+        assert time_tracking_timer_sweep() == {
+            "issue_deleted": 0,
+            "tracking_disabled": 0,
+            "member_removed": 0,
+            "limits": 0,
+            "reminded": 0,
+        }
         assert WorklogTimer.objects.filter(user=tt["user"]).exists()
 
     def test_future_dated_tracking_off_is_enforced_by_the_sweep(self, tt):

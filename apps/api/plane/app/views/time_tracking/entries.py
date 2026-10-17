@@ -52,7 +52,7 @@ class TimeEntryEndpoint(BaseAPIView):
             rows = entries.create_entry(workspace.id, issue["project_id"], issue["id"], request.user, request.data)
         except TimeTrackingError as exc:
             return Response(exc.payload, status=exc.status_code)
-        return Response(stop_response(rows), status=status.HTTP_201_CREATED)
+        return Response(stop_response(rows, request.user), status=status.HTTP_201_CREATED)
 
 
 class TimeEntryDetailEndpoint(BaseAPIView):
@@ -68,7 +68,7 @@ class TimeEntryDetailEndpoint(BaseAPIView):
             rows = entries.update_entry(worklog, request.user, request.data)
         except TimeTrackingError as exc:
             return Response(exc.payload, status=exc.status_code)
-        return Response(stop_response(rows), status=status.HTTP_200_OK)
+        return Response(stop_response(rows, request.user), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
     def delete(self, request, slug, pk):

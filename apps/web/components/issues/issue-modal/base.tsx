@@ -27,6 +27,8 @@ import { useProject } from "@/hooks/store/use-project";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
+// FORK: time-tracking-v2 secfix — creating straight into a started state is gated in estimate-required projects
+import { handleEstimateRequired } from "@/plane-web/components/issues/worklog/estimate/estimate-required";
 // FORK: create-modal-attachments (PSR-88, PSR-104)
 import {
   getFailedUploadsMessage,
@@ -327,11 +329,14 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
       setChangesMade(null);
       return response;
     } catch (error: any) {
-      setToast({
-        type: "error",
-        title: t("error"),
-        message: error?.error ?? t(is_draft_issue ? "draft_creation_failed" : "issue_creation_failed"),
-      });
+      // FORK: time-tracking-v2 secfix — "Add an estimate first" has its own toast; skip the generic one.
+      if (!handleEstimateRequired(error, { workspaceSlug: workspaceSlug?.toString(), projectId: payload.project_id })) {
+        setToast({
+          type: "error",
+          title: t("error"),
+          message: error?.error ?? t(is_draft_issue ? "draft_creation_failed" : "issue_creation_failed"),
+        });
+      }
       throw error;
     }
   };

@@ -11,19 +11,26 @@ has an effect while the project has time tracking on (``is_time_tracking_enabled
 tracking off nobody logs time, so nothing is gated and estimates can't be set.
 
 **Gate** (``required`` only). Starting work on an item without an estimate is refused with
-400 ``{"code": "estimate_required"}``:
+400 ``{"code": "estimate_required"}``. Every way into a Started/Completed state is gated
+(``gate_state_change``):
 
-* moving it from a not-started group (backlog / unstarted / cancelled / triage) into a
-  Started or Completed state — ``gate_state_change``, called from the app
-  ``IssueCreateSerializer.validate`` and the public API ``IssueSerializer.validate`` on
-  updates (not at creation: "Not at creation", PO);
-* starting a timer, adding a time entry, submitting or approving a missing-time request —
-  ``check_can_log``.
+* a state change on an existing item (app ``IssueCreateSerializer.validate``, public API
+  ``IssueSerializer.validate``);
+* creating an item straight into a Started/Completed state (no estimate can exist yet),
+  through the same two serializers;
+* accepting an intake item into the project's default state (app and API intake serializers);
+* moving an item into a "required" project (``utils.work_item_move``);
 
-Moving into Cancelled is never gated. An item that is already in a Started/Completed
-state without an estimate (it was started before the mode became ``required``, or was
-created/moved in that way) is **grandfathered**: never blocked, and ``grandfathered`` is
-reported (and stored on the estimate when one is added later).
+and starting a timer, adding a time entry, submitting or approving a missing-time request
+is gated by ``check_can_log``.
+
+Moving into Cancelled is never gated. An item that was already in a Started/Completed
+state when the mode became ``required`` is **grandfathered**: never blocked, and
+``grandfathered`` is reported (and stored on the estimate when one is added later). The
+flag is a stored row (``IssueEstimateGrandfather``, written by ``grandfather_project`` when
+the gate comes into force and backfilled by migration 0133), never derived from the item's
+current state — the state is user-controlled, so deriving it let an item skip the gate by
+being created or moved straight into a Started state.
 
 **Lock.** The original estimate locks when work starts — first of: timer start, first time
 entry, move into Started/Completed (fork receivers in ``db/models/time_tracking.py`` call
@@ -34,7 +41,7 @@ it, a new value is a re-estimate appended to the history and the original never 
 
 # Django imports
 from django.db import transaction
-from django.db.models import Exists
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 # Third party imports
@@ -43,6 +50,7 @@ from rest_framework.exceptions import APIException
 # Module imports
 from plane.db.models import (
     Issue,
+    IssueEstimateGrandfather,
     IssueTimeEstimate,
     IssueTimeEstimateRevision,
     IssueWorklog,
@@ -121,35 +129,85 @@ def _state_group(state_id):
 # ---------------------------------------------------------------------------
 
 
+def is_grandfathered(issue_id):
+    """Was the item already in progress when its project's gate came into force."""
+    return IssueEstimateGrandfather.objects.filter(issue_id=issue_id).exists()
+
+
+def grandfather_project(project_id):
+    """Flag every item of the project that is in a Started/Completed state without an estimate.
+    Called when the gate comes into force (``Project`` post_save receiver) and by migration 0133's
+    backfill (which inlines the same query). Idempotent."""
+    in_work_group = State.all_state_objects.filter(pk=OuterRef("state_id"), group__in=WORK_GROUPS)
+    has_live_estimate = IssueTimeEstimate.objects.filter(issue_id=OuterRef("pk"))
+    items = (
+        Issue.all_objects.filter(project_id=project_id, deleted_at__isnull=True)
+        .filter(Exists(in_work_group))
+        .exclude(Exists(has_live_estimate))
+        .values_list("id", "workspace_id")
+    )
+    IssueEstimateGrandfather.objects.bulk_create(
+        (IssueEstimateGrandfather(issue_id=i, workspace_id=w, project_id=project_id) for i, w in items.iterator()),
+        batch_size=1000,
+        ignore_conflicts=True,
+    )
+
+
+def clear_grandfathered(issue_ids):
+    """The items left their project: the flag belongs to the project it was written for."""
+    IssueEstimateGrandfather.objects.filter(issue_id__in=issue_ids).delete()
+
+
+def _default_state_group(project_id):
+    return State.all_state_objects.filter(project_id=project_id, default=True).values_list("group", flat=True).first()
+
+
 def gate_state_change(instance, new_state, project_id=None):
-    """Serializer hook: refuse moving an existing item into Started/Completed without an
-    estimate when its project requires one. ``instance`` None (creation) is never gated.
-    Raises ``EstimateRequired``."""
-    if instance is None or new_state is None:
+    """Serializer hook: refuse putting an item into Started/Completed without an estimate when
+    its project requires one. ``instance`` is the existing item (a state change, an intake
+    accept) or None (creation; ``new_state`` None means the project's default state). Raises
+    ``EstimateRequired``."""
+    pid = project_id or getattr(instance, "project_id", None)
+    if pid is None or not is_required(pid):
         return
-    if getattr(new_state, "group", None) not in WORK_GROUPS:
+    if new_state is None:
+        if instance is not None:
+            return  # state not part of this update
+        group = _default_state_group(pid)  # creation without a state: the default state applies
+    else:
+        group = getattr(new_state, "group", None)
+        if instance is not None and str(new_state.pk) == str(instance.state_id):
+            return
+    if group not in WORK_GROUPS:
         return
-    if str(new_state.pk) == str(instance.state_id):
-        return
-    # Already in a work group (Started -> Completed, or a grandfathered item): not gated.
-    if _state_group(instance.state_id) in WORK_GROUPS:
-        return
-    if not is_required(project_id or instance.project_id):
-        return
-    if has_estimate(instance.pk):
+    if instance is None:
+        raise EstimateRequired()  # a new item cannot have an estimate yet
+    if has_estimate(instance.pk) or is_grandfathered(instance.pk):
         return
     raise EstimateRequired(instance.pk)
 
 
+def gate_move(item, target_project, new_state):
+    """Work item move: ``item`` lands in ``new_state`` of ``target_project``. Refused (400
+    ``estimate_required``) when the target requires estimates, the landing state is
+    Started/Completed and the item has none. The source project's grandfather flag does not
+    carry over (``clear_grandfathered`` drops it on the move)."""
+    if getattr(new_state, "group", None) not in WORK_GROUPS:
+        return
+    if not is_required(target_project):
+        return
+    if has_estimate(item.pk):
+        return
+    raise EstimateRequired(item.pk)
+
+
 def check_can_log(issue):
     """Service hook (timer start, manual entry, missing-time submit/approve): refuse logging
-    time on an unestimated item of a "required" project, unless it is grandfathered (already
-    in a Started/Completed state). Raises ``TimeTrackingError`` (400 ``estimate_required``)."""
+    time on an unestimated item of a "required" project, unless it is grandfathered (flagged when
+    the gate came into force). Raises ``TimeTrackingError`` (400 ``estimate_required``)."""
     if not is_required(issue.project_id):
         return
-    if has_estimate(issue.pk):
-        return
-    if _state_group(issue.state_id) in WORK_GROUPS:
+    if has_estimate(issue.pk) or is_grandfathered(issue.pk):
         return
     raise TimeTrackingError(estimate_required_payload(issue.pk), 400)
 
@@ -240,7 +298,7 @@ def estimate_payload(issue, project=None):
     if estimate is not None:
         grandfathered = estimate.grandfathered
     else:
-        grandfathered = mode == TimeEstimateMode.REQUIRED.value and _state_group(issue.state_id) in WORK_GROUPS
+        grandfathered = mode == TimeEstimateMode.REQUIRED.value and is_grandfathered(issue.pk)
     return {
         "issue_id": str(issue.pk),
         "project_id": str(issue.project_id),
@@ -341,7 +399,7 @@ def set_estimate(issue, user, data):
             current_by=user,
             current_set_at=now,
             locked_at=now if started else None,
-            grandfathered=mode == TimeEstimateMode.REQUIRED.value and _state_group(issue.state_id) in WORK_GROUPS,
+            grandfathered=mode == TimeEstimateMode.REQUIRED.value and is_grandfathered(issue.pk),
         )
         estimate.save()
         _revision(estimate, TimeEstimateRevisionKind.ORIGINAL_SET, minutes, user, reason)
@@ -404,8 +462,12 @@ __all__ = [
     "check_can_log",
     "effective_mode",
     "estimate_payload",
+    "clear_grandfathered",
+    "gate_move",
     "gate_state_change",
+    "grandfather_project",
     "has_estimate",
+    "is_grandfathered",
     "is_required",
     "lock_estimate",
     "lock_if_work_started_state",

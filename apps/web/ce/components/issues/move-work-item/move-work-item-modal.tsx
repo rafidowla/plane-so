@@ -46,6 +46,8 @@ import { useAppRouter } from "@/hooks/use-app-router";
 import type { TWorkItemMoveError } from "@/services/issue/work-item-move.service";
 import { workItemMoveService } from "@/services/issue/work-item-move.service";
 // local imports
+// FORK: time-tracking-v2 secfix — a move into an estimate-required project is gated
+import { handleEstimateRequired } from "../worklog/estimate/estimate-required";
 import {
   MoveArchivedSubItems,
   MoveCarried,
@@ -191,6 +193,8 @@ export const MoveWorkItemModal = observer(function MoveWorkItemModal(props: Prop
       else if (navigation.type === "close-peek") setPeekIssue(undefined);
       onMoved?.(result);
     } catch (error) {
+      // The payload names the item that needs the estimate (it may be a sub-item), so no issueId here.
+      handleEstimateRequired(error, { workspaceSlug: slug, projectId: sourceProjectId });
       setMoveError(getErrorMessage(error, t("move_work_item.toast.error_message")));
     } finally {
       setIsMoving(false);
