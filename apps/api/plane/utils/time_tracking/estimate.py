@@ -359,16 +359,19 @@ def _revision(estimate, kind, minutes, user, reason):
 
 
 @transaction.atomic
-def set_estimate(issue, user, data):
+def set_estimate(issue, user, data, allow_off=False):
     """PUT: set, replace (before the lock), re-estimate (after) or clear (before the lock).
 
     ``data``: ``minutes`` (1..MAX_MINUTES, or null to clear) and optional ``reason``.
     Raises ``TimeTrackingError``: 400 ``estimates_off`` / ``invalid_minutes`` /
     ``estimate_locked`` (clearing a locked estimate).
+
+    ``allow_off`` (server-side callers only, e.g. the Jira importer): store the estimate even
+    while the mode is off; the HTTP endpoint never passes it.
     """
     project = _project(issue.project_id)
     mode = effective_mode(project)
-    if mode == TimeEstimateMode.OFF.value:
+    if mode == TimeEstimateMode.OFF.value and not allow_off:
         _refuse("estimates_off", "Time estimates are turned off for this project.")
     if "minutes" not in data:
         _refuse("invalid_minutes", f"minutes must be a whole number from 1 to {MAX_MINUTES}.")
@@ -456,8 +459,67 @@ def set_estimate(issue, user, data):
     )
 
 
+# ---------------------------------------------------------------------------
+# Import (Jira)
+# ---------------------------------------------------------------------------
+
+IMPORT_ESTIMATE = "estimate"
+IMPORT_GRANDFATHERED = "grandfathered"
+
+
+def seconds_to_minutes(seconds):
+    """Jira reports estimates in seconds; the estimate is stored in whole minutes (1..MAX_MINUTES).
+    Rounded to the nearest minute (a positive value never rounds to 0) and clamped to
+    ``MAX_MINUTES``. ``None`` for a blank, non-numeric, zero or negative value (no usable estimate)."""
+    if seconds is None or isinstance(seconds, bool):
+        return None
+    try:
+        value = float(str(seconds).strip()) if isinstance(seconds, str) else float(seconds)
+    except (TypeError, ValueError):
+        return None
+    if value != value or value <= 0 or value == float("inf"):  # NaN, non-positive, inf
+        return None
+    return min(MAX_MINUTES, max(1, int(value / 60 + 0.5)))
+
+
+def plan_imported_estimate(project_id, state, seconds):
+    """What an import will do for one item landing in ``state``: ``(IMPORT_ESTIMATE, minutes)``,
+    ``(IMPORT_GRANDFATHERED, None)`` or ``(None, None)``. Pure read; used for dry runs too.
+    An estimate is stored whatever the mode. An item that lands in a Started/Completed state of
+    a "required" project with no usable estimate is grandfathered, never refused."""
+    minutes = seconds_to_minutes(seconds)
+    if minutes is not None:
+        return IMPORT_ESTIMATE, minutes
+    if getattr(state, "group", None) in WORK_GROUPS and is_required(project_id):
+        return IMPORT_GRANDFATHERED, None
+    return None, None
+
+
+def apply_imported_estimate(issue, user, seconds):
+    """Importer hook, called right after the item is created (the importer writes through the
+    ORM, which the serializer-level gate does not see): record the Jira original estimate via
+    ``set_estimate`` (original-estimate lock/revision/audit semantics; locked at once when the
+    item already sits in a started state) or, with none, write the same ``IssueEstimateGrandfather``
+    row ``grandfather_project`` writes. Atomic. Returns the outcome (``IMPORT_*`` or None)."""
+    with transaction.atomic():
+        outcome, minutes = plan_imported_estimate(issue.project_id, getattr(issue, "state", None), seconds)
+        if outcome == IMPORT_ESTIMATE:
+            set_estimate(issue, user, {"minutes": minutes}, allow_off=True)
+        elif outcome == IMPORT_GRANDFATHERED:
+            IssueEstimateGrandfather.objects.get_or_create(
+                issue_id=issue.pk,
+                defaults={"workspace_id": issue.workspace_id, "project_id": issue.project_id},
+            )
+    return outcome
+
+
 __all__ = [
     "EstimateRequired",
+    "IMPORT_ESTIMATE",
+    "IMPORT_GRANDFATHERED",
+    "apply_imported_estimate",
+    "plan_imported_estimate",
+    "seconds_to_minutes",
     "WORK_GROUPS",
     "check_can_log",
     "effective_mode",

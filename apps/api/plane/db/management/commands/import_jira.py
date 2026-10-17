@@ -125,6 +125,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"{'Would create' if dry else 'Created'}: {result['created']} issue(s)"))
         self.stdout.write(f"Skipped (already imported): {result['skipped']}")
         self.stdout.write(f"Comments: {result['comments']} | Worklogs: {result['worklogs']}")
+        self.stdout.write(f"Estimates imported: {result['estimates']} | Grandfathered (no estimate): {result['grandfathered']}")
         if with_attachments:
             if dry:
                 self.stdout.write(f"Attachments to migrate: {result['attachments']}")
