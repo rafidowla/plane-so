@@ -37,6 +37,45 @@ class ProjectMemberSerializer(BaseSerializer):
             raise serializers.ValidationError("Invalid role", code="INVALID_ROLE")
         return value
 
+    def validate(self, attrs):
+        # FORK: guest-access — cap the project role by the user's workspace role, as the app does
+        # (app/views/project/member.py): a workspace Guest cannot be a project Member/Admin, and on
+        # create a workspace Admin cannot be added below Admin.
+        # The member of an existing row is immutable: re-pointing a row at another user would skip the role cap.
+        if self.instance is not None and "member" in attrs and attrs["member"].pk != self.instance.member_id:
+            raise serializers.ValidationError(
+                {"member": "The member of a project membership cannot be changed"}, code="INVALID_MEMBER"
+            )
+        # An update that does not set ``role`` changes nothing the cap governs (the member is immutable, the role
+        # stays as stored), so it is a no-op 200 even on a legacy row that already breaks the cap (e.g. a workspace
+        # Guest left at project Member): rejecting it would report a request error for data the client did not send.
+        # Any update that does set ``role`` is still capped below, so the row can only be corrected, never raised.
+        if self.instance is not None and "role" not in attrs:
+            return attrs
+        member = attrs.get("member") or (self.instance.member if self.instance else None)
+        # On create, evaluate the cap also when ``role`` is omitted: the row gets the model default.
+        role = attrs.get("role", self.instance.role if self.instance else ProjectMember._meta.get_field("role").default)
+        workspace_role = (
+            WorkspaceMember.objects.filter(workspace__slug=self.context.get("slug"), member=member, is_active=True)
+            .values_list("role", flat=True)
+            .first()
+        )
+        if workspace_role is None:
+            raise serializers.ValidationError("Member not found in workspace", code="INVALID_MEMBER")
+        if workspace_role == ROLE.GUEST.value and role in [ROLE.MEMBER.value, ROLE.ADMIN.value]:
+            raise serializers.ValidationError(
+                "You cannot add a user with role higher than the workspace role", code="INVALID_ROLE"
+            )
+        if (
+            self.instance is None
+            and workspace_role == ROLE.ADMIN.value
+            and role in [ROLE.MEMBER.value, ROLE.GUEST.value]
+        ):
+            raise serializers.ValidationError(
+                "You cannot add a user with role lower than the workspace role", code="INVALID_ROLE"
+            )
+        return attrs
+
     class Meta:
         model = ProjectMember
         fields = ["id", "member", "role"]

@@ -11,6 +11,7 @@ import re
 # Module imports
 from .base import BaseSerializer, DynamicBaseSerializer
 from django.db.models import Max
+from plane.app.permissions import ROLE  # FORK: guest-access PSR-119
 from plane.app.serializers.workspace import WorkspaceLiteSerializer
 from plane.app.serializers.user import UserLiteSerializer, UserAdminLiteSerializer
 from plane.db.models import (
@@ -131,6 +132,11 @@ class ProjectListSerializer(DynamicBaseSerializer):
 
     def get_next_work_item_sequence(self, obj):
         """Get the next sequence ID that will be assigned to a new issue"""
+        # FORK: guest-access PSR-119 — the next number is the project's total work item count + 1; a restricted guest
+        # (project Guest in a project that hides others' work items) must not learn it. ``member_role`` is the viewer's
+        # own role, annotated by the project queryset.
+        if getattr(obj, "member_role", None) == ROLE.GUEST.value and not obj.guest_view_all_features:
+            return None
         max_sequence = IssueSequence.objects.filter(project_id=obj.id).aggregate(max_seq=Max("sequence"))["max_seq"]
         return (max_sequence + 1) if max_sequence else 1
 

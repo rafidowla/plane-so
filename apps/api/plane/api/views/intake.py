@@ -19,6 +19,8 @@ from rest_framework.response import Response
 from drf_spectacular.utils import OpenApiResponse, OpenApiRequest
 
 # Module imports
+from plane.utils.guest_work_item import guest_delete_denied  # FORK: guest-access PSR-119
+from plane.api.views.guest_access import is_restricted_guest  # FORK: guest-access PSR-119
 from plane.api.serializers import (
     IntakeIssueSerializer,
     IssueSerializer,
@@ -72,7 +74,7 @@ class IntakeIssueListCreateAPIEndpoint(BaseAPIView):
         if intake is None or not project.intake_view:
             return IntakeIssue.objects.none()
 
-        return (
+        queryset = (
             IntakeIssue.objects.filter(
                 Q(snoozed_till__gte=timezone.now()) | Q(snoozed_till__isnull=True),
                 workspace__slug=self.kwargs.get("slug"),
@@ -82,6 +84,11 @@ class IntakeIssueListCreateAPIEndpoint(BaseAPIView):
             .select_related("issue", "workspace", "project")
             .order_by(self.kwargs.get("order_by", "-created_at"))
         )
+        # FORK: guest-access PSR-119 — a restricted guest only sees the intake items they created; scoped on the
+        # IntakeIssue's own author, exactly as the app's IntakeIssueViewSet.list does
+        if is_restricted_guest(self.request.user, self.kwargs.get("project_id")):
+            queryset = queryset.filter(created_by=self.request.user)
+        return queryset
 
     @intake_docs(
         operation_id="get_intake_work_items_list",
@@ -280,6 +287,9 @@ class IntakeIssueDetailAPIEndpoint(BaseAPIView):
         Retrieve details of a specific intake work item.
         """
         intake_issue_queryset = self.get_queryset().get(issue_id=issue_id)
+        # FORK: guest-access PSR-119 — a restricted guest may only open intake items they created (app: same 403)
+        if is_restricted_guest(request.user, project_id) and intake_issue_queryset.created_by_id != request.user.id:
+            return Response({"error": "You are not allowed to view this issue"}, status=status.HTTP_403_FORBIDDEN)
         intake_issue_data = IntakeIssueSerializer(intake_issue_queryset, fields=self.fields, expand=self.expand).data
         return Response(intake_issue_data, status=status.HTTP_200_OK)
 
@@ -480,6 +490,12 @@ class IntakeIssueDetailAPIEndpoint(BaseAPIView):
             project_id=project_id,
             intake_id=intake.id,
         )
+
+        # FORK: guest-access PSR-119 — guests can never delete work items, which includes their own
+        # intake submissions (this endpoint also deletes the underlying work item)
+        denied = guest_delete_denied(request.user, project_id)
+        if denied:
+            return denied
 
         # Check the issue status
         if intake_issue.status in [-2, -1, 0, 2]:

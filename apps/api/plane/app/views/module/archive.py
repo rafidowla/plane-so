@@ -32,6 +32,7 @@ from plane.app.permissions import ProjectEntityPermission
 from plane.app.serializers import ModuleDetailSerializer
 from plane.db.models import Issue, Module, ModuleLink, UserFavorite, Project
 from plane.utils.analytics_plot import burndown_plot
+from plane.utils.guest_work_item import guest_count_q  # FORK: guest-access PSR-119
 from plane.utils.timezone_converter import user_timezone_converter
 
 
@@ -43,6 +44,8 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
     permission_classes = [ProjectEntityPermission]
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts/estimates only include work items they created
+        guest_q = guest_count_q(self.request.user, self.kwargs.get("project_id"))
         favorite_subquery = UserFavorite.objects.filter(
             user=self.request.user,
             entity_type="module",
@@ -52,6 +55,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         cancelled_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="cancelled",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -62,6 +66,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         completed_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="completed",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -72,6 +77,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         started_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="started",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -82,6 +88,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         unstarted_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="unstarted",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -92,6 +99,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         backlog_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="backlog",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -102,6 +110,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         total_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
             )
@@ -111,6 +120,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         completed_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="completed",
                 issue_module__module_id=OuterRef("pk"),
@@ -123,6 +133,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
 
         total_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -133,6 +144,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         backlog_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="backlog",
                 issue_module__module_id=OuterRef("pk"),
@@ -144,6 +156,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         unstarted_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="unstarted",
                 issue_module__module_id=OuterRef("pk"),
@@ -155,6 +168,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         started_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="started",
                 issue_module__module_id=OuterRef("pk"),
@@ -166,6 +180,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
         cancelled_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="cancelled",
                 issue_module__module_id=OuterRef("pk"),
@@ -256,6 +271,8 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
         )
 
     def get(self, request, slug, project_id, pk=None):
+        # FORK: guest-access PSR-119 — distributions and burndown only include work items a restricted guest created
+        guest_q = guest_count_q(request.user, project_id)
         if pk is None:
             queryset = self.get_queryset()
             modules = queryset.values(  # Required fields
@@ -297,6 +314,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
                 .filter(pk=pk)
                 .annotate(
                     sub_issues=Issue.issue_objects.filter(
+                        guest_q,
                         project_id=self.kwargs.get("project_id"),
                         parent__isnull=False,
                         issue_module__module_id=pk,
@@ -323,6 +341,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
             if estimate_type:
                 assignee_distribution = (
                     Issue.issue_objects.filter(
+                        guest_q,
                         issue_module__module_id=pk,
                         issue_module__deleted_at__isnull=True,
                         workspace__slug=slug,
@@ -385,6 +404,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
 
                 label_distribution = (
                     Issue.issue_objects.filter(
+                        guest_q,
                         issue_module__module_id=pk,
                         workspace__slug=slug,
                         project_id=project_id,
@@ -426,10 +446,12 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
                         project_id=project_id,
                         plot_type="points",
                         module_id=pk,
+                        guest_scope=guest_q,
                     )
 
             assignee_distribution = (
                 Issue.issue_objects.filter(
+                    guest_q,
                     issue_module__module_id=pk,
                     issue_module__deleted_at__isnull=True,
                     workspace__slug=slug,
@@ -492,6 +514,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
 
             label_distribution = (
                 Issue.issue_objects.filter(
+                    guest_q,
                     issue_module__module_id=pk,
                     issue_module__deleted_at__isnull=True,
                     workspace__slug=slug,
@@ -537,6 +560,7 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
                     project_id=project_id,
                     plot_type="issues",
                     module_id=pk,
+                    guest_scope=guest_q,
                 )
 
             return Response(data, status=status.HTTP_200_OK)

@@ -46,6 +46,7 @@ from plane.app.permissions import ROLE, allow_permission
 from plane.utils.constants import RESTRICTED_WORKSPACE_SLUGS
 from plane.license.utils.instance_value import get_configuration_value
 from plane.bgtasks.workspace_seed_task import workspace_seed
+from plane.utils.guest_work_item import guest_active_project_q, guest_visible_issues_q  # FORK: guest-access PSR-119
 from plane.utils.url import contains_url
 from plane.utils.csv_utils import sanitize_csv_row
 
@@ -255,8 +256,13 @@ class UserWorkspaceDashboardEndpoint(BaseAPIView):
 
         month = request.GET.get("month", 1)
 
+        # FORK: guest-access PSR-119 — a guest only counts what they can open: their own work items in projects that
+        # hide others' (view-all projects unchanged) and only projects they are still an active member of
+        guest_scope = guest_visible_issues_q(request.user) & guest_active_project_q(request.user, slug)
+
         completed_issues = (
             Issue.issue_objects.filter(
+                guest_scope,
                 assignees__in=[request.user],
                 workspace__slug=slug,
                 completed_at__month=month,
@@ -269,27 +275,30 @@ class UserWorkspaceDashboardEndpoint(BaseAPIView):
             .order_by("week_in_month")
         )
 
-        assigned_issues = Issue.issue_objects.filter(workspace__slug=slug, assignees__in=[request.user]).count()
+        assigned_issues = Issue.issue_objects.filter(
+            guest_scope, workspace__slug=slug, assignees__in=[request.user]
+        ).count()
 
         pending_issues_count = Issue.issue_objects.filter(
+            guest_scope,
             ~Q(state__group__in=["completed", "cancelled"]),
             workspace__slug=slug,
             assignees__in=[request.user],
         ).count()
 
         completed_issues_count = Issue.issue_objects.filter(
-            workspace__slug=slug, assignees__in=[request.user], state__group="completed"
+            guest_scope, workspace__slug=slug, assignees__in=[request.user], state__group="completed"
         ).count()
 
         issues_due_week = (
-            Issue.issue_objects.filter(workspace__slug=slug, assignees__in=[request.user])
+            Issue.issue_objects.filter(guest_scope, workspace__slug=slug, assignees__in=[request.user])
             .annotate(target_week=ExtractWeek("target_date"))
             .filter(target_week=timezone.now().date().isocalendar()[1])
             .count()
         )
 
         state_distribution = (
-            Issue.issue_objects.filter(workspace__slug=slug, assignees__in=[request.user])
+            Issue.issue_objects.filter(guest_scope, workspace__slug=slug, assignees__in=[request.user])
             .annotate(state_group=F("state__group"))
             .values("state_group")
             .annotate(state_count=Count("state_group"))
@@ -297,6 +306,7 @@ class UserWorkspaceDashboardEndpoint(BaseAPIView):
         )
 
         overdue_issues = Issue.issue_objects.filter(
+            guest_scope,
             ~Q(state__group__in=["completed", "cancelled"]),
             workspace__slug=slug,
             assignees__in=[request.user],
@@ -305,6 +315,7 @@ class UserWorkspaceDashboardEndpoint(BaseAPIView):
         ).values("id", "name", "workspace__slug", "project_id", "target_date")
 
         upcoming_issues = Issue.issue_objects.filter(
+            guest_scope,
             ~Q(state__group__in=["completed", "cancelled"]),
             start_date__gte=timezone.now(),
             workspace__slug=slug,

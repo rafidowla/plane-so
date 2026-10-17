@@ -137,12 +137,12 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
 
   const getPaginationData = useCallback(
     (groupId: string | undefined) => issues?.getPaginationData(groupId, undefined),
-    [issues?.getPaginationData]
+    [issues]
   );
 
   const getGroupIssueCount = useCallback(
     (groupId: string | undefined) => issues?.getGroupIssueCount(groupId, undefined, false),
-    [issues?.getGroupIssueCount]
+    [issues]
   );
 
   const canEditProperties = useCallback(
@@ -184,7 +184,8 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
           getGroupIssueCount={getGroupIssueCount}
           addIssuesToView={addIssuesToView}
           quickAddCallback={quickAddIssue}
-          readOnly={isCompletedCycle}
+          // FORK: guest-access (PSR-119) — no quick-add and no drag (a date change is team-only) for guests
+          readOnly={isCompletedCycle || !isEditingAllowed}
           updateFilters={updateFilters}
           handleDragAndDrop={handleDragAndDrop}
           canEditProperties={canEditProperties}

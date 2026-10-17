@@ -28,6 +28,8 @@ import { IssueAttachmentDeleteModal } from "@/components/issues/attachment/delet
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useMember } from "@/hooks/store/use-member";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+// FORK: guest-access (PSR-119)
+import { useCanDeleteWorkItemAttachment } from "@/plane-web/guest-access";
 // types
 import type { TAttachmentHelpers } from "../issue-detail-widgets/attachments/helper";
 
@@ -57,6 +59,7 @@ export const IssueAttachmentsDetail = observer(function IssueAttachmentsDetail(p
   const fileURL = getFileURL(attachment?.asset_url ?? "");
   // hooks
   const { isMobile } = usePlatformOS();
+  const canDeleteAttachment = useCanDeleteWorkItemAttachment(attachment); // FORK: guest-access (PSR-119)
 
   if (!attachment) return <></>;
 
@@ -100,7 +103,7 @@ export const IssueAttachmentsDetail = observer(function IssueAttachmentsDetail(p
           </div>
         </Link>
 
-        {!disabled && (
+        {!disabled && canDeleteAttachment && (
           <button type="button" onClick={() => setIsDeleteIssueAttachmentModalOpen(true)}>
             <CloseOutline className="h-4 w-4 text-secondary hover:text-primary" />
           </button>

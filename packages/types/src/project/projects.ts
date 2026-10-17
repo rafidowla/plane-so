@@ -58,7 +58,8 @@ export interface IProject extends IPartialProject {
   is_favorite?: boolean;
   members?: string[];
   timezone?: string;
-  next_work_item_sequence?: number;
+  // FORK: guest-access PSR-119 — null for restricted guests (the number would reveal how many work items exist)
+  next_work_item_sequence?: number | null;
 }
 
 export type TProjectAnalyticsCountParams = {

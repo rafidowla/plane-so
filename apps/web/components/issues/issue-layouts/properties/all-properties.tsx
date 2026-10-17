@@ -42,6 +42,8 @@ import { useUserProfile } from "@/hooks/store/user";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+// FORK: guest-access PSR-119
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // local components
 import { IssuePropertyLabels } from "./labels";
 import { WithDisplayPropertiesHOC } from "./with-display-properties-HOC";
@@ -82,6 +84,14 @@ export const IssueProperties = observer(function IssueProperties(props: IIssuePr
   const router = useAppRouter();
   const { workspaceSlug, projectId } = useParams();
 
+  // FORK: guest-access PSR-119 — a guest on a work item they created can edit its priority and labels chips (as in the
+  // peek view); every other chip stays disabled for guests
+  const { isGuestEditable } = useGuestWorkItemAccess(
+    workspaceSlug?.toString(),
+    issue.project_id,
+    issue.created_by,
+    issue.archived_at
+  );
   // derived values
   const stateDetails = getStateById(issue.state_id);
   const subIssueCount = issue?.sub_issues_count ?? 0;
@@ -230,7 +240,7 @@ export const IssueProperties = observer(function IssueProperties(props: IIssuePr
           <PrioritySelect
             value={issue?.priority}
             onChange={handlePriority}
-            disabled={isReadOnly}
+            disabled={isReadOnly && !isGuestEditable} // FORK: guest-access PSR-119
             variant="pill-sm"
             tooltip
           />
@@ -472,7 +482,7 @@ export const IssueProperties = observer(function IssueProperties(props: IIssuePr
           value={issue?.label_ids || []}
           defaultOptions={defaultLabelOptions}
           onChange={handleLabel}
-          disabled={isReadOnly}
+          disabled={isReadOnly && !isGuestEditable} // FORK: guest-access PSR-119
           renderByDefault={isMobile}
           hideDropdownArrow
           maxRender={3}

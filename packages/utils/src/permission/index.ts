@@ -5,3 +5,4 @@
  */
 
 export * from "./role";
+export * from "./guest-access";

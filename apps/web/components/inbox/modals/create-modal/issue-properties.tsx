@@ -26,6 +26,8 @@ import { ParentIssuesListModal } from "@/components/issues/parent-issues-list-mo
 import { useProjectEstimates } from "@/hooks/store/estimates";
 import { useUserProfile } from "@/hooks/store/user";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+// FORK: guest-access PSR-119 — hide the team-only controls from project guests
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 
 type TInboxIssueProperties = {
   workspaceSlug: string;
@@ -43,6 +45,9 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
   const { areEstimateEnabledByProjectId } = useProjectEstimates();
   const { data: userProfile } = useUserProfile();
   const { isMobile } = usePlatformOS();
+  // FORK: guest-access PSR-119 — a project Guest sets title, description, priority and labels only; state, assignees
+  // and the dates are team-only (the API answers 400 "Guests cannot set these fields")
+  const { isGuest } = useGuestWorkItemAccess(workspaceSlug, projectId);
   // states
   const [parentIssueModalOpen, setParentIssueModalOpen] = useState(false);
   const [selectedParentIssue, setSelectedParentIssue] = useState<ISearchIssueResponse | undefined>(undefined);
@@ -61,14 +66,16 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
   return (
     <div className="relative flex flex-wrap items-center gap-2">
       {/* intake state */}
-      <IntakeStateSelect
-        workspaceSlug={workspaceSlug}
-        value={data?.state_id}
-        onChange={(stateId) => handleData("state_id", stateId)}
-        projectId={projectId}
-        variant="pill-md"
-        tabIndex={getIndex("state_id")}
-      />
+      {!isGuest && (
+        <IntakeStateSelect
+          workspaceSlug={workspaceSlug}
+          value={data?.state_id}
+          onChange={(stateId) => handleData("state_id", stateId)}
+          projectId={projectId}
+          variant="pill-md"
+          tabIndex={getIndex("state_id")}
+        />
+      )}
 
       {/* priority */}
       <PrioritySelect
@@ -79,15 +86,17 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       />
 
       {/* Assignees */}
-      <MemberSelect
-        projectId={projectId}
-        value={data?.assignee_ids || []}
-        onChange={(assigneeIds) => handleData("assignee_ids", assigneeIds)}
-        placeholder="Assignees"
-        multiple
-        variant={(data?.assignee_ids || []).length ? "avatar-group-md" : "pill-md"}
-        tabIndex={getIndex("assignee_ids")}
-      />
+      {!isGuest && (
+        <MemberSelect
+          projectId={projectId}
+          value={data?.assignee_ids || []}
+          onChange={(assigneeIds) => handleData("assignee_ids", assigneeIds)}
+          placeholder="Assignees"
+          multiple
+          variant={(data?.assignee_ids || []).length ? "avatar-group-md" : "pill-md"}
+          tabIndex={getIndex("assignee_ids")}
+        />
+      )}
 
       {/* labels */}
       <LabelSelect
@@ -100,7 +109,7 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       />
 
       {/* start date */}
-      {isVisible && (
+      {isVisible && !isGuest && (
         <DateSelect
           value={getDate(data?.start_date) ?? null}
           onChange={(date) => handleData("start_date", date ? renderFormattedPayloadDate(date) : "")}
@@ -116,21 +125,23 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       )}
 
       {/* due date */}
-      <DateSelect
-        value={getDate(data?.target_date) ?? null}
-        onChange={(date) => handleData("target_date", date ? renderFormattedPayloadDate(date) : "")}
-        minDate={minDate ?? undefined}
-        placeholder="Due date"
-        icon={<CalendarOutline />}
-        weekStartsOn={userProfile?.start_of_the_week}
-        clearable
-        clearLabel={t("common.clear")}
-        variant="pill-md"
-        tabIndex={getIndex("target_date")}
-      />
+      {!isGuest && (
+        <DateSelect
+          value={getDate(data?.target_date) ?? null}
+          onChange={(date) => handleData("target_date", date ? renderFormattedPayloadDate(date) : "")}
+          minDate={minDate ?? undefined}
+          placeholder="Due date"
+          icon={<CalendarOutline />}
+          weekStartsOn={userProfile?.start_of_the_week}
+          clearable
+          clearLabel={t("common.clear")}
+          variant="pill-md"
+          tabIndex={getIndex("target_date")}
+        />
+      )}
 
       {/* cycle */}
-      {isVisible && (
+      {isVisible && !isGuest && (
         <CycleSelect
           value={data?.cycle_id || null}
           onChange={(cycleId) => handleData("cycle_id", cycleId)}
@@ -142,7 +153,7 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       )}
 
       {/* module */}
-      {isVisible && (
+      {isVisible && !isGuest && (
         <ModuleSelect
           multiple
           projectId={projectId}
@@ -155,7 +166,7 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       )}
 
       {/* estimate */}
-      {isVisible && projectId && areEstimateEnabledByProjectId(projectId) && (
+      {isVisible && !isGuest && projectId && areEstimateEnabledByProjectId(projectId) && (
         <EstimateSelect
           value={data?.estimate_point || undefined}
           onChange={(estimatePoint) => handleData("estimate_point", estimatePoint)}
@@ -167,7 +178,7 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       )}
 
       {/* add parent */}
-      {isVisible && (
+      {isVisible && !isGuest && (
         <div className="h-7">
           {selectedParentIssue ? (
             <div className="h-full w-full">

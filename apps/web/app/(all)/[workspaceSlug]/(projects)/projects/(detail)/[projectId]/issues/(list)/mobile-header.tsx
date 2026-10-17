@@ -14,6 +14,8 @@ import { ChevronDownOutline } from "@makeplane/propel/icons";
 import type { IIssueDisplayFilterOptions, IIssueDisplayProperties } from "@plane/types";
 import { EIssuesStoreType, EIssueLayoutTypes } from "@plane/types";
 // components
+// FORK: guest-access PSR-119
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 import { WorkItemsModal } from "@/components/analytics/work-items/modal";
 import {
   DisplayFiltersSelection,
@@ -29,6 +31,8 @@ export const ProjectIssuesMobileHeader = observer(function ProjectIssuesMobileHe
   const { t } = useTranslation();
   const [analyticsModal, setAnalyticsModal] = useState(false);
   const { workspaceSlug, projectId } = useParams();
+  // FORK: guest-access PSR-119
+  const { isGuest } = useGuestWorkItemAccess(workspaceSlug?.toString(), projectId?.toString());
   const { currentProjectDetails } = useProject();
 
   // store hooks
@@ -98,12 +102,15 @@ export const ProjectIssuesMobileHeader = observer(function ProjectIssuesMobileHe
           </FiltersDropdown>
         </div>
 
-        <button
-          onClick={() => setAnalyticsModal(true)}
-          className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
-        >
-          {t("common.analytics")}
-        </button>
+        {/* FORK: guest-access PSR-119 — analytics are hidden from guests entirely */}
+        {!isGuest && (
+          <button
+            onClick={() => setAnalyticsModal(true)}
+            className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
+          >
+            {t("common.analytics")}
+          </button>
+        )}
       </div>
     </>
   );

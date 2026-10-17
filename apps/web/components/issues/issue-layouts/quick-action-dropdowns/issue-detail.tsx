@@ -32,6 +32,8 @@ import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserPermissions } from "@/hooks/store/user";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 // FORK: move-work-item (PSR-91)
 import { MoveWorkItemModal, useMoveWorkItemAction } from "@/plane-web/components/issues/move-work-item";
 // helper
@@ -97,6 +99,9 @@ export const WorkItemDetailQuickActions = observer(function WorkItemDetailQuickA
       issue.project_id ?? undefined
     ) && !readOnly;
 
+  // FORK: guest-access (PSR-119) — guests may edit their own (non-archived) work items, nothing else
+  const { canGuestEdit } = useGuestWorkItemAccess(workspaceSlug?.toString(), issue.project_id, issue.created_by);
+  const isGuestEditAllowed = canGuestEdit && !issue.archived_at;
   const isArchivingAllowed = !issue.archived_at && isEditingAllowed;
   const isInArchivableGroup = !!stateDetails && ARCHIVABLE_STATE_GROUPS.includes(stateDetails?.group);
   const isRestoringAllowed = !!issue.archived_at && isEditingAllowed;
@@ -145,6 +150,7 @@ export const WorkItemDetailQuickActions = observer(function WorkItemDetailQuickA
     projectIdentifier,
     activeLayout,
     isEditingAllowed,
+    isGuestEditAllowed, // FORK: guest-access (PSR-119)
     isArchivingAllowed,
     isRestoringAllowed,
     isDeletingAllowed,
@@ -173,7 +179,7 @@ export const WorkItemDetailQuickActions = observer(function WorkItemDetailQuickA
       if (item.key === "edit") {
         return {
           ...item,
-          shouldRender: isEditingAllowed && !isPeekMode,
+          shouldRender: (isEditingAllowed || isGuestEditAllowed) && !isPeekMode, // FORK: guest-access (PSR-119)
         };
       }
       // Customize delete action for work item

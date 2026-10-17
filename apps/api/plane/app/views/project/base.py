@@ -40,6 +40,7 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.db.models.intake import IntakeIssueStatus
+from plane.utils.guest_work_item import guest_row_scope_q, restricted_guest_annotation  # FORK: guest-access PSR-119
 from plane.utils.host import base_host
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 
@@ -160,10 +161,16 @@ class ProjectViewSet(BaseViewSet):
                     is_active=True,
                 ).values("role")
             )
+            # FORK: guest-access PSR-119 — a restricted guest's intake badge counts only their own submissions,
+            # matching what IntakeIssueViewSet.list returns to them
+            .annotate(_restricted_guest=restricted_guest_annotation(self.request.user))
             .annotate(
                 intake_count=Count(
                     "project_intakeissue",
-                    filter=Q(
+                    # distinct: the member/network filter below joins every project member row, multiplying the count
+                    distinct=True,
+                    filter=guest_row_scope_q(self.request.user, "_restricted_guest", "project_intakeissue__created_by")
+                    & Q(
                         project_intakeissue__status=IntakeIssueStatus.PENDING.value,
                         project_intakeissue__deleted_at__isnull=True,
                     ),

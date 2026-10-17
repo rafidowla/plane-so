@@ -9,12 +9,13 @@ import { useParams } from "next/navigation";
 // icons
 import { Circle } from "lucide-react";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel, SPACE_BASE_PATH, SPACE_BASE_URL } from "@plane/constants";
+import { SPACE_BASE_PATH, SPACE_BASE_URL } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@makeplane/propel/elements/button";
 import { NewTabOutline, WorkItemsOutline } from "@makeplane/propel/icons";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
 import { EIssuesStoreType } from "@plane/types";
+import { isProjectTeamRole } from "@plane/utils";
 import { Breadcrumbs } from "@plane/blocks/breadcrumb";
 import { Header } from "@plane/blocks/layout";
 // components
@@ -27,9 +28,10 @@ import { HeaderFilters } from "@/components/issues/filters";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web imports
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
 
@@ -47,7 +49,6 @@ export const IssuesHeader = observer(function IssuesHeader() {
   const { currentProjectDetails, loader } = useProject();
 
   const { toggleCreateIssueModal } = useCommandPalette();
-  const { allowPermissions } = useUserPermissions();
   const { isMobile } = usePlatformOS();
 
   const SPACE_APP_URL =
@@ -56,9 +57,10 @@ export const IssuesHeader = observer(function IssuesHeader() {
   const publishedURL = `${SPACE_APP_URL}/issues/${currentProjectDetails?.anchor}`;
 
   const issuesCount = getGroupIssueCount(undefined, undefined, false);
-  const canUserCreateIssue = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // FORK: guest-access (PSR-119) — project guests can raise work items too
+  const { role: projectRole, canCreateWorkItem: canUserCreateIssue } = useGuestWorkItemAccess(
+    workspaceSlug?.toString(),
+    projectId?.toString()
   );
 
   return (
@@ -115,7 +117,8 @@ export const IssuesHeader = observer(function IssuesHeader() {
             projectId={projectId}
             currentProjectDetails={currentProjectDetails}
             workspaceSlug={workspaceSlug}
-            canUserCreateIssue={canUserCreateIssue}
+            // FORK: guest-access (PSR-119) — this flag gates analytics in the filters; guests keep today's view of it
+            canUserCreateIssue={isProjectTeamRole(projectRole)}
           />
         </div>
         {canUserCreateIssue && (

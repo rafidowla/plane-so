@@ -30,6 +30,8 @@ import { IssueLabel } from "@/components/issues/issue-detail/label";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserProfile } from "@/hooks/store/user";
 import { useAppRouter } from "@/hooks/use-app-router";
+// FORK: guest-access PSR-119
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 
 type Props = {
   workspaceSlug: string;
@@ -50,6 +52,10 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
   const { currentProjectDetails } = useProject();
   const { data: userProfile } = useUserProfile();
   const { t } = useTranslation();
+  // FORK: guest-access PSR-119 — a guest raising a request may only change priority and labels; assignees and due
+  // date stay visible but read-only (the API rejects them for guests)
+  const { isGuest } = useGuestWorkItemAccess(workspaceSlug, projectId);
+  const isTeamFieldEditable = isEditable && !isGuest;
 
   const minDate = issue.start_date ? getDate(issue.start_date) : null;
   minDate?.setDate(minDate.getDate());
@@ -99,7 +105,7 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
               )}
             </div>
             {/* Assignee */}
-            <div className="flex h-8 items-center gap-2">
+            <div className={`flex h-8 items-center gap-2 ${isEditable && !isTeamFieldEditable ? "opacity-60" : ""}`}>
               <div className="flex w-2/5 flex-shrink-0 items-center gap-1 text-13 text-tertiary">
                 <MembersOutline className="h-4 w-4 flex-shrink-0" />
                 <span>Assignees</span>
@@ -111,7 +117,7 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
                     if (!issue?.id) return;
                     void issueOperations.update(workspaceSlug, projectId, issue.id, { assignee_ids: val });
                   }}
-                  disabled={!isEditable}
+                  disabled={!isTeamFieldEditable}
                   projectId={projectId?.toString() ?? ""}
                   placeholder="Add assignees"
                   multiple
@@ -143,7 +149,7 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
         <div className={`mt-3 divide-y-2 divide-subtle-1 ${!isEditable ? "opacity-60" : ""}`}>
           <div className="flex flex-col gap-3">
             {/* Due Date */}
-            <div className="flex h-8 items-center gap-2">
+            <div className={`flex h-8 items-center gap-2 ${isEditable && !isTeamFieldEditable ? "opacity-60" : ""}`}>
               <div className="flex w-2/5 flex-shrink-0 items-center gap-1 text-13 text-tertiary">
                 <DueDateOutline className="h-4 w-4 flex-shrink-0" />
                 <span>Due date</span>
@@ -159,7 +165,7 @@ export const InboxIssueContentProperties = observer(function InboxIssueContentPr
                     });
                   }}
                   minDate={minDate ?? undefined}
-                  disabled={!isEditable}
+                  disabled={!isTeamFieldEditable}
                   weekStartsOn={userProfile?.start_of_the_week}
                   clearable
                   clearLabel={t("common.clear")}

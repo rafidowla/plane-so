@@ -27,6 +27,8 @@ import { useMember } from "@/hooks/store/use-member";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // FORK: attachment-preview
 import { AttachmentListThumbnail, getPreviewKind, requestAttachmentPreview } from "@/plane-web/attachment-preview";
+// FORK: guest-access (PSR-119)
+import { useCanDeleteWorkItemAttachment } from "@/plane-web/guest-access";
 
 type TIssueAttachmentsListItem = {
   attachmentId: string;
@@ -52,6 +54,7 @@ export const IssueAttachmentsListItem = observer(function IssueAttachmentsListIt
   const fileURL = getFileURL(attachment?.asset_url ?? "");
   // hooks
   const { isMobile } = usePlatformOS();
+  const canDeleteAttachment = useCanDeleteWorkItemAttachment(attachment); // FORK: guest-access (PSR-119)
 
   if (!attachment) return <></>;
 
@@ -69,7 +72,8 @@ export const IssueAttachmentsListItem = observer(function IssueAttachmentsListIt
       >
         <div className="group flex h-11 items-center justify-between gap-3 px-3 hover:bg-surface-2">
           <div className="flex items-center gap-3 truncate text-13">
-            <AttachmentListThumbnail attachment={attachment} fallback={fileIcon} />{/* FORK: attachment-preview */}
+            <AttachmentListThumbnail attachment={attachment} fallback={fileIcon} />
+            {/* FORK: attachment-preview */}
             <Tooltip label={`${fileName}.${fileExtension}`} layout="stacked" disabled={isMobile}>
               <p className="truncate font-medium text-secondary">{`${fileName}.${fileExtension}`}</p>
             </Tooltip>
@@ -96,40 +100,42 @@ export const IssueAttachmentsListItem = observer(function IssueAttachmentsListIt
 
             {/* The whole row is a button that opens the attachment, so the menu's own
                 activation must not reach it. */}
-            <div
-              role="presentation"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") e.stopPropagation();
-              }}
-            >
-              <Menu>
-                {/* Icon-only trigger, so it needs an explicit accessible name. */}
-                <MenuTrigger
-                  render={
-                    <IconButton
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      aria-label={t("aria_labels.common.more_actions")}
-                      icon={<Icon icon={MoreHorizontalOutline} />}
-                    />
-                  }
-                />
-                <MenuContent side="bottom" align="end">
-                  <MenuItem
-                    icon={<Icon icon={DeleteOutline} />}
-                    label={t("common.actions.delete")}
-                    onClick={() => {
-                      toggleDeleteAttachmentModal(attachmentId);
-                    }}
+            {canDeleteAttachment && (
+              <div
+                role="presentation"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+                }}
+              >
+                <Menu>
+                  {/* Icon-only trigger, so it needs an explicit accessible name. */}
+                  <MenuTrigger
+                    render={
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        aria-label={t("aria_labels.common.more_actions")}
+                        icon={<Icon icon={MoreHorizontalOutline} />}
+                      />
+                    }
                   />
-                </MenuContent>
-              </Menu>
-            </div>
+                  <MenuContent side="bottom" align="end">
+                    <MenuItem
+                      icon={<Icon icon={DeleteOutline} />}
+                      label={t("common.actions.delete")}
+                      onClick={() => {
+                        toggleDeleteAttachmentModal(attachmentId);
+                      }}
+                    />
+                  </MenuContent>
+                </Menu>
+              </div>
+            )}
           </div>
         </div>
       </button>

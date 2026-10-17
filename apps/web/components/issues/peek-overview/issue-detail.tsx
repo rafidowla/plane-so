@@ -18,6 +18,8 @@ import { DescriptionInput } from "@/components/editor/rich-text/description-inpu
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser } from "@/hooks/store/user";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 import useReloadConfirmations from "@/hooks/use-reload-confirmation";
 // plane web components
 import { IssueTypeSwitcher } from "@/components/issues/issue-type-switcher";
@@ -70,6 +72,9 @@ export const PeekOverviewIssueDetails = observer(function PeekOverviewIssueDetai
 
   // derived values
   const issue = issueId ? getIssueById(issueId) : undefined;
+  // FORK: guest-access (PSR-119) — a guest can edit the title and description of their own work item
+  const { canGuestEdit } = useGuestWorkItemAccess(workspaceSlug, props.projectId, issue?.created_by);
+  const isTextDisabled = disabled && !canGuestEdit;
 
   if (!issue || !issue.project_id) return <></>;
 
@@ -101,14 +106,14 @@ export const PeekOverviewIssueDetails = observer(function PeekOverviewIssueDetai
         isSubmitting={isSubmitting}
         setIsSubmitting={(value) => setIsSubmitting(value)}
         issueOperations={issueOperations}
-        disabled={disabled || isArchived}
+        disabled={isTextDisabled || isArchived}
         value={issue.name}
       />
 
       <DescriptionInput
         issueSequenceId={issue.sequence_id}
         containerClassName="-ml-3 border-none"
-        disabled={disabled || isArchived}
+        disabled={isTextDisabled || isArchived}
         editorRef={editorRef}
         entityId={issue.id}
         fileAssetType={EFileAssetType.ISSUE_DESCRIPTION}

@@ -17,12 +17,16 @@ from plane.app.views.base import BaseAPIView
 from plane.db.models import Module, ModuleLink
 from plane.app.permissions import WorkspaceViewerPermission
 from plane.app.serializers.module import ModuleSerializer
+from plane.utils.guest_work_item import guest_row_scope_q, restricted_guest_annotation  # FORK: guest-access PSR-119
 
 
 class WorkspaceModulesEndpoint(BaseAPIView):
     permission_classes = [WorkspaceViewerPermission]
 
     def get(self, request, slug):
+        # FORK: guest-access PSR-119 — in projects that hide others' work items, a guest's counts only include the
+        # work items they created (per-project, since this list spans every project the user belongs to)
+        guest_scope = guest_row_scope_q(request.user, "_restricted_guest", "issue_module__issue__created_by")
         modules = (
             Module.objects.filter(
                 workspace__slug=slug,
@@ -30,6 +34,7 @@ class WorkspaceModulesEndpoint(BaseAPIView):
                 project__project_projectmember__is_active=True,
                 project__archived_at__isnull=True,
             )
+            .annotate(_restricted_guest=restricted_guest_annotation(request.user, "project_id"))
             .select_related("project")
             .select_related("workspace")
             .select_related("lead")
@@ -44,7 +49,8 @@ class WorkspaceModulesEndpoint(BaseAPIView):
             .annotate(
                 total_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
                         issue_module__deleted_at__isnull=True,
@@ -55,7 +61,8 @@ class WorkspaceModulesEndpoint(BaseAPIView):
             .annotate(
                 completed_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="completed",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -67,7 +74,8 @@ class WorkspaceModulesEndpoint(BaseAPIView):
             .annotate(
                 cancelled_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="cancelled",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -79,7 +87,8 @@ class WorkspaceModulesEndpoint(BaseAPIView):
             .annotate(
                 started_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="started",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -91,7 +100,8 @@ class WorkspaceModulesEndpoint(BaseAPIView):
             .annotate(
                 unstarted_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="unstarted",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,
@@ -103,7 +113,8 @@ class WorkspaceModulesEndpoint(BaseAPIView):
             .annotate(
                 backlog_issues=Count(
                     "issue_module",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_module__issue__state__group="backlog",
                         issue_module__issue__archived_at__isnull=True,
                         issue_module__issue__is_draft=False,

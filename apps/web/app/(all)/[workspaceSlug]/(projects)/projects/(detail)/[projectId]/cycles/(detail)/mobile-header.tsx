@@ -16,6 +16,8 @@ import { EIssuesStoreType } from "@plane/types";
 import { Icon } from "@makeplane/propel/components/icon";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
 // components
+// FORK: guest-access PSR-119
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 import { WorkItemsModal } from "@/components/analytics/work-items/modal";
 import { DisplayFiltersSelection, FiltersDropdown } from "@/components/issues/issue-layouts/filters";
 import { IssueLayoutIcon } from "@/components/issues/issue-layouts/layout-icon";
@@ -33,6 +35,8 @@ const SUPPORTED_LAYOUTS = [
 export const CycleIssuesMobileHeader = observer(function CycleIssuesMobileHeader() {
   // router
   const { workspaceSlug, projectId, cycleId } = useParams();
+  // FORK: guest-access PSR-119
+  const { isGuest } = useGuestWorkItemAccess(workspaceSlug?.toString(), projectId?.toString());
   // states
   const [analyticsModal, setAnalyticsModal] = useState(false);
   // plane hooks
@@ -143,13 +147,16 @@ export const CycleIssuesMobileHeader = observer(function CycleIssuesMobileHeader
           </FiltersDropdown>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setAnalyticsModal(true)}
-          className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
-        >
-          {t("common.analytics")}
-        </button>
+        {/* FORK: guest-access PSR-119 — analytics are hidden from guests entirely */}
+        {!isGuest && (
+          <button
+            type="button"
+            onClick={() => setAnalyticsModal(true)}
+            className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
+          >
+            {t("common.analytics")}
+          </button>
+        )}
       </div>
     </>
   );

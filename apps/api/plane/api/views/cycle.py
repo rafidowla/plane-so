@@ -50,8 +50,10 @@ from plane.utils.cycle_transfer_issues import transfer_cycle_issues
 from plane.utils.order_queryset import CYCLE_ORDER_BY_ALLOWLIST, ISSUE_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.utils.host import base_host
 from .base import BaseAPIView
+from .guest_access import guest_count_q, issue_view_denied, visible_issues_q  # FORK: guest-access PSR-119
 from plane.bgtasks.webhook_task import model_activity
 from plane.utils.openapi.decorators import cycle_docs
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 from plane.utils.openapi import (
     CURSOR_PARAMETER,
     PER_PAGE_PARAMETER,
@@ -89,6 +91,8 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts only include the work items they can see
+        guest_scope = guest_count_q(self.request.user, self.kwargs.get("project_id"), "issue_cycle__issue")
         return (
             Cycle.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
@@ -102,7 +106,8 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 total_issues=Count(
                     "issue_cycle",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
                         issue_cycle__deleted_at__isnull=True,
@@ -112,7 +117,8 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 completed_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="completed",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -123,7 +129,8 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 cancelled_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="cancelled",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -134,7 +141,8 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 started_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="started",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -145,7 +153,8 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 unstarted_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="unstarted",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -156,7 +165,8 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
             .annotate(
                 backlog_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="backlog",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -417,6 +427,8 @@ class CycleDetailAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts only include the work items they can see
+        guest_scope = guest_count_q(self.request.user, self.kwargs.get("project_id"), "issue_cycle__issue")
         return (
             Cycle.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
@@ -430,7 +442,8 @@ class CycleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 total_issues=Count(
                     "issue_cycle",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
                         issue_cycle__deleted_at__isnull=True,
@@ -440,7 +453,8 @@ class CycleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 completed_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="completed",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -451,7 +465,8 @@ class CycleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 cancelled_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="cancelled",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -462,7 +477,8 @@ class CycleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 started_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="started",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -473,7 +489,8 @@ class CycleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 unstarted_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="unstarted",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -484,7 +501,8 @@ class CycleDetailAPIEndpoint(BaseAPIView):
             .annotate(
                 backlog_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="backlog",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -666,6 +684,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts only include the work items they can see
+        guest_scope = guest_count_q(self.request.user, self.kwargs.get("project_id"), "issue_cycle__issue")
         return (
             Cycle.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
@@ -680,7 +700,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 total_issues=Count(
                     "issue_cycle",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
                         issue_cycle__deleted_at__isnull=True,
@@ -690,7 +711,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 completed_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="completed",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -701,7 +723,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 cancelled_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="cancelled",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -712,7 +735,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 started_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="started",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -723,7 +747,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 unstarted_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="unstarted",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -734,7 +759,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 backlog_issues=Count(
                     "issue_cycle__issue__state__group",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="backlog",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -742,11 +768,12 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
                     ),
                 )
             )
-            .annotate(total_estimates=Sum("issue_cycle__issue__estimate_point__key"))
+            .annotate(total_estimates=Sum("issue_cycle__issue__estimate_point__key", filter=guest_scope or None))
             .annotate(
                 completed_estimates=Sum(
                     "issue_cycle__issue__estimate_point__key",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="completed",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -757,7 +784,8 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             .annotate(
                 started_estimates=Sum(
                     "issue_cycle__issue__estimate_point__key",
-                    filter=Q(
+                    filter=guest_scope
+                    & Q(
                         issue_cycle__issue__state__group="started",
                         issue_cycle__issue__archived_at__isnull=True,
                         issue_cycle__issue__is_draft=False,
@@ -861,7 +889,9 @@ class CycleIssueListCreateAPIEndpoint(BaseAPIView):
     def get_queryset(self):
         return (
             CycleIssue.objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("issue_id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("issue_id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -908,7 +938,9 @@ class CycleIssueListCreateAPIEndpoint(BaseAPIView):
         issues = (
             Issue.issue_objects.filter(issue_cycle__cycle_id=cycle_id, issue_cycle__deleted_at__isnull=True)
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -916,6 +948,9 @@ class CycleIssueListCreateAPIEndpoint(BaseAPIView):
             .annotate(bridge_id=F("issue_cycle__id"))
             .filter(project_id=project_id)
             .filter(workspace__slug=slug)
+            .filter(
+                visible_issues_q(request.user, slug)
+            )  # FORK: guest-access PSR-119 — restricted guests see only their own
             .select_related("project")
             .select_related("workspace")
             .select_related("state")
@@ -1083,7 +1118,9 @@ class CycleIssueDetailAPIEndpoint(BaseAPIView):
     def get_queryset(self):
         return (
             CycleIssue.objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("issue_id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("issue_id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -1122,6 +1159,10 @@ class CycleIssueDetailAPIEndpoint(BaseAPIView):
         Retrieve details of a specific cycle work item.
         Returns paginated results with work item details, assignees, and labels.
         """
+        # FORK: guest-access PSR-119 — restricted guests may only open their own work items
+        denied = issue_view_denied(request, project_id, issue_id=issue_id)
+        if denied:
+            return denied
         cycle_issue = CycleIssue.objects.get(
             workspace__slug=slug,
             project_id=project_id,

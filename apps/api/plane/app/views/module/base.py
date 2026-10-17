@@ -66,6 +66,7 @@ from plane.bgtasks.webhook_task import model_activity
 from .. import BaseAPIView, BaseViewSet
 from plane.bgtasks.recent_visited_task import recent_visited_task
 from plane.utils.host import base_host
+from plane.utils.guest_work_item import guest_count_q  # FORK: guest-access PSR-119
 
 
 class ModuleViewSet(BaseViewSet):
@@ -76,6 +77,8 @@ class ModuleViewSet(BaseViewSet):
         return ModuleWriteSerializer if self.action in ["create", "update", "partial_update"] else ModuleSerializer
 
     def get_queryset(self):
+        # FORK: guest-access PSR-119 — a restricted guest's counts/estimates only include work items they created
+        guest_q = guest_count_q(self.request.user, self.kwargs.get("project_id"))
         favorite_subquery = UserFavorite.objects.filter(
             user=self.request.user,
             entity_type="module",
@@ -85,6 +88,7 @@ class ModuleViewSet(BaseViewSet):
         )
         cancelled_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="cancelled",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -95,6 +99,7 @@ class ModuleViewSet(BaseViewSet):
         )
         completed_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="completed",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -105,6 +110,7 @@ class ModuleViewSet(BaseViewSet):
         )
         started_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="started",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -115,6 +121,7 @@ class ModuleViewSet(BaseViewSet):
         )
         unstarted_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="unstarted",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -125,6 +132,7 @@ class ModuleViewSet(BaseViewSet):
         )
         backlog_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 state__group="backlog",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -135,6 +143,7 @@ class ModuleViewSet(BaseViewSet):
         )
         total_issues = (
             Issue.issue_objects.filter(
+                guest_q,
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
             )
@@ -144,6 +153,7 @@ class ModuleViewSet(BaseViewSet):
         )
         completed_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="completed",
                 issue_module__module_id=OuterRef("pk"),
@@ -156,6 +166,7 @@ class ModuleViewSet(BaseViewSet):
 
         total_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 issue_module__module_id=OuterRef("pk"),
                 issue_module__deleted_at__isnull=True,
@@ -166,6 +177,7 @@ class ModuleViewSet(BaseViewSet):
         )
         backlog_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="backlog",
                 issue_module__module_id=OuterRef("pk"),
@@ -177,6 +189,7 @@ class ModuleViewSet(BaseViewSet):
         )
         unstarted_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="unstarted",
                 issue_module__module_id=OuterRef("pk"),
@@ -188,6 +201,7 @@ class ModuleViewSet(BaseViewSet):
         )
         started_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="started",
                 issue_module__module_id=OuterRef("pk"),
@@ -199,6 +213,7 @@ class ModuleViewSet(BaseViewSet):
         )
         cancelled_estimate_point = (
             Issue.issue_objects.filter(
+                guest_q,
                 estimate_point__estimate__type="points",
                 state__group="cancelled",
                 issue_module__module_id=OuterRef("pk"),

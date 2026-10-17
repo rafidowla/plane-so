@@ -29,9 +29,10 @@ export const IssueModalProvider = observer(function IssueModalProvider(props: TI
   // FORK: custom-properties — staged create-time values (propertyId -> values)
   const [issuePropertyValues, setIssuePropertyValues] = useState<TIssuePropertyValues>({});
   // store hooks
-  const { projectsWithCreatePermissions } = useUser();
+  // FORK: guest-access (PSR-119) — project Guests may raise work items too, so offer every project they belong to
+  const { projectsWithWorkItemCreatePermissions } = useUser();
   // derived values
-  const projectIdsWithCreatePermissions = Object.keys(projectsWithCreatePermissions ?? {});
+  const projectIdsWithCreatePermissions = Object.keys(projectsWithWorkItemCreatePermissions ?? {});
 
   // FORK: custom-properties — persist staged values against the just-created
   // work item (improvement #19). Failures must not fail issue creation, and

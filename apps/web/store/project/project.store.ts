@@ -230,7 +230,8 @@ export class ProjectStore implements IProjectStore {
    */
   get currentProjectNextSequenceId() {
     if (!this.rootStore.router.projectId) return undefined;
-    return this.currentProjectDetails?.next_work_item_sequence;
+    // FORK: guest-access PSR-119 — the server sends null for restricted guests; treat it as "unknown"
+    return this.currentProjectDetails?.next_work_item_sequence ?? undefined;
   }
 
   /**
@@ -602,12 +603,12 @@ export class ProjectStore implements IProjectStore {
   archiveProject = async (workspaceSlug: string, projectId: string) => {
     await this.projectArchiveService
       .archiveProject(workspaceSlug, projectId)
-      .then((response) => {
+      .then((response) =>
         runInAction(() => {
           set(this.projectMap, [projectId, "archived_at"], response.archived_at);
           this.rootStore.favorite.removeFavoriteFromStore(projectId);
-        });
-      })
+        })
+      )
       .catch((error) => {
         console.log("Failed to archive project from project store");
         throw error;
@@ -623,11 +624,11 @@ export class ProjectStore implements IProjectStore {
   restoreProject = async (workspaceSlug: string, projectId: string) => {
     await this.projectArchiveService
       .restoreProject(workspaceSlug, projectId)
-      .then(() => {
+      .then(() =>
         runInAction(() => {
           set(this.projectMap, [projectId, "archived_at"], null);
-        });
-      })
+        })
+      )
       .catch((error) => {
         console.log("Failed to restore project from project store");
         throw error;

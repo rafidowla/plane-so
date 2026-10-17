@@ -47,6 +47,7 @@ from .. import BaseViewSet
 from plane.db.models import UserFavorite
 from plane.utils.filters import ComplexFilterBackend
 from plane.utils.filters import IssueFilterSet
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 
 
 class WorkspaceViewViewSet(BaseViewSet):
@@ -198,7 +199,9 @@ class WorkspaceViewIssuesViewSet(BaseViewSet):
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")

@@ -39,7 +39,7 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
   // store
   const { config } = useInstance();
   const {
-    canPerformAnyCreateAction,
+    canCreateWorkItemInAnyProject, // FORK: guest-access (PSR-119)
     permission: { allowPermissions },
   } = useUser();
   const { workspaceProjectIds, getPartialProjectById } = useProject();
@@ -52,7 +52,8 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
     toggleCreatePageModal,
   } = useCommandPalette();
   // derived values
-  const canCreateWorkItem = canPerformAnyCreateAction && workspaceProjectIds && workspaceProjectIds.length > 0;
+  // FORK: guest-access (PSR-119) — project guests can raise work items too
+  const canCreateWorkItem = canCreateWorkItemInAnyProject && workspaceProjectIds && workspaceProjectIds.length > 0;
   const canCreateProject = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.WORKSPACE

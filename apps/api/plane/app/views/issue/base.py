@@ -73,7 +73,13 @@ from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 from plane.utils.timezone_converter import user_timezone_converter
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 from plane.utils.work_item_move import resolve_moved_work_item  # FORK: move-work-item (PSR-91)
+from plane.utils.guest_work_item import (  # FORK: guest-access PSR-119 — guests raise/edit their own work items
+    guest_delete_denied,
+    guest_edit_denied,
+    guest_work_item_payload,
+)
 
 from .. import BaseAPIView, BaseViewSet
 
@@ -143,7 +149,9 @@ class IssueListEndpoint(BaseAPIView):
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -252,7 +260,7 @@ class IssueViewSet(BaseViewSet):
             )
             .annotate(
                 sub_issues_count=Subquery(
-                    Issue.issue_objects.filter(parent=OuterRef("id"))
+                    Issue.issue_objects.filter(guest_visible_issues_q(self.request.user), parent=OuterRef("id"))
                     .values("parent")
                     .annotate(count=Count("id"))
                     .values("count")
@@ -402,12 +410,18 @@ class IssueViewSet(BaseViewSet):
                 on_results=lambda issues: issue_on_results(group_by=group_by, issues=issues, sub_group_by=sub_group_by),
             )
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])  # FORK: guest-access PSR-119 — guests may create
     def create(self, request, slug, project_id):
         project = Project.objects.get(pk=project_id)
 
+        # FORK: guest-access PSR-119 — a Guest may only send the allow-listed fields (state is always the
+        # project default); anything else with a value is a 400. Non-guests are unaffected.
+        data, error = guest_work_item_payload(request, project_id)
+        if error:
+            return error
+
         serializer = IssueCreateSerializer(
-            data=request.data,
+            data=data,
             context={
                 "project_id": project_id,
                 "workspace_id": project.workspace_id,
@@ -421,7 +435,7 @@ class IssueViewSet(BaseViewSet):
             # Track the issue
             issue_activity.delay(
                 type="issue.activity.created",
-                requested_data=json.dumps(self.request.data, cls=DjangoJSONEncoder),
+                requested_data=json.dumps(data, cls=DjangoJSONEncoder),
                 actor_id=str(request.user.id),
                 issue_id=str(serializer.data.get("id", None)),
                 project_id=str(project_id),
@@ -474,7 +488,7 @@ class IssueViewSet(BaseViewSet):
             model_activity.delay(
                 model_name="issue",
                 model_id=str(serializer.data["id"]),
-                requested_data=request.data,
+                requested_data=data,
                 current_instance=None,
                 actor_id=request.user.id,
                 slug=slug,
@@ -482,7 +496,7 @@ class IssueViewSet(BaseViewSet):
             )
             # updated issue description version
             issue_description_version_task.delay(
-                updated_issue=json.dumps(request.data, cls=DjangoJSONEncoder),
+                updated_issue=json.dumps(data, cls=DjangoJSONEncoder),
                 issue_id=str(serializer.data["id"]),
                 user_id=request.user.id,
                 is_creating=True,
@@ -523,7 +537,7 @@ class IssueViewSet(BaseViewSet):
             )
             .annotate(
                 sub_issues_count=Subquery(
-                    Issue.issue_objects.filter(parent=OuterRef("id"))
+                    Issue.issue_objects.filter(guest_visible_issues_q(self.request.user), parent=OuterRef("id"))
                     .values("parent")
                     .annotate(count=Count("id"))
                     .values("count")
@@ -627,16 +641,31 @@ class IssueViewSet(BaseViewSet):
 
     # FORK: put-permission — the urls route PUT to ``update``; without this override it fell through to
     # ModelViewSet.update, which only checks IsAuthenticated, so any signed-in user could overwrite any work item.
+    # FORK: guest-access PSR-119 — routing PUT through PATCH also applies the guest role / ownership / field rules
     def update(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
 
-    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER], creator=True, model=Issue)
+    # FORK: guest-access PSR-119 — ROLE.GUEST added: a guest may edit only work items they created, and only
+    # the allow-listed fields (the creator=True shortcut alone would let a guest change anything)
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], creator=True, model=Issue)
     def partial_update(self, request, slug, project_id, pk=None):
         queryset = self.get_queryset()
         queryset = self.apply_annotations(queryset)
 
-        skip_activity = request.data.pop("skip_activity", False)
-        is_description_update = request.data.get("description_html") is not None
+        owner_id = (
+            Issue.objects.filter(pk=pk, project_id=project_id, workspace__slug=slug)
+            .values_list("created_by_id", flat=True)
+            .first()
+        )
+        denied = guest_edit_denied(request.user, project_id, owner_id)
+        if denied:
+            return denied
+        data, error = guest_work_item_payload(request, project_id)
+        if error:
+            return error
+
+        skip_activity = data.pop("skip_activity", False)
+        is_description_update = data.get("description_html") is not None
 
         issue = (
             queryset.annotate(
@@ -682,8 +711,8 @@ class IssueViewSet(BaseViewSet):
 
         current_instance = json.dumps(IssueDetailSerializer(issue).data, cls=DjangoJSONEncoder)
 
-        requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
-        serializer = IssueCreateSerializer(issue, data=request.data, partial=True, context={"project_id": project_id})
+        requested_data = json.dumps(data, cls=DjangoJSONEncoder)
+        serializer = IssueCreateSerializer(issue, data=data, partial=True, context={"project_id": project_id})
         if serializer.is_valid():
             serializer.save()
             # Check if the update is a migration description update
@@ -704,7 +733,7 @@ class IssueViewSet(BaseViewSet):
                 model_activity.delay(
                     model_name="issue",
                     model_id=str(serializer.data.get("id", None)),
-                    requested_data=request.data,
+                    requested_data=data,
                     current_instance=current_instance,
                     actor_id=request.user.id,
                     slug=slug,
@@ -721,6 +750,10 @@ class IssueViewSet(BaseViewSet):
 
     @allow_permission([ROLE.ADMIN], creator=True, model=Issue)
     def destroy(self, request, slug, project_id, pk=None):
+        # FORK: guest-access PSR-119 — guests can never delete work items, not even their own (creator=True above)
+        denied = guest_delete_denied(request.user, project_id)
+        if denied:
+            return denied
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
 
         issue.delete()
@@ -750,21 +783,11 @@ class ProjectUserDisplayPropertyEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def patch(self, request, slug, project_id):
         try:
-            issue_property = ProjectUserProperty.objects.get(
-                user=request.user, 
-                project_id=project_id
-            )
+            issue_property = ProjectUserProperty.objects.get(user=request.user, project_id=project_id)
         except ProjectUserProperty.DoesNotExist:
-            issue_property = ProjectUserProperty.objects.create(
-                user=request.user, 
-                project_id=project_id
-            )
+            issue_property = ProjectUserProperty.objects.create(user=request.user, project_id=project_id)
 
-        serializer = ProjectUserPropertySerializer(
-            issue_property, 
-            data=request.data,
-            partial=True
-        )
+        serializer = ProjectUserPropertySerializer(issue_property, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -850,7 +873,7 @@ class IssuePaginatedViewSet(BaseViewSet):
             )
             .annotate(
                 sub_issues_count=Subquery(
-                    Issue.issue_objects.filter(parent=OuterRef("id"))
+                    Issue.issue_objects.filter(guest_visible_issues_q(self.request.user), parent=OuterRef("id"))
                     .values("parent")
                     .annotate(count=Count("id"))
                     .values("count")
@@ -1005,7 +1028,9 @@ class IssueDetailEndpoint(BaseAPIView):
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -1275,7 +1300,9 @@ class IssueDetailIdentifierEndpoint(BaseAPIView):
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                sub_issues_count=Issue.issue_objects.filter(
+                    guest_visible_issues_q(self.request.user), parent=OuterRef("id")
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")

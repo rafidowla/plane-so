@@ -30,6 +30,7 @@ from plane.db.models import (
 )
 
 from plane.utils.analytics_plot import build_graph_plot, VALID_ANALYTICS_FIELDS, VALID_YAXIS
+from plane.utils.guest_work_item import guest_visible_issues_q  # FORK: guest-access PSR-119
 from plane.utils.issue_filters import issue_filters
 from plane.app.permissions import allow_permission, ROLE
 
@@ -249,7 +250,8 @@ class ExportAnalyticsEndpoint(BaseAPIView):
 
 
 class DefaultAnalyticsEndpoint(BaseAPIView):
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    # FORK: guest-access PSR-119 — analytics are hidden from guests entirely (whole-workspace, unscoped numbers)
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
     def get(self, request, slug):
         filters = issue_filters(request.GET, "GET")
         base_issues = Issue.issue_objects.filter(workspace__slug=slug, **filters)
@@ -410,10 +412,12 @@ class ProjectStatsEndpoint(BaseAPIView):
         if project_ids:
             projects = projects.filter(id__in=project_ids.split(","))
 
+        # FORK: guest-access PSR-119 — in projects that hide others' work items a guest only counts their own
+        guest_visible = guest_visible_issues_q(request.user)
         annotations = {}
         if "total_issues" in requested_fields:
             annotations["total_issues"] = (
-                Issue.issue_objects.filter(project_id=OuterRef("pk"))
+                Issue.issue_objects.filter(guest_visible, project_id=OuterRef("pk"))
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -421,7 +425,9 @@ class ProjectStatsEndpoint(BaseAPIView):
 
         if "completed_issues" in requested_fields:
             annotations["completed_issues"] = (
-                Issue.issue_objects.filter(project_id=OuterRef("pk"), state__group__in=["completed", "cancelled"])
+                Issue.issue_objects.filter(
+                    guest_visible, project_id=OuterRef("pk"), state__group__in=["completed", "cancelled"]
+                )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")

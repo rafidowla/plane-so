@@ -314,7 +314,8 @@ class ProjectAdvanceAnalyticsChartEndpoint(ProjectAdvanceAnalyticsBaseView):
 
         return {"data": data, "schema": schema}
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    # FORK: guest-access PSR-119 — analytics are hidden from guests entirely (charts are unscoped)
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def get(self, request: HttpRequest, slug: str, project_id: str) -> Response:
         self.initialize_workspace(slug, type="chart")
         type = request.GET.get("type", "projects")

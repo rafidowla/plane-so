@@ -47,6 +47,8 @@ type TIssueDefaultPropertiesProps = {
   targetDate: string | null;
   parentId: string | null;
   isDraft: boolean;
+  /** FORK: guest-access (PSR-119) — a project Guest only sets priority and labels */
+  isGuest?: boolean;
   handleFormChange: () => void;
   setSelectedParentIssue: (issue: ISearchIssueResponse) => void;
 };
@@ -62,6 +64,7 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
     targetDate,
     parentId,
     isDraft,
+    isGuest = false,
     handleFormChange,
     setSelectedParentIssue,
   } = props;
@@ -84,6 +87,49 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
 
   const maxDate = getDate(targetDate);
   maxDate?.setDate(maxDate.getDate());
+
+  // FORK: guest-access (PSR-119) — guests set priority and (existing) labels only; state, assignees, dates, cycle,
+  // module, estimate and parent are team-only (the API rejects them with a 400)
+  if (isGuest) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Controller
+          control={control}
+          name="priority"
+          render={({ field: { value, onChange } }) => (
+            <PrioritySelect
+              testId="create-work-item-priority-select"
+              value={value}
+              onChange={(priority) => {
+                onChange(priority);
+                handleFormChange();
+              }}
+              variant="pill-md"
+              tabIndex={getIndex("priority")}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="label_ids"
+          render={({ field: { value, onChange } }) => (
+            <LabelSelect
+              testId="create-work-item-label-select"
+              projectId={projectId ?? undefined}
+              value={value ?? []}
+              onChange={(labelIds) => {
+                onChange(labelIds);
+                handleFormChange();
+              }}
+              variant="pill-md"
+              placeholder={t("labels")}
+              tabIndex={getIndex("label_ids")}
+            />
+          )}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">

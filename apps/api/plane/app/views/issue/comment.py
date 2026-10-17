@@ -24,6 +24,9 @@ from plane.bgtasks.issue_activities_task import issue_activity
 from plane.utils.host import base_host
 from plane.bgtasks.webhook_task import model_activity
 
+# FORK: guest-access PSR-119 — guests cannot comment on archived work items
+from plane.utils.guest_work_item import guest_archived_comment_denied
+
 
 class IssueCommentViewSet(BaseViewSet):
     serializer_class = IssueCommentSerializer
@@ -86,6 +89,10 @@ class IssueCommentViewSet(BaseViewSet):
                 {"error": "You are not allowed to comment on the issue"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # FORK: guest-access PSR-119 — guests cannot comment on archived work items
+        denied = guest_archived_comment_denied(request.user, project_id, issue)
+        if denied:
+            return denied
         serializer = IssueCommentSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(project_id=project_id, issue_id=issue_id, actor=request.user)
@@ -121,6 +128,10 @@ class IssueCommentViewSet(BaseViewSet):
     @allow_permission(allowed_roles=[ROLE.ADMIN], creator=True, model=IssueComment)
     def partial_update(self, request, slug, project_id, issue_id, pk):
         issue_comment = IssueComment.objects.get(workspace__slug=slug, project_id=project_id, issue_id=issue_id, pk=pk)
+        # FORK: guest-access PSR-119 — guests cannot edit comments on archived work items
+        denied = guest_archived_comment_denied(request.user, project_id, issue_comment.issue)
+        if denied:
+            return denied
         requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
         current_instance = json.dumps(IssueCommentSerializer(issue_comment).data, cls=DjangoJSONEncoder)
         serializer = IssueCommentSerializer(issue_comment, data=request.data, partial=True)

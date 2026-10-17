@@ -7,7 +7,7 @@ import json
 
 # Django imports
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, F, Func, OuterRef, Prefetch, Q, Subquery, Count
+from django.db.models import Exists, F, Func, OuterRef, Prefetch, Subquery, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
@@ -41,6 +41,7 @@ from plane.db.models import (
 from plane.bgtasks.webhook_task import model_activity, webhook_activity
 from plane.utils.exception_logger import log_exception
 from .base import BaseAPIView
+from .guest_access import project_visibility_q  # FORK: guest-access
 from plane.utils.host import base_host
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.api.serializers import (
@@ -86,13 +87,8 @@ class ProjectListCreateAPIEndpoint(BaseAPIView):
     def get_queryset(self):
         return (
             Project.objects.filter(workspace__slug=self.kwargs.get("slug"))
-            .filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
-                )
-                | Q(network=2)
-            )
+            # FORK: guest-access — workspace guests only get projects they belong to, as in the app
+            .filter(project_visibility_q(self.request.user, self.kwargs.get("slug")))
             .select_related("project_lead")
             .annotate(
                 is_member=Exists(
@@ -352,13 +348,8 @@ class ProjectListLiteAPIEndpoint(BaseAPIView):
         # public (network=2) ones.
         return (
             Project.objects.filter(workspace__slug=self.kwargs.get("slug"))
-            .filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
-                )
-                | Q(network=2)
-            )
+            # FORK: guest-access — workspace guests only get projects they belong to, as in the app
+            .filter(project_visibility_q(self.request.user, self.kwargs.get("slug")))
             .distinct()
         )
 
@@ -440,13 +431,8 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
     def get_queryset(self):
         return (
             Project.objects.filter(workspace__slug=self.kwargs.get("slug"))
-            .filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
-                )
-                | Q(network=2)
-            )
+            # FORK: guest-access — workspace guests only get projects they belong to, as in the app
+            .filter(project_visibility_q(self.request.user, self.kwargs.get("slug")))
             .select_related("workspace", "workspace__owner", "default_assignee", "project_lead")
             .annotate(
                 is_member=Exists(

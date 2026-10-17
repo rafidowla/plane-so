@@ -15,6 +15,8 @@ import { useTranslation } from "@plane/i18n";
 import { setToast } from "@plane/blocks/toast";
 import type { TBaseIssue, TIssue } from "@plane/types";
 import { EIssuesStoreType } from "@plane/types";
+// FORK: guest-access (PSR-119)
+import { isProjectGuestRole, pickGuestWorkItemPayload } from "@plane/utils";
 // hooks
 import { useIssueModal } from "@/hooks/context/use-issue-modal";
 import { useCycle } from "@/hooks/store/use-cycle";
@@ -23,6 +25,7 @@ import { useIssues } from "@/hooks/store/use-issues";
 import { useModule } from "@/hooks/store/use-module";
 import { useProject } from "@/hooks/store/use-project";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
+import { useUserPermissions } from "@/hooks/store/user";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
 // FORK: create-modal-attachments (PSR-88, PSR-104)
 import {
@@ -89,6 +92,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   } = useIssueDetail();
   const { allowedProjectIds, handleCreateUpdatePropertyValues, handleCreateSubWorkItem } = useIssueModal();
   const { getProjectByIdentifier } = useProject();
+  // FORK: guest-access (PSR-119)
+  const { getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
   // current store details
   const { createIssue, updateIssue } = useIssuesActions(storeType);
   // propel: toast actions cross the boundary as data, never as JSX
@@ -161,7 +166,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   };
 
   const handleClose = (saveAsDraft?: boolean) => {
-    if (changesMade && saveAsDraft && !data) {
+    // FORK: guest-access (PSR-119) — guests cannot save drafts
+    if (changesMade && saveAsDraft && !data && !isGuestInProject(changesMade.project_id ?? activeProjectId)) {
       handleCreateIssue(changesMade, true);
     }
 
@@ -224,16 +230,28 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
     attachmentQueue.clear();
   };
 
+  // FORK: guest-access (PSR-119) — is the user a project Guest in the given project?
+  const isGuestInProject = (targetProjectId: string | null | undefined) =>
+    !!workspaceSlug &&
+    !!targetProjectId &&
+    isProjectGuestRole(getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug.toString(), targetProjectId));
+
   const handleCreateIssue = async (
     payload: Partial<TIssue>,
     is_draft_issue: boolean = false
   ): Promise<TIssue | undefined> => {
     if (!workspaceSlug || !payload.project_id) return;
+    // FORK: guest-access (PSR-119) — guests never save drafts, never use the cycle/module stores (their createIssue
+    // also adds the item to the cycle/module) and never write custom properties or sub-work-items
+    const isGuest = isGuestInProject(payload.project_id);
 
     try {
       let response: TIssue | undefined;
+      if (isGuest) {
+        response = await projectIssues.createIssue(workspaceSlug.toString(), payload.project_id, payload);
+      }
       // if draft issue, use draft issue store to create issue
-      if (is_draft_issue) {
+      else if (is_draft_issue) {
         response = (await draftIssues.createIssue(workspaceSlug.toString(), payload)) as TIssue;
       }
       // if cycle id in payload does not match the cycleId in url
@@ -277,7 +295,7 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
       }
 
       // add other property values
-      if (response.id && response.project_id) {
+      if (!isGuest && response.id && response.project_id) {
         await handleCreateUpdatePropertyValues({
           issueId: response.id,
           issueTypeId: response.type_id,
@@ -381,22 +399,27 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
 
   const handleUpdateIssue = async (payload: Partial<TIssue>): Promise<TIssue | undefined> => {
     if (!workspaceSlug || !payload.project_id || !data?.id) return;
+    // FORK: guest-access (PSR-119)
+    const isGuest = isGuestInProject(payload.project_id);
 
     try {
       if (isDraft) await draftIssues.updateIssue(workspaceSlug.toString(), data.id, payload);
       else if (updateIssue) await updateIssue(payload.project_id, data.id, payload);
 
-      // Run cycle, module, and property changes sequentially to avoid
-      // optimistic store writes from racing against each other.
-      await handleCycleChange(data, payload);
-      await handleModuleChange(data, payload);
-      await handleCreateUpdatePropertyValues({
-        issueId: data.id,
-        issueTypeId: payload.type_id,
-        projectId: payload.project_id,
-        workspaceSlug: workspaceSlug?.toString(),
-        isDraft: isDraft,
-      });
+      // FORK: guest-access (PSR-119) — cycle, module and custom-property changes are team-only
+      if (!isGuest) {
+        // Run cycle, module, and property changes sequentially to avoid
+        // optimistic store writes from racing against each other.
+        await handleCycleChange(data, payload);
+        await handleModuleChange(data, payload);
+        await handleCreateUpdatePropertyValues({
+          issueId: data.id,
+          issueTypeId: payload.type_id,
+          projectId: payload.project_id,
+          workspaceSlug: workspaceSlug?.toString(),
+          isDraft: isDraft,
+        });
+      }
 
       setToast({
         type: "success",
@@ -418,8 +441,13 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
     }
   };
 
-  const handleFormSubmit = async (payload: Partial<TIssue>, is_draft_issue: boolean = false) => {
-    if (!workspaceSlug || !payload.project_id || !storeType) return;
+  const handleFormSubmit = async (rawPayload: Partial<TIssue>, rawIsDraftIssue: boolean = false) => {
+    if (!workspaceSlug || !rawPayload.project_id || !storeType) return;
+    // FORK: guest-access (PSR-119) — the single choke point for what a Guest can send. Allow-list the payload so no
+    // team-only field (prefilled defaults, route-param cycle/module, type) can reach the API, and never draft.
+    const isGuest = isGuestInProject(rawPayload.project_id);
+    const payload = isGuest ? (pickGuestWorkItemPayload(rawPayload) as Partial<TIssue>) : rawPayload;
+    const is_draft_issue = isGuest ? false : rawIsDraftIssue;
     // remove sourceIssueId from payload since it is not needed
     if (data?.sourceIssueId) delete data.sourceIssueId;
 

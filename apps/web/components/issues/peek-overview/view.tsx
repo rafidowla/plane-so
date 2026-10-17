@@ -14,6 +14,8 @@ import { EIssueServiceType } from "@plane/types";
 import { cn } from "@plane/utils";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
+// FORK: guest-access (PSR-119)
+import { useGuestWorkItemAccess } from "@/plane-web/guest-access";
 import useKeypress from "@/hooks/use-keypress";
 import usePeekOverviewOutsideClickDetector from "@/hooks/use-peek-overview-outside-click";
 // local imports
@@ -74,6 +76,8 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
   } = useIssueDetail();
   const { isAnyModalOpen: isAnyEpicModalOpen } = useIssueDetail(EIssueServiceType.EPICS);
   const issue = getIssueById(issueId);
+  // FORK: guest-access (PSR-119) — a guest can attach files to their own work item
+  const { canGuestEdit, isGuest } = useGuestWorkItemAccess(workspaceSlug, projectId, issue?.created_by);
   // remove peek id
   const removeRoutePeekId = () => {
     setPeekIssue(undefined);
@@ -196,6 +200,8 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
                         projectId={projectId}
                         issueId={issueId}
                         disabled={disabled || is_archived}
+                        attachmentsDisabled={(disabled && !canGuestEdit) || is_archived} // FORK: guest-access (PSR-119)
+                        hideActionButtons={isGuest && is_archived} // FORK: guest-access (PSR-119)
                         issueServiceType={EIssueServiceType.ISSUES}
                       />
                     </div>
@@ -237,6 +243,8 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
                             projectId={projectId}
                             issueId={issueId}
                             disabled={disabled}
+                            attachmentsDisabled={disabled && !canGuestEdit} // FORK: guest-access (PSR-119)
+                            hideActionButtons={isGuest && is_archived} // FORK: guest-access (PSR-119)
                             issueServiceType={EIssueServiceType.ISSUES}
                           />
                         </div>
