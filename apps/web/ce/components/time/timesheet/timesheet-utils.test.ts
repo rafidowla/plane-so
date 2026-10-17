@@ -112,9 +112,27 @@ describe("what an entry offers", () => {
     });
   });
 
-  it("also blocks admins on a locked or pending entry", () => {
-    expect(entryActionFor(admin, { ...free, is_locked: true }).kind).toBe("none");
+  it("blocks admins on a pending entry", () => {
     expect(entryActionFor(admin, { ...free, pending_request_id: "r1" }).kind).toBe("none");
+  });
+
+  it("lets a workspace admin override their own locked entry", () => {
+    expect(entryActionFor(admin, { ...free, is_locked: true })).toEqual({ kind: "edit" });
+  });
+
+  it("keeps another person's locked entry read-only, even for a workspace admin", () => {
+    expect(entryActionFor({ ...admin, is_self: false }, { ...free, is_locked: true })).toEqual({
+      kind: "none",
+      reason: "",
+    });
+  });
+
+  it("gives a project admin (not a workspace admin) no edit on a locked entry", () => {
+    const projectAdmin = { is_self: true, viewer: { is_workspace_admin: false, can_add_time: true } };
+    expect(entryActionFor(projectAdmin, { ...free, is_locked: true })).toEqual({
+      kind: "none",
+      reason: "Approved and locked",
+    });
   });
 
   it("is read-only when looking at someone else", () => {

@@ -111,17 +111,23 @@ export function describeBalance(logged: number, expectedToDate: number): string 
 }
 
 export type TEntryAction =
-  | { kind: "edit" } // workspace admin: changes the entry directly
+  | { kind: "edit" } // workspace admin: changes the entry directly (on a locked entry: an audited override)
   | { kind: "request_change" } // member: asks the approver
   | { kind: "none"; reason: string };
 
-/** What a viewer can do with one of their own entries. Others' entries are read-only. */
+/**
+ * What a viewer can do with one of their own entries. Others' entries are read-only.
+ * A locked (approved-week) entry is changeable by workspace admins only, their own included — the server
+ * records that as an override (plane.utils.time_tracking.entries._entry_rules / is_locked_override).
+ */
 export function entryActionFor(
   week: Pick<TTimesheetWeek, "is_self" | "viewer">,
   entry: Pick<TTimesheetEntry, "is_locked" | "pending_request_id">
 ): TEntryAction {
   if (!week.is_self) return { kind: "none", reason: "" };
-  if (entry.is_locked) return { kind: "none", reason: "Approved and locked" };
+  if (entry.is_locked) {
+    return week.viewer.is_workspace_admin ? { kind: "edit" } : { kind: "none", reason: "Approved and locked" };
+  }
   if (entry.pending_request_id) return { kind: "none", reason: "Change pending" };
   return week.viewer.is_workspace_admin ? { kind: "edit" } : { kind: "request_change" };
 }
