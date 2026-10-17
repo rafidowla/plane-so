@@ -276,4 +276,6 @@ from .time_tracking import (
     TimeEntryRequestEventsEndpoint,
     TimeEntryEndpoint,
     TimeEntryDetailEndpoint,
+    # FORK: time-tracking-v2 S6 — per-work-item time estimates
+    IssueTimeEstimateEndpoint,
 )

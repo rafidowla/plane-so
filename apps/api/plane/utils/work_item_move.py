@@ -59,6 +59,7 @@ from plane.db.models import (
     UserRecentVisit,
     WorklogTimer,
     TimeEntryRequest,  # FORK: time-tracking-v2 S3
+    IssueTimeEstimate,  # FORK: time-tracking-v2 S6
 )
 from plane.utils.time_tracking.snapshot import refresh_worklog_snapshots  # FORK: time-tracking-v2
 from plane.db.models.issue import IssueAttachment
@@ -118,6 +119,8 @@ REPOINT_BY_ISSUE = [
     # FORK: time-tracking-v2 S3 — requests follow the item; approvers are resolved from the
     # request's project at read time, so pending requests re-route to the new project's admins.
     (TimeEntryRequest, "issue"),
+    # FORK: time-tracking-v2 S6 — the estimate (original, current, lock) follows the item.
+    (IssueTimeEstimate, "issue"),
     (FileAsset, "issue"),
     (IssueRelation, "issue"),  # the moved item's own side of a relation
     (IssueBlocker, "block"),
@@ -143,6 +146,8 @@ ISSUE_RELATION_POLICY = {
     "db.IntakeIssue.duplicate_to": "leave",  # id-based pointer from another intake item
     "db.DraftIssue.parent": "leave",  # a draft's parent is re-validated when it is posted
     "db.GithubIssueSync.issue": "leave",  # bound to the source project's repository sync
+    # FORK: time-tracking-v2 S6 — revision history has no project column; it hangs off the estimate
+    "db.IssueTimeEstimateRevision.issue": "leave",
 }
 COMMENT_RELATION_POLICY = {
     **{f"{m._meta.label}.{f}": "repoint" for m, f in REPOINT_BY_COMMENT},

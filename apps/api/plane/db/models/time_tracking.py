@@ -4,7 +4,8 @@
 
 """FORK: time-tracking-v2 — workspace time settings, per-member tracking status
 history, the time-tracking audit log (S1) and time-entry requests with their
-append-only event history (S3).
+append-only event history (S3), and per-work-item time estimates with their
+append-only revision history (S6).
 
 The two history tables are append-only: no soft delete (so the generic
 ``hard_delete`` sweep, which only touches models with ``deleted_at``, never
@@ -20,6 +21,8 @@ from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 # Module imports
 from .base import BaseModel
@@ -335,3 +338,140 @@ class TimeEntryRequestEvent(AppendOnlyModel):
 
     def __str__(self):
         return f"{self.action} on {self.request_id}"
+
+
+# ---------------------------------------------------------------------------
+# S6 — per-work-item time estimates and their append-only revisions (mig 0130)
+# ---------------------------------------------------------------------------
+
+
+class TimeEstimateMode(models.TextChoices):
+    """``Project.time_estimate_mode`` (DESIGN §2 item 33)."""
+
+    OFF = "off", "Off"
+    OPTIONAL = "optional", "Optional"
+    REQUIRED = "required", "Required"
+
+
+class TimeEstimateRevisionKind(models.TextChoices):
+    ORIGINAL_SET = "original_set", "Original set"
+    ORIGINAL_REPLACED = "original_replaced", "Original replaced"
+    RE_ESTIMATE = "re_estimate", "Re-estimate"
+    CLEARED = "cleared", "Cleared"
+
+
+class IssueTimeEstimate(ProjectBaseModel):
+    """One time estimate per work item, in minutes, independent of Plane's points estimates.
+
+    ``original_*`` is the estimate as it stood when work started; it is replaced freely
+    until ``locked_at`` is set (first of: timer start, first time entry, move into a
+    Started/Completed state — see ``plane.utils.time_tracking.estimate``) and never
+    changes afterwards. ``current_*`` is the latest value (re-estimates after the lock).
+    ``grandfathered``: the estimate was first set on an item already past the "required"
+    gate (it was started without one). Same survival rule as ``IssueWorklog.issue``: the
+    row outlives its work item (estimate-accuracy reports keep deleted items).
+    """
+
+    issue = models.ForeignKey(
+        "db.Issue", on_delete=models.DO_NOTHING, db_constraint=False, related_name="time_estimates"
+    )
+    original_minutes = models.PositiveIntegerField()
+    original_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="original_time_estimates",
+    )
+    original_set_at = models.DateTimeField()
+    current_minutes = models.PositiveIntegerField()
+    current_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="current_time_estimates",
+    )
+    current_set_at = models.DateTimeField()
+    locked_at = models.DateTimeField(null=True, blank=True)
+    grandfathered = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Issue Time Estimate"
+        verbose_name_plural = "Issue Time Estimates"
+        db_table = "issue_time_estimates"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["issue"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="issue_time_estimate_one_per_issue",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.issue_id}: {self.current_minutes} min (original {self.original_minutes})"
+
+
+class IssueTimeEstimateRevision(AppendOnlyModel):
+    """Append-only history of an estimate: every set, replace, re-estimate or clear.
+
+    ``minutes`` is the value after the change (null for ``cleared``). No project column,
+    so a moved work item's revisions need no repointing (they follow ``issue``/``estimate``).
+    """
+
+    estimate = models.ForeignKey("db.IssueTimeEstimate", on_delete=models.CASCADE, related_name="revisions")
+    issue = models.ForeignKey(
+        "db.Issue", on_delete=models.DO_NOTHING, db_constraint=False, related_name="time_estimate_revisions"
+    )
+    minutes = models.PositiveIntegerField(null=True, blank=True)
+    set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="time_estimate_revisions",
+    )
+    kind = models.CharField(max_length=20, choices=TimeEstimateRevisionKind.choices)
+    reason = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "Issue Time Estimate Revision"
+        verbose_name_plural = "Issue Time Estimate Revisions"
+        db_table = "issue_time_estimate_revisions"
+        ordering = ("created_at",)
+        indexes = [
+            models.Index(fields=["issue", "created_at"], name="tt_estimate_rev_issue_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.kind} {self.minutes} on {self.issue_id}"
+
+
+# Fork-owned receivers: lock the original estimate when work starts. The lock rules live in
+# ``plane.utils.time_tracking.estimate`` (imported lazily: utils import these models).
+
+
+@receiver(post_save, sender="db.Issue", dispatch_uid="time_tracking_v2_estimate_lock_on_state")
+def _lock_estimate_on_state(sender, instance, created, update_fields=None, **kwargs):
+    if created or (update_fields is not None and not ({"state", "state_id"} & set(update_fields))):
+        return  # a new item has no estimate yet; other saves didn't touch the state
+    from plane.utils.time_tracking.estimate import lock_if_work_started_state
+
+    lock_if_work_started_state(instance)
+
+
+@receiver(post_save, sender="db.WorklogTimer", dispatch_uid="time_tracking_v2_estimate_lock_on_timer")
+def _lock_estimate_on_timer(sender, instance, created, **kwargs):
+    if created:
+        from plane.utils.time_tracking.estimate import lock_estimate
+
+        lock_estimate(instance.issue_id, instance.started_at)
+
+
+@receiver(post_save, sender="db.IssueWorklog", dispatch_uid="time_tracking_v2_estimate_lock_on_entry")
+def _lock_estimate_on_entry(sender, instance, created, **kwargs):
+    if created:
+        from plane.utils.time_tracking.estimate import lock_estimate
+
+        lock_estimate(instance.issue_id)

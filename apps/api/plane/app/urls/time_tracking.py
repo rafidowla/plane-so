@@ -34,6 +34,8 @@ from plane.app.views import (
     TimeEntryRequestEventsEndpoint,
     TimeEntryEndpoint,
     TimeEntryDetailEndpoint,
+    # FORK: time-tracking-v2 S6 — per-work-item time estimates
+    IssueTimeEstimateEndpoint,
 )
 
 urlpatterns = [
@@ -210,5 +212,11 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/jira-import/<uuid:pk>/",
         JiraImportJobDetailEndpoint.as_view(),
         name="jira-import-detail",
+    ),
+    # FORK: time-tracking-v2 S6 — a work item's time estimate (+ revision history)
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/time-estimate/",
+        IssueTimeEstimateEndpoint.as_view(),
+        name="issue-time-estimate",
     ),
 ]
