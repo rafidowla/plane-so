@@ -69,20 +69,26 @@ def start_response(timer, stopped, state_change, user):
     if stopped:
         pieces, total = _stop_payload(stopped["worklogs"], user)
         data["stopped"] = {
-            "worklog": pieces[-1],
+            "worklog": pieces[-1] if pieces else None,
             "duration": total,
             "issue": stopped["issue"],
             "pieces": pieces,
+            # FORK: PSR-121 — the stopped run was cut at the person's 24 h for the day.
+            "day_limit_clamped": getattr(stopped["worklogs"], "day_limit_clamped", False),
         }
     data["state_change"] = state_change
     return data
 
 
 def stop_response(worklogs, user):
+    """FORK: PSR-121 — ``day_limit_clamped``: the run was cut where the person's local day
+    reached 24 h. When the day was already full nothing is saved: ``pieces`` is empty and the
+    top-level entry fields are absent (the timer is stopped all the same)."""
     pieces, total = _stop_payload(worklogs, user)
-    data = dict(pieces[-1])
+    data = dict(pieces[-1]) if pieces else {}
     data["pieces"] = pieces
     data["total_duration"] = total
+    data["day_limit_clamped"] = getattr(worklogs, "day_limit_clamped", False)
     return data
 
 
@@ -200,7 +206,7 @@ class WorklogTimerEndpoint(BaseAPIView):
     def delete(self, request, slug, project_id, issue_id):
         """Stop the running timer and convert it to worklog(s)."""
         worklogs = stop_user_timer(slug, issue_id, request.user, description=request.data.get("description"))
-        if not worklogs:
+        if worklogs is None:  # FORK: PSR-121 — an empty stop (day already full) is still a stop
             return Response({"error": "No running timer found."}, status=status.HTTP_404_NOT_FOUND)
         return Response(stop_response(worklogs, request.user), status=status.HTTP_201_CREATED)
 

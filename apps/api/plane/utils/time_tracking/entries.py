@@ -140,6 +140,19 @@ def check_overlap(workspace_id, user_id, started_at, ended_at, exclude_ids=(), s
 DAY_CAP_MINUTES = 24 * 60
 
 
+def day_totals(workspace_id, user_id, days, exclude_ids=()):
+    """{local date: minutes already on it} for the person in the workspace, over ``days``.
+    Every row counts (interval or legacy date+duration) except ``exclude_ids``."""
+    return dict(
+        IssueWorklog.objects.filter(workspace_id=workspace_id, logged_by_id=user_id, logged_date__in=list(days))
+        .exclude(pk__in=list(exclude_ids))
+        .order_by()
+        .values("logged_date")
+        .annotate(total=Sum("duration"))
+        .values_list("logged_date", "total")
+    )
+
+
 def check_day_total(workspace_id, user_id, additions, exclude_ids=(), status_code=400):
     """``day_limit`` when the person's entries on any day in ``additions`` would total more than
     24 h. ``additions`` maps a local date to the minutes about to be written on it; every row
@@ -147,14 +160,7 @@ def check_day_total(workspace_id, user_id, additions, exclude_ids=(), status_cod
     Callers hold ``lock_user_timers`` so two writers can't both pass."""
     if not additions:
         return
-    existing = dict(
-        IssueWorklog.objects.filter(workspace_id=workspace_id, logged_by_id=user_id, logged_date__in=list(additions))
-        .exclude(pk__in=list(exclude_ids))
-        .order_by()
-        .values("logged_date")
-        .annotate(total=Sum("duration"))
-        .values_list("logged_date", "total")
-    )
+    existing = day_totals(workspace_id, user_id, additions, exclude_ids)
     for day, minutes in additions.items():
         if (existing.get(day) or 0) + minutes > DAY_CAP_MINUTES:
             refuse(
