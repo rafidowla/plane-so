@@ -57,12 +57,19 @@ export const CommentAttachmentComposer = observer(
   React.forwardRef<TCommentAttachmentComposerHandle, Props>(function CommentAttachmentComposer(props, ref) {
     const { uploadAsset, onStagedAssetIdsChange, disabled = false, hideAttachButton = false } = props;
     const [stagedAssets, setStagedAssets] = useState<TStagedAsset[]>([]);
+    // mirror of the latest staged set so concurrent uploads compose correctly without side effects in state updaters
+    const stagedAssetsRef = useRef<TStagedAsset[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { maxFileSize } = useFileSize();
 
     useImperativeHandle(ref, () => ({ open: () => fileInputRef.current?.click() }), []);
 
-    const updateStaged = (next: TStagedAsset[]) => {
+    // Always called from event handlers / async continuations, never inside a state updater: the parent's
+    // onStagedAssetIdsChange sets state, and doing that while React runs an updater (i.e. during render)
+    // triggers "Cannot update a component while rendering a different component".
+    const updateStaged = (updater: (prev: TStagedAsset[]) => TStagedAsset[]) => {
+      const next = updater(stagedAssetsRef.current);
+      stagedAssetsRef.current = next;
       setStagedAssets(next);
       onStagedAssetIdsChange(next.filter((asset) => !asset.isUploading).map((asset) => asset.assetId));
     };
@@ -89,19 +96,17 @@ export const CommentAttachmentComposer = observer(
         }
         // placeholder chip while uploading (keyed by a temp id until the asset id arrives)
         const tempId = `uploading-${file.name}-${file.size}`;
-        setStagedAssets((prev) => [...prev, { assetId: tempId, name: file.name, size: file.size, isUploading: true }]);
+        updateStaged((prev) => [...prev, { assetId: tempId, name: file.name, size: file.size, isUploading: true }]);
         try {
           // eslint-disable-next-line no-await-in-loop
           const assetId = await uploadAsset(file);
-          setStagedAssets((prev) => {
-            const next = prev.map((asset) =>
+          updateStaged((prev) =>
+            prev.map((asset) =>
               asset.assetId === tempId ? { assetId, name: file.name, size: file.size, isUploading: false } : asset
-            );
-            onStagedAssetIdsChange(next.filter((asset) => !asset.isUploading).map((asset) => asset.assetId));
-            return next;
-          });
+            )
+          );
         } catch {
-          setStagedAssets((prev) => prev.filter((asset) => asset.assetId !== tempId));
+          updateStaged((prev) => prev.filter((asset) => asset.assetId !== tempId));
           setToast({
             type: "error",
             title: "Upload failed",
@@ -114,7 +119,7 @@ export const CommentAttachmentComposer = observer(
     };
 
     const handleRemove = (assetId: string) => {
-      updateStaged(stagedAssets.filter((asset) => asset.assetId !== assetId));
+      updateStaged((prev) => prev.filter((asset) => asset.assetId !== assetId));
     };
 
     const fileInput = (

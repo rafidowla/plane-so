@@ -1127,6 +1127,9 @@ importers:
       '@tailwindcss/typography':
         specifier: 'catalog:'
         version: 0.5.19
+      '@testing-library/react':
+        specifier: 'catalog:'
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@types/lodash-es':
         specifier: 'catalog:'
         version: 4.17.12
@@ -1142,6 +1145,9 @@ importers:
       dotenv:
         specifier: 'catalog:'
         version: 16.4.7
+      jsdom:
+        specifier: 'catalog:'
+        version: 23.2.0
       typescript:
         specifier: 5.8.3
         version: 5.8.3
