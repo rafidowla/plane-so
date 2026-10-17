@@ -40,3 +40,6 @@ from .entries import TimeEntryEndpoint, TimeEntryDetailEndpoint
 
 # FORK: time-tracking-v2 S6 — per-work-item time estimates
 from .estimate import IssueTimeEstimateEndpoint
+
+# FORK: time-tracking-v2 S4 — My timesheet (week grid + entries by date)
+from .timesheet_week import TimesheetWeekEndpoint, TimesheetPeopleEndpoint
