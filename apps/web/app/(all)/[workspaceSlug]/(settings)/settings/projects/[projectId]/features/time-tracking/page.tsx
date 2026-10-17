@@ -21,6 +21,8 @@ import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import type { Route } from "./+types/page";
 import { FeaturesTimeTrackingProjectSettingsHeader } from "./header";
+// FORK: time-tracking-v2 S6
+import { EstimateModeSetting } from "@/plane-web/components/issues/worklog/estimate/estimate-mode-setting";
 
 function FeaturesTimeTrackingSettingsPage({ params }: Route.ComponentProps) {
   const { workspaceSlug, projectId } = params;
@@ -60,6 +62,13 @@ function FeaturesTimeTrackingSettingsPage({ params }: Route.ComponentProps) {
             workspaceSlug={workspaceSlug}
           />
         </div>
+        {/* FORK: time-tracking-v2 S6 — estimate mode (off / optional / required); only meaningful while tracking is on */}
+        {(currentProjectDetails as ({ is_time_tracking_enabled?: boolean } & object) | undefined)
+          ?.is_time_tracking_enabled && (
+          <div className="mt-4">
+            <EstimateModeSetting workspaceSlug={workspaceSlug} projectId={projectId} />
+          </div>
+        )}
       </section>
     </SettingsContentWrapper>
   );

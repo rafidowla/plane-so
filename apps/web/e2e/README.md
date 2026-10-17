@@ -55,6 +55,16 @@ the real check is random, 20-80 min); set `E2E_SKIP_SLOW=1` to skip it.
 `is_setup_done` set. Audio chime and the browser notification are not asserted
 headlessly; check them by hand.
 
+## Estimates spec (`time-estimates.spec.ts`)
+
+Time tracking v2 S6: a project in `required` estimate mode refuses a state move, timer start and manual
+entry with "Add an estimate first" and opens the estimate field; setting it unblocks the move and locks the
+original; a later change is a re-estimate that shows in the history (oldest first). Also covers the project
+settings estimate-mode select, and that guests see no estimate controls. The seed adds the project guest
+`qa-guest@plane.test` and a started-group state named `In Progress` in the E2E project (global setup logs the
+guest in; override with `E2E_GUEST_EMAIL`).
+The spec restores the project to estimate mode `off` afterwards.
+
 ## Adding a flow
 
 Create `apps/web/e2e/<flow>.spec.ts`, use the API helpers in `helpers.ts` to

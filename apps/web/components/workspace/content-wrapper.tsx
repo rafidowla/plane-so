@@ -13,6 +13,8 @@ import { useAppRailVisibility } from "@/lib/app-rail";
 import { TopNavigationRoot } from "@/components/navigation/top-navigation-root";
 // FORK: time-tracking-v2 — "Still working?" check, hosted on every workspace page
 import { IdleCheckHost } from "@/plane-web/components/time/timer/idle-check-host";
+// FORK: time-tracking-v2 S6 — "Add an estimate first" toast for refused moves / timer starts
+import { EstimateRequiredHost } from "@/plane-web/components/issues/worklog/estimate/estimate-required-host";
 
 export const WorkspaceContentWrapper = observer(function WorkspaceContentWrapper({
   children,
@@ -26,6 +28,7 @@ export const WorkspaceContentWrapper = observer(function WorkspaceContentWrapper
     <div className="relative flex size-full flex-col overflow-hidden bg-canvas transition-all duration-300 ease-in-out">
       <TopNavigationRoot />
       <IdleCheckHost />
+      <EstimateRequiredHost />
       <div className="relative flex size-full overflow-hidden">
         {/* Conditionally render AppRailRoot based on context */}
         {shouldRenderAppRail && <AppRailRoot />}

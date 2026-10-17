@@ -20,6 +20,7 @@ import {
 import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { setToast } from "@plane/blocks/toast";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
+import { handleEstimateRequired } from "../../issues/worklog/estimate/estimate-required";
 import type { TWorklog } from "../../issues/worklog/types";
 import { IssuePicker, type TPickedIssue } from "./issue-picker";
 import { refreshRequestData } from "./request-keys";
@@ -160,6 +161,12 @@ export function RequestModal(props: TProps) {
       onDone?.();
       handleClose();
     } catch (err) {
+      // FORK: time-tracking-v2 S6 — missing time on an unestimated item of a project that needs estimates:
+      // close this window and open the estimate field (the toast explains)
+      if (kind === "missing_time" && issue && handleEstimateRequired(err, { issueId: issue.id, workspaceSlug })) {
+        handleClose();
+        return;
+      }
       setError(describeRequestError(err, timeZone));
     } finally {
       setSubmitting(false);

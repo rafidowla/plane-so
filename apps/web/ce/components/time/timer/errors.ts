@@ -15,6 +15,8 @@ const MESSAGES: Record<string, string> = {
   tracking_disabled: "Time tracking is turned off for this workspace.",
   project_tracking_disabled: "Time tracking is turned off for this project.",
   issue_cancelled: "This work item is cancelled, so time can't be tracked on it.",
+  // FORK: time-tracking-v2 S6
+  estimate_required: "Add an estimate first. This project needs one before work starts.",
 };
 
 export type TTimerErrorInfo = {

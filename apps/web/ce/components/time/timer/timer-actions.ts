@@ -7,6 +7,7 @@
 // cache refreshes every entry point (timer bar, resume, work item button) shares.
 import { mutate as globalMutate } from "swr";
 import { setToast } from "@plane/blocks/toast";
+import { handleEstimateRequired } from "../../issues/worklog/estimate/estimate-required";
 import { revalidateRunningTimer } from "@/plane-web/hooks/use-running-timer";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { formatLoggedMinutes } from "../../issues/worklog/timer-utils";
@@ -67,6 +68,11 @@ export async function startTimerOnItem(slug: string, issueId: string): Promise<T
     await refreshTimeData(slug);
     return started;
   } catch (err) {
+    // FORK: time-tracking-v2 S6 — no estimate on a project that needs one: the estimate toast replaces this one
+    if (handleEstimateRequired(err, { issueId, workspaceSlug: slug })) {
+      await refreshTimeData(slug);
+      return null;
+    }
     const info = describeTimerError(err);
     if (info.alreadyRunning) {
       setToast({ type: "info", title: info.title, message: info.message });
