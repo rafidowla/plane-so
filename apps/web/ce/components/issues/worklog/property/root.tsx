@@ -322,7 +322,8 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                         Change pending
                       </span>
                     )}
-                    {!disabled && !w.is_locked && !pending && (needsRequest || canEditDirect) && (
+                    {/* FORK: time-tracking-v2 secfix — locked entries stay editable for workspace admins only (audited override). */}
+                    {!disabled && (!w.is_locked || isWorkspaceAdmin) && !pending && (needsRequest || canEditDirect) && (
                       <button
                         type="button"
                         onClick={() =>
@@ -335,7 +336,7 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                         <Pencil className="size-3" />
                       </button>
                     )}
-                    {!disabled && !w.is_locked && !pending && canModify && (
+                    {!disabled && (!w.is_locked || isWorkspaceAdmin) && !pending && canModify && (
                       <button
                         type="button"
                         onClick={() =>

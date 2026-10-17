@@ -46,8 +46,10 @@ from plane.db.models import (
 )
 from plane.utils.time_tracking import approvers, audit
 from plane.utils.time_tracking.entries import (
+    check_day_total,
     check_overlap,
     check_tracked,
+    interval_day_minutes,
     is_active_project_member,
     parse_instant,
     refuse,
@@ -65,6 +67,10 @@ SUBMITTABLE = (
     TimeEntryRequestType.DELETION,
 )
 SENDER_PREFIX = "in_app:time_tracking:"
+
+# Types opened by the system *about* the requester (the member is stored as requester, but
+# is the subject of the review, not its author): nobody may withdraw them.
+SYSTEM_REVIEW_TYPES = (TimeEntryRequestType.AUTO_STOP_REVIEW,)
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +158,7 @@ def serialize(request, viewer):
         "created_at": request.created_at,
         "route": approvers.route(request),
         "can_approve": pending and not is_requester and approvers.can_approve(viewer.id, request),
-        "can_withdraw": pending and is_requester,
+        "can_withdraw": pending and is_requester and request.type not in SYSTEM_REVIEW_TYPES,
     }
 
 
@@ -453,10 +459,24 @@ def _apply(req, actor, new_ended_at):
     tz = workspace_tz(req.workspace_id)
     requester = User.objects.get(pk=req.requester_id)
     if req.type == TimeEntryRequestType.MISSING_TIME:
+        # FORK: time-tracking-v2 secfix — the request may have waited days: re-check what
+        # submit() checked. Refused with 409 and the request stays pending (the approver can
+        # still reject it with a note); nothing is written.
+        project = Project.objects.filter(pk=req.project_id).first()
+        if project is None or not project.is_time_tracking_enabled:
+            refuse("project_tracking_disabled", "Time tracking is no longer enabled for this project.", 409)
+        if not is_active_project_member(req.project_id, requester.id):
+            refuse("not_tracked", "The requester is no longer a member of this project.", 409)
+        check_tracked(req.workspace_id, requester.id, req.new_started_at, req.new_ended_at, tz, status_code=409)
         check_overlap(req.workspace_id, requester.id, req.new_started_at, req.new_ended_at, status_code=409)
+        check_day_total(
+            req.workspace_id,
+            requester.id,
+            interval_day_minutes(req.new_started_at, req.new_ended_at, tz),
+            status_code=409,
+        )
         # S6: approving missing time is logging time — "required" projects need an estimate.
         check_can_log(Issue.all_objects.get(pk=req.issue_id))
-        project = Project.objects.get(pk=req.project_id)
         billable_rate, currency = resolve_billable_rate(project, requester.id)
         issue_ref, issue_name = issue_snapshot(req.issue_id)
         base = IssueWorklog(
@@ -544,6 +564,13 @@ def _apply(req, actor, new_ended_at):
     check_overlap(
         req.workspace_id, requester.id, req.new_started_at, req.new_ended_at, exclude_ids=[worklog.id], status_code=409
     )
+    check_day_total(
+        req.workspace_id,
+        requester.id,
+        interval_day_minutes(req.new_started_at, req.new_ended_at, tz),
+        exclude_ids=[worklog.id],
+        status_code=409,
+    )
     rows, _ = rewrite([worklog], req.new_started_at, req.new_ended_at, tz, request=req)
     _audit_rows(req, actor, rows, TimeTrackingAuditAction.APPLY_REQUEST, before)
     return {"worklog_ids": [str(r.id) for r in rows], "removed_ids": []}
@@ -577,8 +604,27 @@ def reject(workspace_id, actor, request_id, note):
             refuse("note_required", "Say why the request is rejected.")
         role = _close(req, actor, TimeEntryRequestStatus.REJECTED, note)
         _event(req, TimeEntryRequestAction.REJECTED, actor.id, role, note=note)
+        _reopen_superseded(req)
         _notify(req, [req.requester_id], "request_rejected", "Your time request was rejected", actor.id)
     return req
+
+
+def _reopen_superseded(req):
+    """``req`` ended without being applied (withdrawn / rejected): the system review it replaced
+    (DESIGN §2 item 9) goes back to pending, so replacing a review can't be used to dismiss it."""
+    superseded_ids = TimeEntryRequestEvent.objects.filter(
+        action=TimeEntryRequestAction.SUPERSEDED, payload__by=str(req.id)
+    ).values_list("request_id", flat=True)
+    for review in TimeEntryRequest.objects.select_for_update().filter(
+        pk__in=list(superseded_ids),
+        type__in=SYSTEM_REVIEW_TYPES,
+        status=TimeEntryRequestStatus.WITHDRAWN,
+    ):
+        review.status = TimeEntryRequestStatus.PENDING
+        review.save(update_fields=["status", "updated_at"])
+        # Events are append-only and have no "reopened" action: a fresh submitted event says so.
+        _event(review, TimeEntryRequestAction.SUBMITTED, payload={"reopened_after": str(req.id)})
+        _notify_approvers(review, None)
 
 
 def withdraw(workspace_id, actor, request_id):
@@ -586,6 +632,10 @@ def withdraw(workspace_id, actor, request_id):
         req = _load_for_review(workspace_id, actor, request_id)
         if str(req.requester_id) != str(actor.id):
             refuse("not_requester", "Only the person who made the request can withdraw it.", 403)
+        if req.type in SYSTEM_REVIEW_TYPES:
+            refuse(
+                "review_not_withdrawable", "An auto-stop review can't be withdrawn; an approver must resolve it.", 403
+            )
         if req.status != TimeEntryRequestStatus.PENDING:
             refuse("not_pending", f"This request is already {req.status}.", 409)
         req.status = TimeEntryRequestStatus.WITHDRAWN
@@ -596,4 +646,5 @@ def withdraw(workspace_id, actor, request_id):
             actor.id,
             approvers.actor_role(workspace_id, req.project_id, actor.id),
         )
+        _reopen_superseded(req)
     return req
