@@ -131,6 +131,7 @@ class TestLocalDayBucketing:
     def test_dhaka_0030_timer_lands_on_the_local_date(self, session_client, tt):
         # 00:30 on 23 June in Dhaka is 18:30 on 22 June in UTC. The old code
         # filed this under the UTC date (22 June).
+        _idle_check_off(tt)
         with freeze_time(utc(2026, 6, 22, 18, 30)):
             r = session_client.post(_timer_url(tt), {}, format="json")
             assert r.status_code == status.HTTP_201_CREATED
@@ -172,6 +173,7 @@ class TestLocalDayBucketing:
         assert not WorklogTimer.objects.filter(user=tt["user"]).exists()
 
     def test_switching_issue_across_midnight_splits_the_stopped_timer(self, session_client, tt):
+        _idle_check_off(tt)
         issue2 = _second_issue(tt)
         with freeze_time(utc(2026, 6, 22, 17, 50)):
             session_client.post(_timer_url(tt), {}, format="json")
