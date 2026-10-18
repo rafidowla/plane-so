@@ -20,7 +20,12 @@
 their weekly capacity override (``ResourceCapacity.weekly_capacity``) spread evenly
 over the working days. Expected-to-date counts only days up to the workspace-local
 today. Weekend (non-working-day) time counts in Logged and in Weekend, never in
-Expected. Holidays and leave don't reduce Expected.
+Expected.
+
+**Holidays and leave** (FORK: time-tracking-v2 holidays/leave, PSR-122) reduce Expected only:
+on a tracked working day ``off_fraction = min(1, holiday_fraction + leave_fraction)`` and the
+day expects ``per_day * (1 - off_fraction)`` (see ``days_off``). They never block logging;
+time logged on an off day counts in Logged as usual.
 """
 
 # Python imports
@@ -40,6 +45,7 @@ from plane.db.models import (
     TimeTrackingMemberStatus,
     WorkspaceMember,
 )
+from plane.utils.time_tracking import days_off as days_off_util
 
 SCOPE_ALL = "all"
 SCOPE_PROJECTS = "projects"
@@ -226,9 +232,16 @@ def per_day_minutes(setting, override):
 
 @dataclass
 class ExpectedCalendar:
-    """Per-user, per-day expected minutes over a range."""
+    """Per-user, per-day expected minutes over a range.
+
+    FORK: PSR-122 — ``days`` is already reduced by holidays/leave. ``off`` is
+    ``{user_id: {date: DayOffEntry}}`` for the tracked working days that are (partly) off, and
+    ``off_minutes`` the expected minutes that removed (``{user_id: {date: Fraction}}``).
+    """
 
     days: dict  # {user_id: {date: Fraction}}
+    off: dict = field(default_factory=dict)
+    off_minutes: dict = field(default_factory=dict)
 
     def user_total(self, user_id, until=None, start=None, end=None):
         total = Fraction(0)
@@ -246,16 +259,45 @@ class ExpectedCalendar:
         ids = self.days.keys() if user_ids is None else user_ids
         return sum((self.days.get(uid, {}).get(day, Fraction(0)) for uid in ids), Fraction(0))
 
+    def off_total(self, user_id, start=None, end=None):
+        """Expected minutes removed by holidays/leave for one user in [start, end]."""
+        total = Fraction(0)
+        for day, removed in self.off_minutes.get(user_id, {}).items():
+            if (start is not None and day < start) or (end is not None and day > end):
+                continue
+            total += removed
+        return total
+
+    def days_off(self, user_id, start=None, end=None):
+        """The user's ``TDayOff`` list (tracked working days that are off), sorted by date."""
+        return [
+            days_off_util.describe(day, entry)
+            for day, entry in sorted(self.off.get(user_id, {}).items())
+            if (start is None or day >= start) and (end is None or day <= end)
+        ]
+
 
 def expected_calendar(workspace_id, setting, user_ids, start, end):
     work_days = set(setting.work_days or [])
     tracked = tracked_days_many(workspace_id, user_ids, start, end)
     overrides = capacity_overrides(workspace_id, user_ids)
-    days = {}
+    # FORK: PSR-122 — holidays (effective calendar) and leave, 4 queries for everyone.
+    off_days = days_off_util.days_off_many(workspace_id, user_ids, start, end)
+    days, off, off_minutes = {}, {}, {}
     for uid in user_ids:
         per_day = per_day_minutes(setting, overrides.get(uid))
-        days[uid] = {d: per_day for d in tracked.get(uid, ()) if d.isoweekday() in work_days}
-    return ExpectedCalendar(days=days), tracked, overrides
+        days[uid], off[uid], off_minutes[uid] = {}, {}, {}
+        user_off = off_days.get(uid, {})
+        for d in tracked.get(uid, ()):
+            if d.isoweekday() not in work_days:
+                continue
+            entry = user_off.get(d)
+            fraction = days_off_util.off_fraction(entry) if entry else 0
+            days[uid][d] = per_day * (1 - fraction)
+            if fraction > 0:
+                off[uid][d] = entry
+                off_minutes[uid][d] = per_day * fraction
+    return ExpectedCalendar(days=days, off=off, off_minutes=off_minutes), tracked, overrides
 
 
 def is_working_day(setting, day):

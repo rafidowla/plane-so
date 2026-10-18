@@ -42,6 +42,14 @@ from plane.app.views import (
     TimesheetWeekEndpoint,
     TimesheetPeopleEndpoint,
     TimeTrackingMemberCapacityEndpoint,
+    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+    HolidayCalendarEndpoint,
+    HolidayCalendarDetailEndpoint,
+    HolidayEndpoint,
+    HolidayDetailEndpoint,
+    MemberHolidayCalendarEndpoint,
+    MemberLeaveEndpoint,
+    MemberLeaveDetailEndpoint,
     # FORK: time-tracking-v2 S7 — estimate accuracy report
     EstimateAccuracyEndpoint,
 )
@@ -55,9 +63,7 @@ urlpatterns = [
     ),
     path(
         "workspaces/<str:slug>/clients/<uuid:pk>/",
-        ClientViewSet.as_view(
-            {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
-        ),
+        ClientViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
         name="client-detail",
     ),
     # Issue worklogs
@@ -260,5 +266,41 @@ urlpatterns = [
         "workspaces/<str:slug>/time/estimate-accuracy/",
         EstimateAccuracyEndpoint.as_view(),
         name="time-estimate-accuracy",
+    ),
+    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+    path(
+        "workspaces/<str:slug>/time/holiday-calendars/",
+        HolidayCalendarEndpoint.as_view(),
+        name="time-holiday-calendars",
+    ),
+    path(
+        "workspaces/<str:slug>/time/holiday-calendars/<uuid:calendar_id>/",
+        HolidayCalendarDetailEndpoint.as_view(),
+        name="time-holiday-calendar-detail",
+    ),
+    path(
+        "workspaces/<str:slug>/time/holiday-calendars/<uuid:calendar_id>/holidays/",
+        HolidayEndpoint.as_view(),
+        name="time-holidays",
+    ),
+    path(
+        "workspaces/<str:slug>/time/holiday-calendars/<uuid:calendar_id>/holidays/<uuid:holiday_id>/",
+        HolidayDetailEndpoint.as_view(),
+        name="time-holiday-detail",
+    ),
+    path(
+        "workspaces/<str:slug>/time/members/<uuid:user_id>/holiday-calendar/",
+        MemberHolidayCalendarEndpoint.as_view(),
+        name="time-member-holiday-calendar",
+    ),
+    path(
+        "workspaces/<str:slug>/time/leave/",
+        MemberLeaveEndpoint.as_view(),
+        name="time-leave",
+    ),
+    path(
+        "workspaces/<str:slug>/time/leave/<uuid:leave_id>/",
+        MemberLeaveDetailEndpoint.as_view(),
+        name="time-leave-detail",
     ),
 ]

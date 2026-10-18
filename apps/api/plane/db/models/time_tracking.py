@@ -128,6 +128,11 @@ class TimeTrackingAuditTarget(models.TextChoices):
     MEMBER_STATUS = "member_status", "Member status"
     SETTING = "setting", "Setting"
     ESTIMATE = "estimate", "Estimate"
+    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+    HOLIDAY_CALENDAR = "holiday_calendar", "Holiday calendar"
+    HOLIDAY = "holiday", "Holiday"
+    LEAVE = "leave", "Leave"
+    MEMBER_CALENDAR = "member_calendar", "Member holiday calendar"
 
 
 class TimeTrackingAuditAction(models.TextChoices):
@@ -542,3 +547,118 @@ def _grandfather_on_gate_start(sender, instance, created, **kwargs):
         from plane.utils.time_tracking.estimate import grandfather_project
 
         grandfather_project(instance.pk)
+
+
+# ---------------------------------------------------------------------------
+# FORK: time-tracking-v2 holidays/leave (PSR-122) — holiday calendars, holidays,
+# per-person calendar assignment and per-person leave (mig 0134). They only reduce
+# Expected hours (see ``plane.utils.time_tracking.days_off``); they never block logging.
+# ---------------------------------------------------------------------------
+
+
+class DayPortion(models.TextChoices):
+    FULL = "full", "Full day"
+    HALF = "half", "Half day"
+
+
+class HolidayCalendar(BaseModel):
+    """A named set of holidays (one per country/office). Exactly one calendar per
+    workspace is the default; people without an assignment use it."""
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="holiday_calendars")
+    name = models.CharField(max_length=100)
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Holiday Calendar"
+        verbose_name_plural = "Holiday Calendars"
+        db_table = "holiday_calendars"
+        ordering = ("-is_default", "name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "name"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="holiday_calendar_unique_name_when_deleted_at_null",
+            ),
+            models.UniqueConstraint(
+                fields=["workspace"],
+                condition=models.Q(deleted_at__isnull=True, is_default=True),
+                name="holiday_calendar_one_default_when_deleted_at_null",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name}{' (default)' if self.is_default else ''}"
+
+
+class Holiday(BaseModel):
+    calendar = models.ForeignKey("db.HolidayCalendar", on_delete=models.CASCADE, related_name="holidays")
+    date = models.DateField()
+    name = models.CharField(max_length=200)
+    portion = models.CharField(max_length=4, choices=DayPortion.choices, default=DayPortion.FULL)
+
+    class Meta:
+        verbose_name = "Holiday"
+        verbose_name_plural = "Holidays"
+        db_table = "holidays"
+        ordering = ("date", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["calendar", "date"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="holiday_unique_calendar_date_when_deleted_at_null",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.date} {self.name} ({self.portion})"
+
+
+class MemberHolidayCalendar(BaseModel):
+    """Assigns a person to a holiday calendar. No row = the workspace default."""
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="member_holiday_calendars")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="holiday_calendar_rows")
+    calendar = models.ForeignKey("db.HolidayCalendar", on_delete=models.CASCADE, related_name="member_rows")
+
+    class Meta:
+        verbose_name = "Member Holiday Calendar"
+        verbose_name_plural = "Member Holiday Calendars"
+        db_table = "member_holiday_calendars"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "user"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="member_holiday_calendar_unique_when_deleted_at_null",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} -> {self.calendar_id}"
+
+
+class MemberLeave(BaseModel):
+    """A person's leave: an inclusive date range, full days or one half day."""
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="member_leaves")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="time_leaves")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    portion = models.CharField(max_length=4, choices=DayPortion.choices, default=DayPortion.FULL)
+    note = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Member Leave"
+        verbose_name_plural = "Member Leaves"
+        db_table = "member_leaves"
+        ordering = ("-start_date", "-created_at")
+        indexes = [
+            models.Index(fields=["workspace", "user", "start_date", "end_date"], name="member_leave_range_idx"),
+        ]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(end_date__gte=models.F("start_date")), name="member_leave_range"),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} {self.start_date}..{self.end_date} ({self.portion})"

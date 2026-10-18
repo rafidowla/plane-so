@@ -286,4 +286,12 @@ from .time_tracking import (
     # FORK: time-tracking-v2 S4 — My timesheet
     TimesheetWeekEndpoint,
     TimesheetPeopleEndpoint,
+    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+    HolidayCalendarEndpoint,
+    HolidayCalendarDetailEndpoint,
+    HolidayEndpoint,
+    HolidayDetailEndpoint,
+    MemberHolidayCalendarEndpoint,
+    MemberLeaveEndpoint,
+    MemberLeaveDetailEndpoint,
 )

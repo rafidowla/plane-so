@@ -126,6 +126,12 @@ from .time_tracking import (
     IssueTimeEstimate,
     IssueEstimateGrandfather,
     IssueTimeEstimateRevision,
+    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+    DayPortion,
+    HolidayCalendar,
+    Holiday,
+    MemberHolidayCalendar,
+    MemberLeave,
 )
 
 from .description import Description, DescriptionVersion

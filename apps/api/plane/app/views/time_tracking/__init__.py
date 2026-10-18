@@ -16,6 +16,7 @@ from .settings import (
     TimeTrackingMembersEndpoint,
     TimeTrackingMemberStatusEndpoint,
 )
+
 # FORK: time-tracking-v2 S2 — workspace timer bar, task picker, live dashboard
 from .timer import WorkspaceTimerStartEndpoint, WorkspaceTimerStopEndpoint, WorkspaceTimerConfirmEndpoint
 from .my_tasks import TimeMyTasksEndpoint
@@ -43,5 +44,16 @@ from .estimate import IssueTimeEstimateEndpoint
 
 # FORK: time-tracking-v2 S7 — estimate accuracy report
 from .estimate_accuracy import EstimateAccuracyEndpoint
+
 # FORK: time-tracking-v2 S4 — My timesheet (week grid + entries by date)
 from .timesheet_week import TimesheetWeekEndpoint, TimesheetPeopleEndpoint
+
+# FORK: time-tracking-v2 holidays/leave (PSR-122)
+from .holidays import (
+    HolidayCalendarEndpoint,
+    HolidayCalendarDetailEndpoint,
+    HolidayEndpoint,
+    HolidayDetailEndpoint,
+    MemberHolidayCalendarEndpoint,
+)
+from .leave import MemberLeaveEndpoint, MemberLeaveDetailEndpoint

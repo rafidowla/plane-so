@@ -750,9 +750,13 @@ class TimeReportV2Endpoint(BaseAPIView):
                         amount += r["billable_amount"] or 0
             expected = sum((calendar.user_total(uid, start=d0, end=d1) for uid in user_ids), 0)
             to_date = sum((calendar.user_total(uid, start=d0, end=min(d1, today)) for uid in user_ids), 0)
+            # FORK: time-tracking-v2 holidays/leave (PSR-122) — expected minutes removed by
+            # holidays/leave in [d0, d1] (the "to date" figure is not split).
+            off_total = sum((calendar.off_total(uid, start=d0, end=d1) for uid in user_ids), 0)
             out = {
                 "logged_minutes": logged,
                 "expected_minutes": minutes(expected),
+                "off_minutes": minutes(off_total),
                 "expected_to_date_minutes": minutes(to_date),
                 "balance_minutes": logged - minutes(expected),
                 "balance_to_date_minutes": logged - minutes(to_date),
@@ -812,6 +816,8 @@ class TimeReportV2Endpoint(BaseAPIView):
                     "display_name": names.get(uid) or "",
                     "is_tracked_now": bool(tracked_now.get(uid)),
                     "weekly_capacity_minutes": overrides.get(uid),
+                    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+                    "days_off": calendar.days_off(uid, start, end),
                     **stats([uid]),
                 }
                 for uid in ordered[:MAX_REPORT_PEOPLE]
@@ -823,6 +829,8 @@ class TimeReportV2Endpoint(BaseAPIView):
                 "display_name": names.get(target_user) or "",
                 "is_tracked_now": bool(tracked_now.get(target_user)),
                 "weekly_capacity_minutes": overrides.get(target_user),
+                # FORK: time-tracking-v2 holidays/leave (PSR-122)
+                "days_off": calendar.days_off(target_user, start, end),
             }
             weeks = []
             week = _week_start(start)

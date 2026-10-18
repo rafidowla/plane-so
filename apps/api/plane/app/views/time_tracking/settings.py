@@ -23,6 +23,7 @@ from plane.app.serializers import (
 )
 from plane.app.views.base import BaseAPIView
 from plane.db.models import (
+    MemberHolidayCalendar,
     ResourceCapacity,
     TimeTrackingAuditAction,
     TimeTrackingAuditTarget,
@@ -104,6 +105,12 @@ class TimeTrackingMembersEndpoint(BaseAPIView):
                 "user_id", "weekly_capacity"
             )
         )
+        # FORK: time-tracking-v2 holidays/leave (PSR-122) — the ASSIGNED calendar (absent = default).
+        calendars = dict(
+            MemberHolidayCalendar.objects.filter(workspace=workspace, calendar__deleted_at__isnull=True).values_list(
+                "user_id", "calendar_id"
+            )
+        )
         data = [
             {
                 "user_id": str(m.member_id),
@@ -112,6 +119,7 @@ class TimeTrackingMembersEndpoint(BaseAPIView):
                 "is_tracked": is_tracked(workspace.id, m.member_id, today),
                 "history": history.get(m.member_id, []),
                 "weekly_capacity_minutes": capacities.get(m.member_id),
+                "holiday_calendar_id": None if m.member_id not in calendars else str(calendars[m.member_id]),
             }
             for m in members
         ]

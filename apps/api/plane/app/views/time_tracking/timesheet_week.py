@@ -177,6 +177,8 @@ class TimesheetWeekEndpoint(BaseAPIView):
         calendar, tracked, _ = expected_calendar(workspace_id, setting, {uid}, week_start, week_end)
         expected = calendar.days.get(uid, {})
         tracked_days = tracked.get(uid, set())
+        # FORK: time-tracking-v2 holidays/leave (PSR-122) — tracked working days that are off.
+        days_off = {d["date"]: d for d in calendar.days_off(uid, week_start, week_end)}
 
         base = IssueWorklog.objects.filter(
             workspace_id=workspace_id, logged_by_id=uid, logged_date__gte=week_start, logged_date__lte=week_end
@@ -236,6 +238,7 @@ class TimesheetWeekEndpoint(BaseAPIView):
                     "is_future": d > today,
                     "tracked": d in tracked_days,
                     "expected_minutes": minutes(expected.get(d, 0)),
+                    "off": days_off.get(d),
                     "logged_minutes": day_logged[i],
                     "other_projects_minutes": other_by_day[i],
                 }
