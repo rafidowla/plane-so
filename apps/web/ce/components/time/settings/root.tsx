@@ -9,6 +9,8 @@ import { observer } from "mobx-react";
 import { Loader } from "@plane/blocks/skeleton";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useTimeSettings } from "../use-time-settings";
+import { HolidaysSettings } from "./holidays";
+import { LeaveSettings } from "./leave";
 import { MembersSettings } from "./members";
 import { RulesForm } from "./rules-form";
 import { settingsErrorMessage } from "./settings-utils";
@@ -35,6 +37,9 @@ export const SettingsTab = observer(function SettingsTab() {
         <RulesForm key={data.updated_at} workspaceSlug={workspaceSlug} settings={data} />
       )}
       <MembersSettings workspaceSlug={workspaceSlug} />
+      {/* FORK: time-tracking-v2 holidays/leave (PSR-122) */}
+      <HolidaysSettings workspaceSlug={workspaceSlug} />
+      <LeaveSettings workspaceSlug={workspaceSlug} />
     </div>
   );
 });

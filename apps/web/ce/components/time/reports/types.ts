@@ -6,6 +6,9 @@
 // FORK: time-tracking-v2 S5 — response shapes of `GET time/report/` (the Reports tab) and the Settings
 // endpoints. Kept out of worklog/types.ts so parallel slices don't collide there.
 
+// FORK: time-tracking-v2 holidays/leave (PSR-122)
+import type { TDayOff } from "../settings/types";
+
 export type TReportScope = "all" | "projects" | "self";
 
 export type TReportStats = {
@@ -16,6 +19,8 @@ export type TReportStats = {
   balance_to_date_minutes: number;
   weekend_minutes: number;
   entry_count: number;
+  // FORK: holidays/leave (PSR-122) — expected minutes removed by holidays and leave in the range
+  off_minutes: number;
   // billing fields exist only while the workspace has billing on
   billable_minutes?: number;
   non_billable_minutes?: number;
@@ -46,6 +51,8 @@ export type TReportPerson = {
 export type TReportMemberRow = TReportPerson &
   TReportStats & {
     weekly_capacity_minutes: number | null;
+    // FORK: holidays/leave (PSR-122) — working days in the range that are (partly) off, by date
+    days_off: TDayOff[];
   };
 
 export type TReportWeekRow = TReportStats & {
@@ -159,6 +166,8 @@ export type TTrackingMember = {
   is_tracked: boolean;
   history: TTrackingHistoryRow[];
   weekly_capacity_minutes: number | null;
+  // FORK: holidays/leave (PSR-122) — the ASSIGNED holiday list; null = the workspace default
+  holiday_calendar_id: string | null;
 };
 
 export type TTrackingMembersResponse = {

@@ -8,6 +8,8 @@
 import Link from "next/link";
 import { cn } from "@plane/utils";
 import { balanceTone, dateSpan, formatHm, formatHours, formatSignedHours, truncateTitle } from "./report-utils";
+// FORK: time-tracking-v2 holidays/leave (PSR-122)
+import { describeDaysOff, formatDaysOff, offHint } from "../settings/holidays-utils";
 import type { TTimeReportV2 } from "./types";
 
 const TH = "px-3 py-2 text-left text-xs font-medium text-tertiary";
@@ -72,6 +74,7 @@ export function MembersTable({ members, truncated, billing, onSelect }: TMembers
             <th className={cn(TH, NUM)}>Expected to date</th>
             <th className={cn(TH, NUM)}>Balance</th>
             <th className={cn(TH, NUM)}>Weekend</th>
+            <th className={cn(TH, NUM)}>Days off</th>
             <th className={cn(TH, NUM)}>Weekly capacity</th>
             {billing && <th className={cn(TH, NUM)}>Billable</th>}
           </tr>
@@ -93,6 +96,13 @@ export function MembersTable({ members, truncated, billing, onSelect }: TMembers
               <td className={cn(TD, NUM)}>{formatHours(m.expected_to_date_minutes)}</td>
               <BalanceCell minutes={m.balance_to_date_minutes} />
               <td className={cn(TD, NUM)}>{formatHours(m.weekend_minutes)}</td>
+              <td
+                className={cn(TD, NUM)}
+                data-testid="report-member-days-off"
+                title={describeDaysOff(m.days_off) || undefined}
+              >
+                {formatDaysOff(m.days_off)}
+              </td>
               <td className={cn(TD, NUM)}>
                 {m.weekly_capacity_minutes === null ? "Work week" : formatHm(m.weekly_capacity_minutes)}
               </td>
@@ -124,7 +134,14 @@ export function WeeksTable({ weeks, billing }: { weeks: NonNullable<TTimeReportV
             <tr key={w.week_start} className="border-t border-subtle" data-testid="report-week-row">
               <td className={TD}>{dateSpan(w.from, w.to)}</td>
               <td className={cn(TD, NUM)}>{formatHours(w.logged_minutes)}</td>
-              <td className={cn(TD, NUM)}>{formatHours(w.expected_minutes)}</td>
+              <td className={cn(TD, NUM)}>
+                {formatHours(w.expected_minutes)}
+                {offHint(w.off_minutes) && (
+                  <span className="text-xs ml-2 text-tertiary" data-testid="report-week-off">
+                    {offHint(w.off_minutes)}
+                  </span>
+                )}
+              </td>
               <BalanceCell minutes={w.balance_to_date_minutes} />
               <td className={cn(TD, NUM)}>{formatHours(w.weekend_minutes)}</td>
               {billing && <td className={cn(TD, NUM)}>{formatHours(w.billable_minutes)}</td>}

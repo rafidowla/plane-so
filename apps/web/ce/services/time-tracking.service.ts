@@ -43,6 +43,17 @@ import type {
   TTimeSettingsPatch,
   TTrackingMembersResponse,
 } from "@/plane-web/components/time/reports/types";
+// FORK: time-tracking-v2 holidays/leave (PSR-122)
+import type {
+  THoliday,
+  THolidayCalendar,
+  THolidayCalendarAssignment,
+  THolidayCalendarPatch,
+  THolidayPayload,
+  TLeave,
+  TLeaveParams,
+  TLeavePayload,
+} from "@/plane-web/components/time/settings/types";
 
 export class TimeTrackingService extends APIService {
   constructor() {
@@ -492,6 +503,138 @@ export class TimeTrackingService extends APIService {
     return this.put(`/api/workspaces/${workspaceSlug}/time/members/${userId}/capacity/`, {
       weekly_minutes: weeklyMinutes,
     })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 holidays/leave (PSR-122) — holiday lists, holidays, per-person leave ----
+  async getHolidayCalendars(workspaceSlug: string): Promise<THolidayCalendar[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async createHolidayCalendar(
+    workspaceSlug: string,
+    data: { name: string; is_default?: boolean }
+  ): Promise<THolidayCalendar> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateHolidayCalendar(
+    workspaceSlug: string,
+    calendarId: string,
+    data: THolidayCalendarPatch
+  ): Promise<THolidayCalendar> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async deleteHolidayCalendar(workspaceSlug: string, calendarId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** `year` omitted = every year. */
+  async getHolidays(workspaceSlug: string, calendarId: string, year?: number): Promise<THoliday[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/`, {
+      params: { year: year || undefined },
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async createHoliday(workspaceSlug: string, calendarId: string, data: THolidayPayload): Promise<THoliday> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateHoliday(
+    workspaceSlug: string,
+    calendarId: string,
+    holidayId: string,
+    data: Partial<THolidayPayload>
+  ): Promise<THoliday> {
+    return this.patch(
+      `/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/${holidayId}/`,
+      data
+    )
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async deleteHoliday(workspaceSlug: string, calendarId: string, holidayId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/${holidayId}/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** `calendarId: null` = use the workspace default list. */
+  async setMemberHolidayCalendar(
+    workspaceSlug: string,
+    userId: string,
+    calendarId: string | null
+  ): Promise<THolidayCalendarAssignment> {
+    return this.put(`/api/workspaces/${workspaceSlug}/time/members/${userId}/holiday-calendar/`, {
+      calendar_id: calendarId,
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getLeave(workspaceSlug: string, params: TLeaveParams = {}): Promise<TLeave[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/leave/`, {
+      params: { user_id: params.user_id || undefined, from: params.from || undefined, to: params.to || undefined },
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async createLeave(workspaceSlug: string, data: TLeavePayload): Promise<TLeave> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/leave/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateLeave(workspaceSlug: string, leaveId: string, data: Partial<TLeavePayload>): Promise<TLeave> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/leave/${leaveId}/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async deleteLeave(workspaceSlug: string, leaveId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/time/leave/${leaveId}/`)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

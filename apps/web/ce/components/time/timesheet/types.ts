@@ -5,6 +5,8 @@
  */
 // FORK: time-tracking-v2 S4 — shapes returned by `GET time/timesheet/` and `GET time/timesheet/people/`.
 import type { TTimeRequest } from "../../issues/worklog/types";
+// FORK: time-tracking-v2 holidays/leave (PSR-122)
+import type { TDayOff } from "../settings/types";
 
 export type TTimesheetPerson = { id: string; display_name: string; avatar_url: string | null };
 
@@ -18,6 +20,8 @@ export type TTimesheetDay = {
   expected_minutes: number;
   logged_minutes: number;
   other_projects_minutes: number;
+  // FORK: holidays/leave (PSR-122) — null on non-working days and on normal days
+  off: TDayOff | null;
 };
 
 export type TTimesheetIssue = {

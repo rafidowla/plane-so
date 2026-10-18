@@ -13,17 +13,27 @@ import { Loader } from "@plane/blocks/skeleton";
 import { cn } from "@plane/utils";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import type { TTrackingMember, TTrackingMembersResponse } from "../reports/types";
+import { HOLIDAY_CALENDARS_KEY, useHolidayCalendars } from "./holiday-data";
+import { calendarSelectValue, defaultOptionLabel, holidayErrorMessage } from "./holidays-utils";
+import type { THolidayCalendar } from "./types";
 import { capacityToText, parseCapacityHours, settingsErrorMessage, trackingSince } from "./settings-utils";
 
-const MEMBERS_KEY = (slug: string) => ["time-members", slug] as const;
+export const MEMBERS_KEY = (slug: string) => ["time-members", slug] as const;
 const ROLE_NAMES: Record<number, string> = { 20: "Admin", 15: "Member", 5: "Guest" };
 
-type TRowProps = { workspaceSlug: string; member: TTrackingMember; defaultMinutes: number; today: string };
+type TRowProps = {
+  workspaceSlug: string;
+  member: TTrackingMember;
+  defaultMinutes: number;
+  today: string;
+  // FORK: holidays/leave (PSR-122)
+  calendars: THolidayCalendar[];
+};
 
-function MemberRow({ workspaceSlug, member, defaultMinutes, today }: TRowProps) {
+function MemberRow({ workspaceSlug, member, defaultMinutes, today, calendars }: TRowProps) {
   const [from, setFrom] = useState(today);
   const [capacityText, setCapacityText] = useState(() => capacityToText(member.weekly_capacity_minutes));
-  const [busy, setBusy] = useState<"tracking" | "capacity" | null>(null);
+  const [busy, setBusy] = useState<"tracking" | "capacity" | "calendar" | null>(null);
 
   const parsed = parseCapacityHours(capacityText);
   const savedText = capacityToText(member.weekly_capacity_minutes);
@@ -65,6 +75,25 @@ function MemberRow({ workspaceSlug, member, defaultMinutes, today }: TRowProps) 
       });
     } catch (err) {
       setToast({ type: "error", title: "Couldn't save capacity", message: settingsErrorMessage(err) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // FORK: holidays/leave (PSR-122) — "" = use the workspace default list
+  const saveCalendar = async (value: string) => {
+    setBusy("calendar");
+    try {
+      await timeTrackingService.setMemberHolidayCalendar(workspaceSlug, member.user_id, value || null);
+      // the list's member_count changed too
+      await Promise.all([refresh(), mutate(HOLIDAY_CALENDARS_KEY(workspaceSlug))]);
+      setToast({
+        type: "success",
+        title: "Holiday list saved",
+        message: `${member.display_name}: ${calendars.find((c) => c.id === value)?.name ?? "workspace default"}`,
+      });
+    } catch (err) {
+      setToast({ type: "error", title: "Couldn't change the holiday list", message: holidayErrorMessage(err) });
     } finally {
       setBusy(null);
     }
@@ -147,16 +176,40 @@ function MemberRow({ workspaceSlug, member, defaultMinutes, today }: TRowProps) 
           {parsed === "invalid" && <span className="text-xs text-danger-primary">0 to 168 hours</span>}
         </div>
       </td>
+      <td className="px-3 py-2">
+        <select
+          aria-label={`Holiday list for ${member.display_name}`}
+          data-testid="member-holiday-calendar"
+          value={calendarSelectValue(member.holiday_calendar_id, calendars)}
+          disabled={busy !== null}
+          onChange={(e) => saveCalendar(e.target.value)}
+          className="text-sm rounded border border-subtle bg-transparent px-2 py-1"
+        >
+          <option value="">{defaultOptionLabel(calendars)}</option>
+          {calendars.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </td>
     </tr>
   );
 }
 
-export function MembersSettings({ workspaceSlug }: { workspaceSlug: string }) {
-  const { data, error, isLoading } = useSWR<TTrackingMembersResponse>(
+/** One SWR entry for the tracked-people list, shared by the People table and the leave form. */
+export function useTrackingMembers(workspaceSlug: string) {
+  return useSWR<TTrackingMembersResponse>(
     MEMBERS_KEY(workspaceSlug),
     () => timeTrackingService.getTrackingMembers(workspaceSlug),
     { revalidateOnFocus: false }
   );
+}
+
+export function MembersSettings({ workspaceSlug }: { workspaceSlug: string }) {
+  const { data, error, isLoading } = useTrackingMembers(workspaceSlug);
+  // FORK: holidays/leave (PSR-122) — the "Holiday list" column
+  const { data: calendars } = useHolidayCalendars(workspaceSlug);
 
   return (
     <section className="flex flex-col gap-3" data-testid="settings-members">
@@ -184,6 +237,7 @@ export function MembersSettings({ workspaceSlug }: { workspaceSlug: string }) {
                 <th className="text-xs px-3 py-2 text-left font-medium text-tertiary">Person</th>
                 <th className="text-xs px-3 py-2 text-left font-medium text-tertiary">Time tracking</th>
                 <th className="text-xs px-3 py-2 text-left font-medium text-tertiary">Weekly capacity</th>
+                <th className="text-xs px-3 py-2 text-left font-medium text-tertiary">Holiday list</th>
               </tr>
             </thead>
             <tbody>
@@ -194,6 +248,7 @@ export function MembersSettings({ workspaceSlug }: { workspaceSlug: string }) {
                   member={m}
                   defaultMinutes={data.default_weekly_minutes}
                   today={data.date}
+                  calendars={calendars ?? []}
                 />
               ))}
             </tbody>

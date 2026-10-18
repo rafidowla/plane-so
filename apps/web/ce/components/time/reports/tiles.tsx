@@ -6,6 +6,7 @@
 // FORK: time-tracking-v2 S5 — the summary tiles at the top of the Reports tab.
 import { cn } from "@plane/utils";
 import { balanceTone, formatAmount, formatHm, formatHours, formatSignedHours } from "./report-utils";
+import { offHint } from "../settings/holidays-utils";
 import type { TReportTiles } from "./types";
 
 type TTileProps = {
@@ -13,10 +14,12 @@ type TTileProps = {
   label: string;
   value: string;
   hint?: string;
+  /** FORK: holidays/leave (PSR-122) — a second muted line, e.g. "incl. 8.0 h off" */
+  note?: string | null;
   tone?: "positive" | "negative" | "neutral";
 };
 
-function Tile({ id, label, value, hint, tone = "neutral" }: TTileProps) {
+function Tile({ id, label, value, hint, note, tone = "neutral" }: TTileProps) {
   return (
     <div className="flex min-w-[140px] flex-1 flex-col gap-1 rounded-lg border border-subtle bg-surface-1 px-4 py-3">
       <span className="text-xs text-tertiary">{label}</span>
@@ -30,6 +33,11 @@ function Tile({ id, label, value, hint, tone = "neutral" }: TTileProps) {
         {value}
       </span>
       {hint && <span className="text-xs text-tertiary">{hint}</span>}
+      {note && (
+        <span data-testid={`tile-${id}-note`} className="text-xs text-tertiary">
+          {note}
+        </span>
+      )}
     </div>
   );
 }
@@ -48,7 +56,13 @@ export function ReportTiles({ tiles, billingEnabled, showMembers }: TProps) {
           value={formatHours(tiles.logged_minutes)}
           hint={`${tiles.entry_count} entries`}
         />
-        <Tile id="expected" label="Expected" value={formatHours(tiles.expected_minutes)} hint="Whole range" />
+        <Tile
+          id="expected"
+          label="Expected"
+          value={formatHours(tiles.expected_minutes)}
+          hint="Whole range"
+          note={offHint(tiles.off_minutes)}
+        />
         <Tile
           id="expected-to-date"
           label="Expected to date"

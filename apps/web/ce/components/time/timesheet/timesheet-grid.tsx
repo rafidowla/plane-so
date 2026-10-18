@@ -11,6 +11,8 @@ import { cn } from "@plane/utils";
 import { describeBalance, formatCell, formatDayShort, paceOf } from "./timesheet-utils";
 import type { TTimesheetWeek } from "./types";
 import { formatLoggedMinutes } from "../../issues/worklog/timer-utils";
+// FORK: time-tracking-v2 holidays/leave (PSR-122)
+import { dayOffText, dayOffTooltip } from "../settings/holidays-utils";
 
 type TProps = {
   week: TTimesheetWeek;
@@ -48,12 +50,37 @@ export function TimesheetGrid({ week, canRequestDay, onRequestDay }: TProps) {
                 data-date={d.date}
                 data-weekend={d.is_weekend}
                 data-today={d.is_today}
+                data-off={d.off ? d.off.kind : undefined}
                 className={cn("px-2 py-2 text-right font-medium", dayShade(i), d.is_today && "text-primary")}
               >
                 <div className={cn(d.is_today && "font-semibold")}>{formatDayShort(d.date)}</div>
                 <div className="text-xs font-normal">
-                  {d.expected_minutes > 0 ? formatLoggedMinutes(d.expected_minutes) : d.is_weekend ? "weekend" : "–"}
+                  {d.expected_minutes > 0
+                    ? formatLoggedMinutes(d.expected_minutes)
+                    : d.off
+                      ? "0h"
+                      : d.is_weekend
+                        ? "weekend"
+                        : "–"}
                 </div>
+                {/* FORK: holidays/leave (PSR-122) — the server already took the day off from `expected_minutes` */}
+                {d.off && (
+                  <div
+                    data-testid="timesheet-day-off"
+                    data-date={d.date}
+                    data-kind={d.off.kind}
+                    data-portion={d.off.portion}
+                    title={dayOffTooltip(d.off)}
+                    className={cn(
+                      "text-xs font-normal mt-0.5 inline-block rounded px-1.5 py-0.5 whitespace-nowrap",
+                      d.off.kind === "holiday"
+                        ? "bg-accent-subtle text-accent-primary"
+                        : "border border-subtle bg-layer-1 text-secondary"
+                    )}
+                  >
+                    {dayOffText(d.off)}
+                  </div>
+                )}
                 {canRequestDay && !d.is_future && !d.is_today && d.tracked && (
                   <button
                     type="button"
@@ -163,7 +190,9 @@ export function TimesheetGrid({ week, canRequestDay, onRequestDay }: TProps) {
             <td colSpan={8} className="px-3 pb-2 text-right" data-testid="timesheet-balance">
               {describeBalance(totals.logged + totals.other_projects, totals.expected_to_date)}
             </td>
-            <td className="px-3 pb-2 text-right">of {formatLoggedMinutes(totals.expected)}</td>
+            <td className="px-3 pb-2 text-right" data-testid="timesheet-week-expected">
+              of {formatLoggedMinutes(totals.expected)}
+            </td>
           </tr>
         </tfoot>
       </table>
