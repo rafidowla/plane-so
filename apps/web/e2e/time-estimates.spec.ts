@@ -9,7 +9,7 @@
 // Sessions: admin (qa-visual, project admin), guest (qa-guest, project guest).
 // Needs the seed's "In Progress" (started) state and the guest user: see e2e/README.md.
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { E2E_WS, createIssue, deleteIssue, getE2EProject, openWorkItem } from "./helpers";
+import { E2E_WS, createIssue, deleteIssue, getE2EProject, localToday, openWorkItem } from "./helpers";
 
 const SHOT_DIR = process.env.E2E_SHOT_DIR;
 const shot = async (page: Page, name: string) => {
@@ -203,7 +203,7 @@ test.describe("task estimates", () => {
       // The API agrees: no entry was saved.
       const base = `/api/workspaces/${E2E_WS}/projects/${project.id}/issues/${issue.id}`;
       const manual = await admin.request.post(`${base}/worklogs/`, {
-        data: { duration: 30, logged_date: new Date().toISOString().slice(0, 10), is_billable: false },
+        data: { duration: 30, logged_date: localToday(), is_billable: false },
       });
       expect(manual.status()).toBe(400);
       expect(await manual.json()).toMatchObject({ code: "estimate_required" });

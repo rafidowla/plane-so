@@ -71,6 +71,13 @@ export async function postComment(request: APIRequestContext, projectId: string,
   return res.json() as Promise<{ id: string }>;
 }
 
+// FORK: e2e — the browser's local date, not UTC. Report presets ("This week") use the local date, so a
+// UTC date logs onto tomorrow in the evening west of UTC and the entry falls outside the range.
+export function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export async function createWorklog(
   request: APIRequestContext,
   projectId: string,
@@ -80,7 +87,7 @@ export async function createWorklog(
   const res = await request.post(`/api/workspaces/${E2E_WS}/projects/${projectId}/issues/${issueId}/worklogs/`, {
     data: {
       duration: durationMinutes,
-      logged_date: new Date().toISOString().slice(0, 10),
+      logged_date: localToday(),
       is_billable: false,
     },
   });

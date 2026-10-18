@@ -11,7 +11,7 @@ import { E2E_WS } from "./helpers";
 
 const api = (path: string) => `/api/workspaces/${E2E_WS}/${path}`;
 
-type TDay = { date: string; is_weekend: boolean; tracked: boolean; expected_minutes: number };
+type TDay = { date: string; is_weekend: boolean; tracked: boolean; expected_minutes: number; off: unknown };
 type TWeek = { days: TDay[]; totals: { expected: number } };
 
 // same wording as formatLoggedMinutes (5h 30m / 8h / 45m)
@@ -34,8 +34,8 @@ test.describe("Holidays and leave", () => {
   test("a holiday and a half-day leave lower this week's expected hours", async ({ page, request }) => {
     const me = (await (await request.get("/api/users/me/")).json()) as { id: string };
     const before = await getWeek(request);
-    // two working days of this week on which the admin is expected to log time
-    const workdays = before.days.filter((d) => !d.is_weekend && d.tracked && d.expected_minutes > 0);
+    // two working days of this week on which the admin is expected to log time and has no day off yet
+    const workdays = before.days.filter((d) => !d.is_weekend && d.tracked && d.expected_minutes > 0 && !d.off);
     test.skip(workdays.length < 2, "needs two tracked working days in the current week");
     const [holiday, leave] = workdays;
 
