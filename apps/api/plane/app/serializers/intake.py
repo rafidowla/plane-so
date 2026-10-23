@@ -70,6 +70,12 @@ class IntakeIssueSerializer(BaseSerializer):
                         {"status": "Cannot accept intake issue: No default state found for the project"}
                     )
 
+                # FORK: time-tracking-v2 S6 — accepting moves the item into the default state, which
+                # may be Started/Completed: "required" projects need an estimate first.
+                from plane.utils.time_tracking.estimate import gate_state_change
+
+                gate_state_change(issue, default_state, intake_issue.project_id)
+
         return attrs
 
     def update(self, instance, validated_data):

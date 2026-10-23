@@ -247,9 +247,13 @@ class TestUserStatsCycleNames:
         Project.objects.filter(id=world.p1.id).update(guest_view_all_features=True)
         assert self.names(world, "guest") == (["C", "C2"], ["F", "F2"])
 
-    @pytest.mark.parametrize("who", ["member", "admin"])
-    def test_members_and_admins_are_unchanged(self, world, who):
-        assert self.names(world, who) == (["C", "C2", "C3"], ["F", "F2"])
+    def test_admin_is_unchanged(self, world):
+        assert self.names(world, "admin") == (["C", "C2", "C3"], ["F", "F2"])
+
+    def test_member_only_gets_cycles_of_their_projects(self, world):
+        # upstream (2026-10-23 sync) scopes user-stats cycles to projects the *viewer* is an active member of;
+        # the member only belongs to P1, so C2 (P2) and C3 (P3) are no longer listed
+        assert self.names(world, "member") == (["C"], ["F"])
 
 
 # --- 4. sub-item counts -----------------------------------------------------------------------------------------

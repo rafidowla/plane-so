@@ -10,13 +10,50 @@ import type {
   TWorklogPayload,
   TWorklogTimer,
   TRunningTimer,
+  TTimerStartResponse,
+  TTimerStopResponse,
+  TMyTasksResponse,
+  TLiveResponse,
   TClient,
   TTimesheet,
   TTimeReport,
   TJiraImportConfig,
   TJiraPreview,
   TJiraImportJob,
+  // FORK: time-tracking-v2 S3b
+  TTimeRequest,
+  TTimeRequestList,
+  TTimeRequestListParams,
+  TTimeRequestEventList,
+  TTimeRequestEventParams,
+  TTimeRequestHistory,
+  TTimeRequestSubmit,
+  TTimeEntryPatch,
+  // FORK: time-tracking-v2 S6
+  TIssueTimeEstimate,
 } from "@/plane-web/components/issues/worklog/types";
+// FORK: time-tracking-v2 S7
+import type { TAccuracyParams, TAccuracyResponse } from "@/plane-web/components/time/estimate-accuracy/types";
+// FORK: time-tracking-v2 S5 — Reports tab + Settings tab shapes
+import type {
+  TCapacityResponse,
+  TTimeReportParams,
+  TTimeReportV2,
+  TTimeSettings,
+  TTimeSettingsPatch,
+  TTrackingMembersResponse,
+} from "@/plane-web/components/time/reports/types";
+// FORK: time-tracking-v2 holidays/leave (PSR-122)
+import type {
+  THoliday,
+  THolidayCalendar,
+  THolidayCalendarAssignment,
+  THolidayCalendarPatch,
+  THolidayPayload,
+  TLeave,
+  TLeaveParams,
+  TLeavePayload,
+} from "@/plane-web/components/time/settings/types";
 
 export class TimeTrackingService extends APIService {
   constructor() {
@@ -154,6 +191,29 @@ export class TimeTrackingService extends APIService {
       });
   }
 
+  // FORK: time-tracking-v2 S6 — work item estimate (admins and members; guests get 403)
+  async getIssueEstimate(workspaceSlug: string, projectId: string, issueId: string): Promise<TIssueTimeEstimate> {
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/time-estimate/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** `minutes: null` clears an estimate that is not locked yet. `reason` only matters for a re-estimate. */
+  async setIssueEstimate(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    data: { minutes: number | null; reason?: string }
+  ): Promise<TIssueTimeEstimate> {
+    return this.put(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/time-estimate/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
   async createWorklog(
     workspaceSlug: string,
     projectId: string,
@@ -204,7 +264,8 @@ export class TimeTrackingService extends APIService {
 
   // FORK: PSR-105 — the signed-in user's running timer anywhere in the workspace.
   async getRunningTimer(workspaceSlug: string): Promise<TRunningTimer> {
-    return this.get(`/api/workspaces/${workspaceSlug}/worklog-timer/`)
+    // FORK: time-tracking-v2 — same payload as the legacy worklog-timer/ route, plus the idle-check schedule.
+    return this.get(`/api/workspaces/${workspaceSlug}/time/timer/`)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;
@@ -229,8 +290,351 @@ export class TimeTrackingService extends APIService {
     projectId: string,
     issueId: string,
     data: { description?: string } = {}
-  ): Promise<TWorklog> {
+  ): Promise<TTimerStopResponse> {
     return this.delete(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/worklog-timer/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 — workspace-level timer + live dashboard ----
+  /** Start a timer on any work item the caller can track (stops a running one, may move Todo -> started). */
+  async startWorkspaceTimer(
+    workspaceSlug: string,
+    issueId: string,
+    data: { description?: string } = {}
+  ): Promise<TTimerStartResponse> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/timer/start/`, { issue_id: issueId, ...data })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async stopWorkspaceTimer(workspaceSlug: string, data: { description?: string } = {}): Promise<TTimerStopResponse> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/timer/stop/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** "Yes, still working". 200 = the updated timer; a late answer is an error payload with `code` idle_stopped/auto_stopped. */
+  async confirmTimer(workspaceSlug: string): Promise<TRunningTimer> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/timer/confirm/`, {})
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getMyTasks(workspaceSlug: string, q = "", limit?: number): Promise<TMyTasksResponse> {
+    const params: Record<string, string | number> = {};
+    if (q) params.q = q;
+    if (limit) params.limit = limit;
+    return this.get(`/api/workspaces/${workspaceSlug}/time/my-tasks/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getLive(workspaceSlug: string, startDate?: string, endDate?: string): Promise<TLiveResponse> {
+    const params: Record<string, string> = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    return this.get(`/api/workspaces/${workspaceSlug}/time/live/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 S3b — time-entry requests, approvals, direct entry edits ----
+  async getTimeRequests(workspaceSlug: string, params: TTimeRequestListParams = {}): Promise<TTimeRequestList> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/requests/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async submitTimeRequest(workspaceSlug: string, data: TTimeRequestSubmit): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async approveTimeRequest(
+    workspaceSlug: string,
+    requestId: string,
+    data: { note?: string; new_ended_at?: string } = {}
+  ): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/approve/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async rejectTimeRequest(workspaceSlug: string, requestId: string, note: string): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/reject/`, { note })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async withdrawTimeRequest(workspaceSlug: string, requestId: string): Promise<TTimeRequest> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/withdraw/`, {})
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getTimeRequestHistory(workspaceSlug: string, requestId: string): Promise<TTimeRequestHistory> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/requests/${requestId}/history/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getTimeRequestEvents(
+    workspaceSlug: string,
+    params: TTimeRequestEventParams = {}
+  ): Promise<TTimeRequestEventList> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/requests/events/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Workspace admins' direct edit of a time entry (members go through a request instead). */
+  async updateTimeEntry(workspaceSlug: string, entryId: string, data: TTimeEntryPatch): Promise<unknown> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/entries/${entryId}/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // FORK: time-tracking-v2 S7 — estimate accuracy (estimates vs. logged time on completed work)
+  async getEstimateAccuracy(workspaceSlug: string, params: TAccuracyParams = {}): Promise<TAccuracyResponse> {
+    const { solo, include_grandfathered, ...rest } = params;
+    return this.get(`/api/workspaces/${workspaceSlug}/time/estimate-accuracy/`, {
+      params: { ...rest, ...(solo ? { solo: 1 } : {}), ...(include_grandfathered ? { include_grandfathered: 1 } : {}) },
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 S5 — Reports tab ----
+  private reportQuery(params: TTimeReportParams): string {
+    const qs = new URLSearchParams({ from: params.from, to: params.to, user: params.user });
+    if (params.taskLimit) qs.set("task_limit", String(params.taskLimit));
+    return qs.toString();
+  }
+
+  async getTimeReportV2(workspaceSlug: string, params: TTimeReportParams): Promise<TTimeReportV2> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/report/?${this.reportQuery(params)}`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Entry-level CSV of the same range/person (the browser downloads it; the server sets the filename). */
+  timeReportV2CsvUrl(workspaceSlug: string, params: TTimeReportParams): string {
+    return `${API_BASE_URL}/api/workspaces/${workspaceSlug}/time/report.csv?${this.reportQuery(params)}`;
+  }
+
+  // ---- FORK: time-tracking-v2 S5 — Settings tab ----
+  async getTimeSettings(workspaceSlug: string): Promise<TTimeSettings> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/settings/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateTimeSettings(workspaceSlug: string, data: TTimeSettingsPatch): Promise<TTimeSettings> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/settings/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getTrackingMembers(workspaceSlug: string): Promise<TTrackingMembersResponse> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/members/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Turn a member's tracking on/off from `effective_from` (YYYY-MM-DD, default today). */
+  async setMemberTracking(
+    workspaceSlug: string,
+    userId: string,
+    data: { is_tracked: boolean; effective_from?: string }
+  ): Promise<unknown> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/members/${userId}/tracking/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** Weekly capacity override in minutes; `null` = follow the workspace work week. */
+  async setMemberCapacity(
+    workspaceSlug: string,
+    userId: string,
+    weeklyMinutes: number | null
+  ): Promise<TCapacityResponse> {
+    return this.put(`/api/workspaces/${workspaceSlug}/time/members/${userId}/capacity/`, {
+      weekly_minutes: weeklyMinutes,
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  // ---- FORK: time-tracking-v2 holidays/leave (PSR-122) — holiday lists, holidays, per-person leave ----
+  async getHolidayCalendars(workspaceSlug: string): Promise<THolidayCalendar[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async createHolidayCalendar(
+    workspaceSlug: string,
+    data: { name: string; is_default?: boolean }
+  ): Promise<THolidayCalendar> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateHolidayCalendar(
+    workspaceSlug: string,
+    calendarId: string,
+    data: THolidayCalendarPatch
+  ): Promise<THolidayCalendar> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async deleteHolidayCalendar(workspaceSlug: string, calendarId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** `year` omitted = every year. */
+  async getHolidays(workspaceSlug: string, calendarId: string, year?: number): Promise<THoliday[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/`, {
+      params: { year: year || undefined },
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async createHoliday(workspaceSlug: string, calendarId: string, data: THolidayPayload): Promise<THoliday> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateHoliday(
+    workspaceSlug: string,
+    calendarId: string,
+    holidayId: string,
+    data: Partial<THolidayPayload>
+  ): Promise<THoliday> {
+    return this.patch(
+      `/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/${holidayId}/`,
+      data
+    )
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async deleteHoliday(workspaceSlug: string, calendarId: string, holidayId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/time/holiday-calendars/${calendarId}/holidays/${holidayId}/`)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /** `calendarId: null` = use the workspace default list. */
+  async setMemberHolidayCalendar(
+    workspaceSlug: string,
+    userId: string,
+    calendarId: string | null
+  ): Promise<THolidayCalendarAssignment> {
+    return this.put(`/api/workspaces/${workspaceSlug}/time/members/${userId}/holiday-calendar/`, {
+      calendar_id: calendarId,
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async getLeave(workspaceSlug: string, params: TLeaveParams = {}): Promise<TLeave[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/time/leave/`, {
+      params: { user_id: params.user_id || undefined, from: params.from || undefined, to: params.to || undefined },
+    })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async createLeave(workspaceSlug: string, data: TLeavePayload): Promise<TLeave> {
+    return this.post(`/api/workspaces/${workspaceSlug}/time/leave/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async updateLeave(workspaceSlug: string, leaveId: string, data: Partial<TLeavePayload>): Promise<TLeave> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/time/leave/${leaveId}/`, data)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  async deleteLeave(workspaceSlug: string, leaveId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/time/leave/${leaveId}/`)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

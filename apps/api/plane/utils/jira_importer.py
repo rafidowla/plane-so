@@ -44,6 +44,12 @@ from plane.db.models import (
 )
 from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
+from plane.utils.time_tracking.estimate import (
+    IMPORT_ESTIMATE,
+    IMPORT_GRANDFATHERED,
+    apply_imported_estimate,
+    plan_imported_estimate,
+)
 from plane.utils.url_security import pinned_fetch_following_redirects
 
 PRIORITY_MAP = {
@@ -55,7 +61,20 @@ PRIORITY_MAP = {
     "lowest": "low",
 }
 
-ISSUE_FIELDS = "summary,description,status,assignee,reporter,priority,labels,created,duedate,comment,worklog,attachment"
+# FORK: PSR-121 — timeoriginalestimate / timetracking carry Jira's original estimate (seconds).
+ISSUE_FIELDS = (
+    "summary,description,status,assignee,reporter,priority,labels,created,duedate,comment,worklog,attachment,"
+    "timeoriginalestimate,timetracking"
+)
+
+
+def original_estimate_seconds(fields):
+    """FORK: PSR-121 — Jira's original estimate in seconds: ``timeoriginalestimate``, else
+    ``timetracking.originalEstimateSeconds``. ``None`` when absent."""
+    value = fields.get("timeoriginalestimate")
+    if value in (None, ""):
+        value = (fields.get("timetracking") or {}).get("originalEstimateSeconds")
+    return value
 
 
 def norm(name):
@@ -700,6 +719,7 @@ def run_import(
     """
     total = len(issues)
     created = skipped = comments_n = worklogs_n = attachments_n = 0
+    estimates_n = grandfathered_n = 0  # FORK: PSR-121
     att_totals = {"created": 0, "skipped_size": 0, "skipped_existing": 0, "failed": 0}
     unmapped_states, unmapped_users = set(), set()
     preview = []
@@ -748,6 +768,12 @@ def run_import(
         worklogs_n += len(jira_worklogs)
         attachments_n += len(jira_attachments)
         created += 1
+        # FORK: PSR-121 — original estimate imported / started item grandfathered (counted for
+        # dry runs too; the writes happen right after the item is created below).
+        est_seconds = original_estimate_seconds(f)
+        est_outcome, _est_minutes = plan_imported_estimate(project.id, state, est_seconds)
+        estimates_n += est_outcome == IMPORT_ESTIMATE
+        grandfathered_n += est_outcome == IMPORT_GRANDFATHERED
 
         if len(preview) < preview_limit:
             preview.append(
@@ -761,6 +787,8 @@ def run_import(
                     "comments": len(jira_comments),
                     "worklogs": len(jira_worklogs),
                     "attachments": len(jira_attachments),
+                    "estimate_minutes": _est_minutes,
+                    "grandfathered": est_outcome == IMPORT_GRANDFATHERED,
                 }
             )
 
@@ -785,6 +813,9 @@ def run_import(
             if f.get("duedate"):
                 issue.target_date = f["duedate"]
             issue.save(created_by_id=initiator.id)
+            # FORK: PSR-121 — the ORM create above bypasses the serializer-level estimate gate;
+            # record the Jira estimate (or grandfather a started item without one) at once.
+            apply_imported_estimate(issue, initiator, est_seconds)
 
             # Attachments are migrated BEFORE the body is converted so inline
             # references (especially non-image files) can link to the migrated
@@ -970,6 +1001,8 @@ def run_import(
         "attachments_created": att_totals["created"],
         "attachments_skipped_size": att_totals["skipped_size"],
         "attachments_failed": att_totals["failed"],
+        "estimates": estimates_n,
+        "grandfathered": grandfathered_n,
         "unmapped_states": sorted(s for s in unmapped_states if s),
         "unmapped_users": sorted(unmapped_users),
         "preview": preview,
@@ -1018,6 +1051,7 @@ def sample_issues():
                 "reporter": {"displayName": "Admin User", "emailAddress": "admin@plane.test"},
                 "labels": ["bug", "auth"],
                 "duedate": "2026-07-15",
+                "timeoriginalestimate": 28800,  # 8h
                 "comment": {"comments": [
                     {"id": "9001", "author": {"emailAddress": "bob@plane.test"}, "body": {
                         "type": "doc", "content": [

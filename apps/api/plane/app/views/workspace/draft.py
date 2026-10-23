@@ -36,6 +36,8 @@ from plane.db.models import (
     DraftIssueCycle,
     Workspace,
     FileAsset,
+    ProjectMember,
+    WorkspaceMember,
 )
 from .. import BaseViewSet
 from plane.bgtasks.issue_activities_task import issue_activity
@@ -91,6 +93,25 @@ def _draft_stored_values(draft):
         "cycle_id": DraftIssueCycle.objects.filter(draft_issue=draft).values_list("cycle_id", flat=True).first(),
         "module_ids": list(DraftIssueModule.objects.filter(draft_issue=draft).values_list("module_id", flat=True)),
     }
+
+
+def can_write_project(user, slug, project_id):
+    # Same rule IssueViewSet.create enforces (allow_permission): an active
+    # ADMIN/MEMBER of the project, which must belong to the URL workspace, or a
+    # workspace ADMIN who is an active member of the project at any role.
+    role = (
+        ProjectMember.objects.filter(member=user, workspace__slug=slug, project_id=project_id, is_active=True)
+        .values_list("role", flat=True)
+        .first()
+    )
+    if role is None:
+        return False
+    return (
+        role in (ROLE.ADMIN.value, ROLE.MEMBER.value)
+        or WorkspaceMember.objects.filter(
+            member=user, workspace__slug=slug, role=ROLE.ADMIN.value, is_active=True
+        ).exists()
+    )
 
 
 class WorkspaceDraftIssueViewSet(BaseViewSet):
@@ -161,6 +182,13 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def create(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
+        project_id = request.data.get("project_id", None)
+
+        if project_id and not can_write_project(request.user, slug, project_id):
+            return Response(
+                {"error": "You don't have the required permissions."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # FORK: draft-project-change (PSR-92) — a draft can only target a project the caller belongs to.
         draft_project_id = request.data.get("project_id", None)
@@ -176,7 +204,7 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
             data=request.data,
             context={
                 "workspace_id": workspace.id,
-                "project_id": request.data.get("project_id", None),
+                "project_id": project_id,
             },
         )
         if serializer.is_valid():
@@ -232,6 +260,14 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
         project_id = data.get("project_id") or issue.project_id
         cycle_context = data.get("cycle_id", "not_provided")
 
+        # The caller must be able to write work items in the draft's current project
+        # (upstream rule) and, for a FORK PSR-92 move, in the target project too.
+        if issue.project_id and not can_write_project(request.user, slug, issue.project_id):
+            return Response(
+                {"error": "You don't have the required permissions."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         with transaction.atomic():
             if project_id and (issue.project_id is None or str(project_id) != str(issue.project_id)):
                 target = resolve_target_project(issue.workspace_id, project_id)
@@ -240,7 +276,7 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
                         {"error": "Project not found", "code": "INVALID_TARGET"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                if not is_project_member(request.user, target):
+                if not is_project_member(request.user, target) or not can_write_project(request.user, slug, target.id):
                     return Response(
                         {"error": "You are not a member of that project.", "code": "FORBIDDEN_TARGET"},
                         status=status.HTTP_403_FORBIDDEN,
@@ -330,6 +366,24 @@ class WorkspaceDraftIssueViewSet(BaseViewSet):
             mapped = ProjectFieldMapper(source=draft_issue.project or target, target=target).map_payload(values)
             _apply_mapping(data, mapped)
         project_id = target.id
+
+        # Upstream: the caller must still be able to write work items in the draft's own project.
+        # FORK PSR-92: a draft without a project has no source to check (write access to the
+        # target was checked above).
+        if draft_issue.project_id and not can_write_project(request.user, slug, draft_issue.project_id):
+            return Response(
+                {"error": "You don't have the required permissions."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # The cycle and modules must belong to the project the work item is created in (400 otherwise).
+        # FORK PSR-92: that is the target, and the values checked are the re-mapped ones actually applied below.
+        DraftIssueCreateSerializer.check_cycle_and_modules(
+            data.get("cycle_id"),
+            data.get("module_ids"),
+            project_id,
+            target.workspace_id,
+        )
 
         serializer = IssueCreateSerializer(
             data=data,

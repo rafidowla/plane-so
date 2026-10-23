@@ -14,6 +14,8 @@ from plane.db.models import (
     WorklogTimer,
     Timesheet,
     ResourceCapacity,
+    TimeTrackingMemberStatus,
+    TimeTrackingSetting,
 )
 
 
@@ -55,7 +57,34 @@ class IssueWorklogSerializer(BaseSerializer):
             "is_locked",
             "approval_status",
             "timesheet",
+            # FORK: time-tracking-v2 — set by the server only.
+            "issue_ref",
+            "issue_name",
+            "session_id",
+            "auto_stopped",
+            "idle_stopped",
+            # FORK: time-tracking-v2 S3 — set by the server only (request that created/changed it;
+            # source is forced to manual on the manual path).
+            "request",
+            "source",
         ]
+
+    def to_representation(self, instance):
+        # FORK: time-tracking-v2 secfix — billing fields only for a viewer who may manage
+        # rates (workspace admin / admin of the entry's project, billing on). Deny by default:
+        # a serializer built without a viewer strips them.
+        from plane.utils.time_tracking.billing import RATE_FIELDS, RateViewer
+
+        data = super().to_representation(instance)
+        viewer = self.context.get("rate_viewer")
+        if viewer is None:
+            request = self.context.get("request")
+            user = getattr(request, "user", None)
+            viewer = self.context["rate_viewer"] = RateViewer(user)
+        if not viewer.can_see(instance.workspace_id, instance.project_id):
+            for field in RATE_FIELDS:
+                data.pop(field, None)
+        return data
 
 
 class WorklogTimerSerializer(BaseSerializer):
@@ -70,6 +99,9 @@ class WorklogTimerSerializer(BaseSerializer):
             "issue",
             "user",
             "started_at",
+            # FORK: time-tracking-v2 — set by the server only (S2 reminder / still-working check).
+            "reminded_at",
+            "last_confirmed_at",
             "created_by",
             "updated_by",
             "created_at",
@@ -111,3 +143,75 @@ class ResourceCapacitySerializer(BaseSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class TimeTrackingSettingSerializer(BaseSerializer):
+    """FORK: time-tracking-v2 — workspace time-tracking settings."""
+
+    timezone = serializers.CharField(source="workspace.timezone", read_only=True)
+
+    class Meta:
+        model = TimeTrackingSetting
+        fields = [
+            "id",
+            "workspace",
+            "timezone",
+            "work_days",
+            "minutes_per_day",
+            "remind_after_minutes",
+            "auto_stop_after_minutes",
+            "idle_check_min_minutes",
+            "idle_check_max_minutes",
+            "allow_member_manual_entry",
+            "weekly_approval_enabled",
+            "billing_enabled",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "workspace", "timezone", "updated_at"]
+
+    def validate_work_days(self, value):
+        if not value:
+            raise serializers.ValidationError("Pick at least one work day.")
+        if len(set(value)) != len(value) or any(d < 1 or d > 7 for d in value):
+            raise serializers.ValidationError("Work days are distinct ISO weekdays, 1 (Mon) to 7 (Sun).")
+        return sorted(value)
+
+    def validate_minutes_per_day(self, value):
+        if not 1 <= value <= 1440:
+            raise serializers.ValidationError("Must be between 1 and 1440 minutes.")
+        return value
+
+    def validate(self, attrs):
+        remind = attrs.get("remind_after_minutes", getattr(self.instance, "remind_after_minutes", None))
+        auto_stop = attrs.get("auto_stop_after_minutes", getattr(self.instance, "auto_stop_after_minutes", None))
+        for name, value in (("remind_after_minutes", remind), ("auto_stop_after_minutes", auto_stop)):
+            if value is not None and not 1 <= value <= 1440:
+                raise serializers.ValidationError({name: "Must be between 1 and 1440 minutes."})
+        if remind is not None and auto_stop is not None and auto_stop <= remind:
+            raise serializers.ValidationError({"auto_stop_after_minutes": "Auto-stop must come after the reminder."})
+        idle_min = attrs.get("idle_check_min_minutes", getattr(self.instance, "idle_check_min_minutes", 20))
+        idle_max = attrs.get("idle_check_max_minutes", getattr(self.instance, "idle_check_max_minutes", 80))
+        if not (idle_min == 0 and idle_max == 0):
+            # Either both 0 (check off) or a real window.
+            if not 5 <= idle_min <= 480:
+                raise serializers.ValidationError(
+                    {"idle_check_min_minutes": "Must be 0 (off, with the maximum also 0) or 5-480 minutes."}
+                )
+            if not 5 <= idle_max <= 480:
+                raise serializers.ValidationError(
+                    {"idle_check_max_minutes": "Must be 0 (off, with the minimum also 0) or 5-480 minutes."}
+                )
+            if idle_min > idle_max:
+                raise serializers.ValidationError(
+                    {"idle_check_max_minutes": "The maximum must not be below the minimum."}
+                )
+        return attrs
+
+
+class TimeTrackingMemberStatusSerializer(serializers.ModelSerializer):
+    """FORK: time-tracking-v2 — one row of a member's tracking on/off history."""
+
+    class Meta:
+        model = TimeTrackingMemberStatus
+        fields = ["id", "workspace", "user", "is_tracked", "effective_from", "changed_by", "created_at"]
+        read_only_fields = fields

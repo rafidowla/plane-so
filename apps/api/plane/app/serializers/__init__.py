@@ -142,6 +142,9 @@ from .time_tracking import (
     WorklogTimerSerializer,
     TimesheetSerializer,
     ResourceCapacitySerializer,
+    # FORK: time-tracking-v2 — workspace settings + member tracking status
+    TimeTrackingSettingSerializer,
+    TimeTrackingMemberStatusSerializer,
 )
 # FORK: time-tracking
 from .jira_import import JiraImportJobSerializer

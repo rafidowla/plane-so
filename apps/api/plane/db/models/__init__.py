@@ -15,6 +15,7 @@ from .draft import (
     DraftIssueModule,
     DraftIssueCycle,
 )
+
 # FORK: time-tracking
 from .client import Client
 from .estimate import Estimate, EstimatePoint
@@ -104,5 +105,33 @@ from .worklog import (
 
 # FORK: time-tracking
 from .jira_import import JiraImportJob, JiraImportStatus
+
+# FORK: time-tracking-v2 — workspace time settings, member tracking status, audit log
+from .time_tracking import (
+    TimeTrackingSetting,
+    TimeTrackingMemberStatus,
+    TimeTrackingAuditLog,
+    TimeTrackingAuditTarget,
+    TimeTrackingAuditAction,
+    # FORK: time-tracking-v2 S3 — requests, approvals and their append-only history
+    TimeEntryRequest,
+    TimeEntryRequestEvent,
+    TimeEntryRequestType,
+    TimeEntryRequestStatus,
+    TimeEntryRequestAction,
+    TimeEntryActorRole,
+    # FORK: time-tracking-v2 S6 — per-work-item time estimates and their revisions
+    TimeEstimateMode,
+    TimeEstimateRevisionKind,
+    IssueTimeEstimate,
+    IssueEstimateGrandfather,
+    IssueTimeEstimateRevision,
+    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+    DayPortion,
+    HolidayCalendar,
+    Holiday,
+    MemberHolidayCalendar,
+    MemberLeave,
+)
 
 from .description import Description, DescriptionVersion

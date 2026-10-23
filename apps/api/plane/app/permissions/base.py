@@ -33,23 +33,28 @@ def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None):
                         status=status.HTTP_403_FORBIDDEN,
                     )
 
-                # FORK: put-permission — the creator shortcut only checked workspace membership, so a user
-                # removed from a project (inactive ProjectMember) could still edit/delete everything they had
-                # created in it. On project routes, require an active project membership and match the object
-                # inside that project; otherwise fall through to the role checks below.
-                creator_filter = {"id": kwargs["pk"], "created_by": request.user}
-                project_id = kwargs.get("project_id")
-                is_creator_eligible = True
-                if project_id is not None:
-                    creator_filter["project_id"] = project_id
-                    is_creator_eligible = ProjectMember.objects.filter(
+                # project-level creator access also requires active membership of the URL project
+                if (
+                    level != "WORKSPACE"
+                    and not ProjectMember.objects.filter(
                         member=request.user,
                         workspace__slug=kwargs["slug"],
-                        project_id=project_id,
+                        project_id=kwargs["project_id"],
                         is_active=True,
                     ).exists()
+                ):
+                    return Response(
+                        {"error": "You don't have the required permissions."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
-                if is_creator_eligible and model.objects.filter(**creator_filter).exists():
+                # FORK: put-permission — also match the object inside the URL project, so a creator
+                # cannot reach an object of theirs in another project through this project's route.
+                creator_filter = {"id": kwargs["pk"], "created_by": request.user}
+                if kwargs.get("project_id") is not None:
+                    creator_filter["project_id"] = kwargs["project_id"]
+                obj = model.objects.filter(**creator_filter).exists()
+                if obj:
                     return view_func(instance, request, *args, **kwargs)
 
             # Convert allowed_roles to their values if they are enum members

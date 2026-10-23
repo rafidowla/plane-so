@@ -31,6 +31,12 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.utils.jira_importer import PRIORITY_MAP, norm, resolve_rate
+from plane.utils.time_tracking.estimate import (
+    IMPORT_ESTIMATE,
+    IMPORT_GRANDFATHERED,
+    apply_imported_estimate,
+    plan_imported_estimate,
+)
 
 _DATE_FORMATS = ("%d/%b/%y %I:%M %p", "%d/%b/%Y %I:%M %p", "%d/%b/%y", "%d/%b/%Y", "%Y-%m-%d")
 
@@ -56,6 +62,16 @@ def _parse_datetime(value):
         except ValueError:
             continue
     return None
+
+
+def _parse_seconds(value):
+    """FORK: PSR-121 — a positive whole number of seconds from a CSV cell, else None."""
+    value = (value or "").strip()
+    try:
+        seconds = int(float(value))
+    except ValueError:
+        return None
+    return seconds if seconds > 0 else None
 
 
 def _to_html(text):
@@ -137,6 +153,11 @@ def parse_jira_csv(fp):
                 "parent_key": one(row, "Parent key") or one(row, "Parent"),
                 "comments": comments,
                 "worklogs": worklogs,
+                # FORK: PSR-121 — Jira exports the original estimate in seconds ("Original Estimate"
+                # or "Original estimate" depending on the instance); blank or non-numeric -> None.
+                "original_estimate_seconds": _parse_seconds(
+                    one(row, "Original Estimate") or one(row, "Original estimate")
+                ),
             }
         )
     return issues, accountid_to_name
@@ -167,6 +188,7 @@ def run_csv_import(
     """Create Plane records from parsed Jira CSV issues. Returns a result dict."""
     total = len(issues)
     created = skipped = comments_n = worklogs_n = 0
+    estimates_n = grandfathered_n = 0  # FORK: PSR-121
     unmapped_states, unmapped_users = set(), set()
     preview = []
 
@@ -199,6 +221,10 @@ def run_csv_import(
         comments_n += len(ji["comments"])
         worklogs_n += len(wl)
         created += 1
+        est_seconds = ji.get("original_estimate_seconds")
+        est_outcome, _est_minutes = plan_imported_estimate(project.id, state, est_seconds)
+        estimates_n += est_outcome == IMPORT_ESTIMATE
+        grandfathered_n += est_outcome == IMPORT_GRANDFATHERED
 
         if len(preview) < preview_limit:
             preview.append(
@@ -211,6 +237,8 @@ def run_csv_import(
                     "labels": len(ji["labels"]),
                     "comments": len(ji["comments"]),
                     "worklogs": len(wl),
+                    "estimate_minutes": _est_minutes,
+                    "grandfathered": est_outcome == IMPORT_GRANDFATHERED,
                 }
             )
 
@@ -234,6 +262,8 @@ def run_csv_import(
             issue.target_date = ji["due_date"]
         issue.save(created_by_id=initiator.id)
         created_by_key[key] = issue
+        # FORK: PSR-121 — ORM create skips the estimate gate; record the estimate / grandfather.
+        apply_imported_estimate(issue, initiator, est_seconds)
 
         if assignee_user:
             IssueAssignee.objects.create(issue=issue, assignee=assignee_user, project=project, created_by_id=initiator.id)
@@ -312,6 +342,8 @@ def run_csv_import(
         "comments": comments_n,
         "worklogs": worklogs_n,
         "parents_linked": parents_linked,
+        "estimates": estimates_n,
+        "grandfathered": grandfathered_n,
         "unmapped_states": sorted(s for s in unmapped_states if s),
         "unmapped_users": sorted(unmapped_users),
         "preview": preview,

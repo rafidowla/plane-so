@@ -38,7 +38,16 @@ class IssueWorklog(ProjectBaseModel):
     on behalf of a resource and we keep the audit trail.
     """
 
-    issue = models.ForeignKey("db.Issue", on_delete=models.CASCADE, related_name="worklogs")
+    # FORK: time-tracking-v2 — time survives work-item deletion. DO_NOTHING keeps the
+    # soft-delete cascade (soft_delete_related_objects skips DO_NOTHING) and the 60-day
+    # hard delete from removing worklogs; db_constraint=False lets a row outlive its
+    # issue. Project deletion still cascades through the project FK. `issue_ref` /
+    # `issue_name` are the label to fall back on once the issue row is gone.
+    issue = models.ForeignKey(
+        "db.Issue", on_delete=models.DO_NOTHING, db_constraint=False, related_name="worklogs"
+    )
+    issue_ref = models.CharField(max_length=64, blank=True, default="")
+    issue_name = models.CharField(max_length=255, blank=True, default="")
     logged_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="worklogs"
     )
@@ -73,15 +82,41 @@ class IssueWorklog(ProjectBaseModel):
     timesheet = models.ForeignKey(
         "db.Timesheet", on_delete=models.SET_NULL, null=True, blank=True, related_name="worklogs"
     )
+    # FORK: time-tracking-v2 — the pieces of one timer run share a session id (a run
+    # that crosses local midnight is split into one entry per workspace-local day).
+    session_id = models.UUIDField(null=True, blank=True)
+    # Stopped by the 14 h backstop (S2) / by an unanswered "still working?" check (S2).
+    auto_stopped = models.BooleanField(default=False)
+    idle_stopped = models.BooleanField(default=False)
+    # FORK: time-tracking-v2 S3 — the approved request this entry was created/changed by.
+    request = models.ForeignKey(
+        "db.TimeEntryRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="applied_worklogs"
+    )
 
     class Meta:
         verbose_name = "Issue Worklog"
         verbose_name_plural = "Issue Worklogs"
         db_table = "issue_worklogs"
         ordering = ("-logged_date", "-created_at")
+        indexes = [
+            models.Index(fields=["workspace", "logged_by", "logged_date"], name="worklog_ws_user_date_idx"),
+            models.Index(fields=["workspace", "logged_date"], name="worklog_ws_date_idx"),
+            models.Index(
+                fields=["issue"], condition=models.Q(deleted_at__isnull=True), name="worklog_issue_active_idx"
+            ),
+        ]
 
     def __str__(self):
         return f"{self.issue_id} - {self.logged_by_id} - {self.duration}m"
+
+    def save(self, *args, **kwargs):
+        # FORK: time-tracking-v2 — snapshot the work item label on first write, so the
+        # entry can still be labelled after the issue row is hard-deleted.
+        if self.issue_id and not self.issue_ref:
+            from plane.utils.time_tracking.snapshot import issue_snapshot
+
+            self.issue_ref, self.issue_name = issue_snapshot(self.issue_id)
+        super().save(*args, **kwargs)
 
 
 class WorklogTimer(ProjectBaseModel):
@@ -90,10 +125,19 @@ class WorklogTimer(ProjectBaseModel):
     Stopping the timer converts it into an IssueWorklog and removes the timer.
     """
 
-    issue = models.ForeignKey("db.Issue", on_delete=models.CASCADE, related_name="worklog_timers")
+    # FORK: time-tracking-v2 — DO_NOTHING/no constraint: a timer whose work item is
+    # deleted is not silently dropped; the sweep (bgtasks.time_tracking_sweep) stops it
+    # at the deletion time and logs the time.
+    issue = models.ForeignKey(
+        "db.Issue", on_delete=models.DO_NOTHING, db_constraint=False, related_name="worklog_timers"
+    )
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="worklog_timers")
     started_at = models.DateTimeField()
     description = models.TextField(blank=True, default="")
+    # FORK: time-tracking-v2 — set by the 10 h reminder (S2) and by answering the
+    # "still working?" check (S2). Fields only in S1.
+    reminded_at = models.DateTimeField(null=True, blank=True)
+    last_confirmed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = "Worklog Timer"
@@ -158,7 +202,11 @@ class ResourceCapacity(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="resource_capacities")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="resource_capacities")
     # Expected billable/available capacity per week, in minutes (default 40h).
-    weekly_capacity = models.PositiveIntegerField(default=2400)
+    # FORK: time-tracking-v2 S5 — now the per-person weekly capacity OVERRIDE: null
+    # follows the workspace work week (TimeTrackingSetting work_days x minutes_per_day);
+    # a value is spread evenly over the working days. Nullable so an override can be
+    # cleared without deleting the row's rates.
+    weekly_capacity = models.PositiveIntegerField(null=True, blank=True, default=None)
     # Internal cost rate and default client-facing billable rate.
     cost_rate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     billable_rate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)

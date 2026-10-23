@@ -253,8 +253,45 @@ from .time_tracking import (
     TimesheetViewSet,
     ResourceCapacityViewSet,
     TimeReportEndpoint,
+    # FORK: time-tracking-v2 — workspace settings + member tracking status
+    TimeTrackingSettingsEndpoint,
+    TimeTrackingMembersEndpoint,
+    TimeTrackingMemberStatusEndpoint,
+    # FORK: time-tracking-v2 S2 — workspace timer bar, task picker, live dashboard
+    WorkspaceTimerStartEndpoint,
+    WorkspaceTimerStopEndpoint,
+    WorkspaceTimerConfirmEndpoint,
+    TimeMyTasksEndpoint,
+    TimeLiveDashboardEndpoint,
     JiraImportStatusesEndpoint,
     JiraImportPreviewEndpoint,
     JiraImportEndpoint,
     JiraImportJobDetailEndpoint,
+    # FORK: time-tracking-v2 S3 — requests/approvals and workspace-level manual entries
+    TimeEntryRequestEndpoint,
+    TimeEntryRequestApproveEndpoint,
+    TimeEntryRequestRejectEndpoint,
+    TimeEntryRequestWithdrawEndpoint,
+    TimeEntryRequestHistoryEndpoint,
+    TimeEntryRequestEventsEndpoint,
+    TimeEntryEndpoint,
+    TimeEntryDetailEndpoint,
+    # FORK: time-tracking-v2 S6 — per-work-item time estimates
+    IssueTimeEstimateEndpoint,
+    # FORK: time-tracking-v2 S5 — Reports v2 + per-member capacity override
+    TimeReportV2Endpoint,
+    TimeTrackingMemberCapacityEndpoint,
+    # FORK: time-tracking-v2 S7 — estimate accuracy report
+    EstimateAccuracyEndpoint,
+    # FORK: time-tracking-v2 S4 — My timesheet
+    TimesheetWeekEndpoint,
+    TimesheetPeopleEndpoint,
+    # FORK: time-tracking-v2 holidays/leave (PSR-122)
+    HolidayCalendarEndpoint,
+    HolidayCalendarDetailEndpoint,
+    HolidayEndpoint,
+    HolidayDetailEndpoint,
+    MemberHolidayCalendarEndpoint,
+    MemberLeaveEndpoint,
+    MemberLeaveDetailEndpoint,
 )

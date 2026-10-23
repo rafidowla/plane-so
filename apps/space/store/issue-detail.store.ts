@@ -350,7 +350,7 @@ export class IssueDetailStore implements IIssueDetailStore {
           this.details,
           [issueID, "reaction_items"],
           [
-            ...this.details[issueID].reaction_items,
+            ...(this.details[issueID].reaction_items ?? []), // FORK: API may send null when empty
             {
               reaction: reactionHex,
               actor_details: this.rootStore.user.currentActor,
@@ -373,7 +373,8 @@ export class IssueDetailStore implements IIssueDetailStore {
 
   removeIssueReaction = async (anchor: string, issueID: string, reactionHex: string) => {
     try {
-      const newReactions = this.details[issueID].reaction_items.filter(
+      const newReactions = (this.details[issueID].reaction_items ?? []).filter(
+        // FORK: null when empty
         (_r) => !(_r.reaction === reactionHex && _r.actor_details.id === this.rootStore.user.data?.id)
       );
 
@@ -402,7 +403,8 @@ export class IssueDetailStore implements IIssueDetailStore {
       vote: data.vote,
     };
 
-    const filteredVotes = this.details[issueID].vote_items.filter(
+    const filteredVotes = (this.details[issueID].vote_items ?? []).filter(
+      // FORK: null when empty
       (v) => v.actor_details?.id !== this.rootStore.user.data?.id
     );
 
@@ -425,7 +427,8 @@ export class IssueDetailStore implements IIssueDetailStore {
   };
 
   removeIssueVote = async (anchor: string, issueID: string) => {
-    const newVotes = this.details[issueID].vote_items.filter(
+    const newVotes = (this.details[issueID].vote_items ?? []).filter(
+      // FORK: null when empty
       (v) => v.actor_details?.id !== this.rootStore.user.data?.id
     );
 

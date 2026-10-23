@@ -20,6 +20,8 @@ import type {
 } from "@plane/types";
 // services
 import { APIService } from "@/services/api.service";
+// FORK: time-tracking-v2 S6
+import { handleEstimateRequired } from "@/plane-web/components/issues/worklog/estimate/estimate-required";
 
 export class IssueService extends APIService {
   private serviceType: TIssueServiceType;
@@ -229,6 +231,8 @@ export class IssueService extends APIService {
     return this.patch(`/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/`, data)
       .then((response) => response?.data)
       .catch((error) => {
+        // FORK: time-tracking-v2 S6 — a state move refused with 400 `estimate_required` opens the estimate field
+        handleEstimateRequired(error?.response?.data, { issueId, workspaceSlug, projectId });
         throw error?.response?.data;
       });
   }

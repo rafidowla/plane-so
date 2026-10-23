@@ -12,6 +12,11 @@ import { fileURLToPath } from "node:url";
 
 const E2E_EMAIL = process.env.E2E_EMAIL ?? "qa-visual@plane.test";
 const E2E_OUTSIDER_EMAIL = process.env.E2E_OUTSIDER_EMAIL ?? "uat-outsider@example.com";
+// FORK: time-tracking-v2 — a second workspace member, and a user in the private "SEC" project only
+const E2E_MEMBER_EMAIL = process.env.E2E_MEMBER_EMAIL ?? "qa-member@plane.test";
+const E2E_OTHER_EMAIL = process.env.E2E_OTHER_EMAIL ?? "qa-other@plane.test";
+// FORK: time-tracking-v2 S6 — a project guest (sees no estimate controls)
+const E2E_GUEST_EMAIL = process.env.E2E_GUEST_EMAIL ?? "qa-guest@plane.test";
 const E2E_PASSWORD = process.env.E2E_PASSWORD ?? "QaTest#2026";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -50,4 +55,7 @@ async function loginAndStore(config: FullConfig, email: string, outPath: string)
 export default async function globalSetup(config: FullConfig) {
   await loginAndStore(config, E2E_EMAIL, here(".auth/admin.json"));
   await loginAndStore(config, E2E_OUTSIDER_EMAIL, here(".auth/outsider.json"));
+  await loginAndStore(config, E2E_MEMBER_EMAIL, here(".auth/member.json"));
+  await loginAndStore(config, E2E_OTHER_EMAIL, here(".auth/other.json"));
+  await loginAndStore(config, E2E_GUEST_EMAIL, here(".auth/guest.json"));
 }

@@ -69,8 +69,25 @@ class IssueSerializer(BaseSerializer):
 
     class Meta:
         model = Issue
-        read_only_fields = ["id", "workspace", "project", "updated_by", "updated_at", "completed_at"]
+        read_only_fields = [
+            "id",
+            "workspace",
+            "project",
+            "updated_by",
+            "updated_at",
+            "completed_at",
+            "deleted_at",
+            "archived_at",
+            "sequence_id",
+        ]
         exclude = ["description_json", "description_stripped"]
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # is_draft is set when a work item is created, not changed afterwards.
+        if self.instance is not None:
+            fields["is_draft"].read_only = True
+        return fields
 
     def validate(self, data):
         if (
@@ -159,6 +176,11 @@ class IssueSerializer(BaseSerializer):
             ).exists()
         ):
             raise serializers.ValidationError("Estimate point is not valid please pass a valid estimate_point_id")
+
+        # FORK: time-tracking-v2 S6 — "required" projects: no Started/Completed without an estimate
+        from plane.utils.time_tracking.estimate import gate_state_change
+
+        gate_state_change(self.instance, data.get("state"), self.context.get("project_id"))
 
         return data
 

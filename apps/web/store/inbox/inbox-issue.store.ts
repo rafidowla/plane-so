@@ -17,6 +17,8 @@ import { EInboxIssueStatus } from "@plane/types";
 import { renderFormattedPayloadDate } from "@plane/utils";
 // helpers
 // services
+// FORK: time-tracking-v2 secfix — accepting into a started state is gated in estimate-required projects
+import { handleEstimateRequired } from "@/plane-web/components/issues/worklog/estimate/estimate-required";
 import { InboxIssueService } from "@/services/inbox";
 import { IssueService } from "@/services/issue";
 // store
@@ -138,8 +140,15 @@ export class InboxIssueStore implements IInboxIssueStore {
         const updatedIssue = { ...this.issue, ...inboxIssue.issue };
         this.store.issue.issues.addIssue([updatedIssue]);
       }
-    } catch {
+    } catch (error) {
       runInAction(() => set(this, "status", previousData.status));
+      // FORK: time-tracking-v2 secfix — the server answers 400 `estimate_required` when accepting
+      // would put an unestimated item in a started state; the host shows "Add an estimate first".
+      handleEstimateRequired(error, {
+        issueId: this.issue.id,
+        workspaceSlug: this.workspaceSlug,
+        projectId: this.projectId,
+      });
     }
   };
 

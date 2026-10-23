@@ -228,6 +228,14 @@ export const WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS: Record<string, IWorkspa
     access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
     highlight: (pathname: string, url: string) => pathname.includes(url),
   },
+  // FORK: time-tracking-v2 — workspace "Time" area (Dashboard tab first); hidden for guests
+  time: {
+    key: "time",
+    labelTranslationKey: "time",
+    href: `/time/dashboard/`,
+    access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
+    highlight: (pathname: string, url: string) => pathname.includes(url.replace("dashboard/", "")),
+  },
 };
 
 export const WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
@@ -236,6 +244,8 @@ export const WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebar
   WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS["archives"],
   // FORK: custom-dashboards
   WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS["custom_dashboard"],
+  // FORK: time-tracking-v2
+  WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS["time"],
 ];
 
 export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS: Record<string, IWorkspaceSidebarNavigationItem> = {

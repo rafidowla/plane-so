@@ -11,16 +11,19 @@ import { WorkItems } from "@/components/analytics/work-items";
 // never had them); only this tabs.tsx file itself moved to core/ in the merge.
 import { Clients } from "@/plane-web/components/analytics/clients/root";
 import { Imports } from "@/plane-web/components/analytics/imports/root";
-import { TimeReport } from "@/plane-web/components/analytics/time/root";
 import { Timesheets } from "@/plane-web/components/analytics/timesheets/root";
 
-export const getAnalyticsTabs = (t: (key: string, params?: Record<string, any>) => string): AnalyticsTab[] =>
+// FORK: time-tracking-v2 S5 — the old "Time" tab moved to the Time area (Reports); "Timesheets" only
+// exists while weekly approval is on.
+export const getAnalyticsTabs = (
+  t: (key: string, params?: Record<string, any>) => string,
+  { showTimesheets = false }: { showTimesheets?: boolean } = {}
+): AnalyticsTab[] =>
   [
     { key: "overview", label: t("common.overview"), content: Overview, isDisabled: false },
     { key: "work-items", label: t("sidebar.work_items"), content: WorkItems, isDisabled: false },
     // FORK: time-tracking
-    { key: "time", label: "Time", content: TimeReport, isDisabled: false },
-    { key: "timesheets", label: "Timesheets", content: Timesheets, isDisabled: false },
+    ...(showTimesheets ? [{ key: "timesheets", label: "Timesheets", content: Timesheets, isDisabled: false }] : []),
     { key: "clients", label: "Clients", content: Clients, isDisabled: false },
     { key: "imports", label: "Imports", content: Imports, isDisabled: false },
   ] as AnalyticsTab[];

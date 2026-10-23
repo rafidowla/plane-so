@@ -242,8 +242,12 @@ class TestPatchDraftProject:
         draft = fresh(full_draft)
         assert (draft.name, draft.project_id) == ("Renamed", world.tgt.id)
 
-    def test_member_of_source_and_target_as_guest_may_retarget(self, world, full_draft):
-        """Re-targeting a draft only needs active membership of the target (any role)."""
+    def test_guest_of_the_target_may_not_retarget(self, world, full_draft):
+        """Re-targeting a draft needs write access (project admin/member) in the target.
+
+        Was "any role" before the 2026-10-23 upstream sync; upstream now requires write access
+        to update a draft at all, and the PSR-92 move applies the same rule to the target.
+        """
         guest_user = world.users.tgt_guest
         draft = make_draft(world, owner=guest_user)
 
@@ -251,8 +255,9 @@ class TestPatchDraftProject:
             draft_url(world.slug, draft.id), {"project_id": str(world.tgt.id)}, format="json"
         )
 
-        assert response.status_code == status.HTTP_204_NO_CONTENT, getattr(response, "data", None)
-        assert fresh(draft).project_id == world.tgt.id
+        assert response.status_code == status.HTTP_403_FORBIDDEN, getattr(response, "data", None)
+        assert response.data["code"] == "FORBIDDEN_TARGET"
+        assert fresh(draft).project_id == world.src.id
 
     def test_forbidden_when_not_a_member_of_the_target(self, world, full_draft):
         outsider = world.users.not_in_tgt
@@ -443,8 +448,8 @@ class TestCreateDraft:
             draft_url(world.slug), {"name": "Sneaky", "project_id": str(world.tgt.id)}, format="json"
         )
 
+        # upstream's write-access check (2026-10-23 sync) answers first, without the fork's FORBIDDEN_TARGET code
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert response.data["code"] == "FORBIDDEN_TARGET"
         assert DraftIssue.objects.count() == before
 
     def test_project_in_another_workspace_is_forbidden(self, mover_client, world):

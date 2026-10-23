@@ -43,6 +43,12 @@ def ensure_user(email):
 
 admin = ensure_user("qa-visual@plane.test")
 outsider = ensure_user("uat-outsider@example.com")
+# FORK: time-tracking-v2 — a plain workspace member who belongs to the E2E project, and a
+# second member who belongs only to the SECRET project (live-dashboard redaction specs).
+member = ensure_user("qa-member@plane.test")
+other = ensure_user("qa-other@plane.test")
+# FORK: time-tracking-v2 S6 — a project guest (no estimate controls)
+guest = ensure_user("qa-guest@plane.test")
 
 ws, _ = Workspace.objects.get_or_create(
     slug="e2e",
@@ -50,6 +56,9 @@ ws, _ = Workspace.objects.get_or_create(
 )
 WorkspaceMember.objects.get_or_create(workspace=ws, member=admin, defaults={"role": 20, "is_active": True})
 WorkspaceMember.objects.get_or_create(workspace=ws, member=outsider, defaults={"role": 15, "is_active": True})
+WorkspaceMember.objects.get_or_create(workspace=ws, member=member, defaults={"role": 15, "is_active": True})
+WorkspaceMember.objects.get_or_create(workspace=ws, member=other, defaults={"role": 15, "is_active": True})
+WorkspaceMember.objects.get_or_create(workspace=ws, member=guest, defaults={"role": 5, "is_active": True})
 
 project, _ = Project.objects.get_or_create(
     workspace=ws,
@@ -63,10 +72,41 @@ ProjectMember.objects.get_or_create(
     project=project, workspace=ws, member=admin,
     defaults={"role": 20, "is_active": True},
 )
+ProjectMember.objects.get_or_create(
+    project=project, workspace=ws, member=member,
+    defaults={"role": 15, "is_active": True},
+)
 # The outsider is deliberately NOT a project member.
 State.objects.get_or_create(
-    workspace=ws, project=project,
-    defaults={"name": "Todo", "group": "unstarted", "default": True, "created_by": admin},
+    workspace=ws, project=project, name="Todo",
+    defaults={"group": "unstarted", "default": True, "created_by": admin},
+)
+# FORK: time-tracking-v2 S6 — a started state (estimates lock when work starts) and the guest's membership
+State.objects.get_or_create(
+    workspace=ws, project=project, name="In Progress",
+    defaults={"group": "started", "created_by": admin},
+)
+ProjectMember.objects.get_or_create(
+    project=project, workspace=ws, member=guest,
+    defaults={"role": 5, "is_active": True},
+)
+
+# FORK: time-tracking-v2 — a second tracked project that only qa-other belongs to.
+secret, _ = Project.objects.get_or_create(
+    workspace=ws,
+    identifier="SEC",
+    defaults={"name": "E2E Secret", "created_by": other},
+)
+secret.is_time_tracking_enabled = True
+secret.save()
+ProjectIdentifier.objects.get_or_create(workspace=ws, project=secret, name="SEC")
+ProjectMember.objects.get_or_create(
+    project=secret, workspace=ws, member=other,
+    defaults={"role": 20, "is_active": True},
+)
+State.objects.get_or_create(
+    workspace=ws, project=secret,
+    defaults={"name": "Todo", "group": "unstarted", "default": True, "created_by": other},
 )
 
 # Custom properties on for this project + one OPTION property with a "Bug"
@@ -100,5 +140,5 @@ IssuePropertyOption.objects.get_or_create(
     },
 )
 
-print("e2e seed ok: users + workspace 'e2e' + project 'E2E' (time tracking on)")
+print("e2e seed ok: users + workspace 'e2e' + projects 'E2E', 'SEC' (time tracking on)")
 PY

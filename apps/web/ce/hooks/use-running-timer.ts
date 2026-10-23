@@ -11,6 +11,7 @@ import useSWR, { mutate as globalMutate } from "swr";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import type { TRunningTimer } from "@/plane-web/components/issues/worklog/types";
 import { getElapsedSeconds, getServerOffsetMs } from "@/plane-web/components/issues/worklog/timer-utils";
+import { getTimerPollInterval } from "@/plane-web/components/time/timer/idle-check";
 
 export const runningTimerKey = (workspaceSlug: string) => `WORKSPACE_RUNNING_TIMER_${workspaceSlug}`;
 
@@ -23,7 +24,9 @@ export function useRunningTimer(workspaceSlug: string | undefined) {
     workspaceSlug ? () => timeTrackingService.getRunningTimer(workspaceSlug) : null,
     {
       // Pick up timers started/stopped in another tab or device without a reload.
-      refreshInterval: 60_000,
+      // FORK: time-tracking-v2 — 15 s while the "Still working?" check is on (its random time is never
+      // announced ahead, so polling is how a tab learns it is due), else 30 s (was 60 s).
+      refreshInterval: (latest) => getTimerPollInterval(latest?.id ? latest : undefined),
       revalidateOnFocus: true,
       // A failed poll must not make the indicator vanish while a timer is running.
       keepPreviousData: true,

@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { observer } from "mobx-react";
 import { ClockOutline } from "@makeplane/propel/icons";
 // plane imports
@@ -32,6 +33,7 @@ export const NotificationItem = observer(function NotificationItem(props: TNotif
   const { asJson: notification, markNotificationAsRead } = useNotification(notificationId);
   const { getIsIssuePeeked, setPeekIssue } = useIssueDetail();
   const { getWorkspaceBySlug } = useWorkspace();
+  const router = useRouter();
   // states
   const [isSnoozeStateModalOpen, setIsSnoozeStateModalOpen] = useState(false);
   const [customSnoozeModal, setCustomSnoozeModal] = useState(false);
@@ -43,6 +45,25 @@ export const NotificationItem = observer(function NotificationItem(props: TNotif
 
   const notificationField = notification?.data?.issue_activity.field || undefined;
   const notificationTriggeredBy = notification.triggered_by_details || undefined;
+
+  // FORK: time-tracking-v2 S3b — a time request notification opens the tab where it can be acted on:
+  // new requests -> Approvals, decisions -> My requests. Not an issue peek.
+  const timeKind = notification?.sender?.startsWith("in_app:time_tracking:")
+    ? notification.sender.replace("in_app:time_tracking:", "")
+    : undefined;
+  const isTimeRequest = timeKind?.startsWith("request_") ?? false;
+
+  const handleTimeRequestClick = async () => {
+    setCurrentSelectedNotificationId(notificationId);
+    if (notification.read_at === null) {
+      try {
+        await markNotificationAsRead(workspaceSlug);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    router.push(`/${workspaceSlug}/time/${timeKind === "request_submitted" ? "approvals" : "requests"}/`);
+  };
 
   const handleNotificationIssuePeekOverview = async () => {
     if (workspaceSlug && projectId && issueId && !isSnoozeStateModalOpen && !customSnoozeModal) {
@@ -78,7 +99,7 @@ export const NotificationItem = observer(function NotificationItem(props: TNotif
           "bg-accent-primary/5": notification.read_at === null,
         }
       )}
-      onClick={handleNotificationIssuePeekOverview}
+      onClick={isTimeRequest ? handleTimeRequestClick : handleNotificationIssuePeekOverview}
     >
       {notification.read_at === null && (
         <div className="absolute top-[50%] left-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent-primary" />

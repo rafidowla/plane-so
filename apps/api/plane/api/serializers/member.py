@@ -28,7 +28,7 @@ class ProjectMemberSerializer(BaseSerializer):
             raise serializers.ValidationError("Slug is required", code="INVALID_SLUG")
         if not value:
             raise serializers.ValidationError("Member is required", code="INVALID_MEMBER")
-        if not WorkspaceMember.objects.filter(workspace__slug=slug, member=value).exists():
+        if not WorkspaceMember.objects.filter(workspace__slug=slug, member=value, is_active=True).exists():
             raise serializers.ValidationError("Member not found in workspace", code="INVALID_MEMBER")
         return value
 
@@ -38,6 +38,9 @@ class ProjectMemberSerializer(BaseSerializer):
         return value
 
     def validate(self, attrs):
+        # Mirrors ProjectMemberViewSet.partial_update: a project role cannot exceed the target's
+        # workspace role (workspace guests stay guests). Upstream added the same cap; the fork's version
+        # below is kept because it is stricter (immutable member, admin floor on create).
         # FORK: guest-access — cap the project role by the user's workspace role, as the app does
         # (app/views/project/member.py): a workspace Guest cannot be a project Member/Admin, and on
         # create a workspace Admin cannot be added below Admin.
@@ -61,7 +64,7 @@ class ProjectMemberSerializer(BaseSerializer):
             .first()
         )
         if workspace_role is None:
-            raise serializers.ValidationError("Member not found in workspace", code="INVALID_MEMBER")
+            raise serializers.ValidationError({"member": "Member not found in workspace"}, code="INVALID_MEMBER")
         if workspace_role == ROLE.GUEST.value and role in [ROLE.MEMBER.value, ROLE.ADMIN.value]:
             raise serializers.ValidationError(
                 "You cannot add a user with role higher than the workspace role", code="INVALID_ROLE"

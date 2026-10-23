@@ -123,6 +123,36 @@ most edits 1–12 lines. Keep this list handy during a merge:
 >   `LIVE_SERVER_SECRET_KEY` generation with a required-secrets check
 >   (INFRA-1096). Took upstream's version; only the fork's `FILE_SIZE_LIMIT`
 >   default line is ours.
+>
+> **2026-10-23 sync (upstream `4e0e4038a1..490619341f`, 40 commits, 37 security fixes).**
+>
+> - Migrations: upstream `db/0125_reset_project_deploy_board_identity` (data-only: re-points
+>   project deploy boards at their own project, unpublishing duplicates) joined to the fork's
+>   `0134_time_holidays_leave` with the empty merge `0135_merge_upstream_2026_10_23`.
+> - INFRA-1159 removed `settings.SCRIPT_CAPABLE_MIME_TYPES` (still used by the fork's attachment
+>   preview, comment attachments and Jira importer) and made `S3Storage.generate_presigned_url`
+>   serve inline only `INLINE_SAFE_MIME_TYPES` (jpeg/png/gif/webp) with a pinned response type.
+>   The fork re-adds `SCRIPT_CAPABLE_MIME_TYPES` (FORK) and adds
+>   `ATTACHMENT_PREVIEW_INLINE_MIME_TYPES` (images, PDF, text, audio/video) passed through the new
+>   `inline_mime_types=` kwarg by the in-app preview endpoints only; everything else follows upstream.
+> - v1 API guest access (WEB-9423/INFRA-1180): upstream's `guest_cannot_view_issue` → **404**
+>   replaces the fork's `issue_view_denied` → 403 on v1 work-item, link, comment, activity,
+>   attachment, relation, cycle/module-issue and intake reads. Name clash: upstream's
+>   `api.views.issue.is_restricted_guest(user_id, project_id, slug)` vs the fork's
+>   `guest_access.is_restricted_guest(user, project_id)` — don't import both into one module.
+> - Workspace profile/stats (`app/views/workspace/user.py`): upstream's `_visible_issues_q`
+>   (requires active project membership) subsumes the fork's `guest_visible_issues_q` /
+>   `guest_active_project_q` there.
+> - Draft PATCH (PSR-92): upstream requires `can_write_project` on the draft's project; the fork's
+>   project-move path now also requires it on the target (guests of the target can no longer
+>   re-target), and draft-to-issue validates cycle/modules against the target after re-mapping.
+> - Upstream tests that assert the opposite of a stricter fork rule were edited with a FORK comment,
+>   not the code: guests deleting their own work item / intake item (fork: 403, PSR-119) and
+>   workspace guests reading default analytics (fork: 403); the draft state-validation test sends
+>   its foreign state without a `project_id` (which would trigger a PSR-92 move).
+> - Deploy-time: Redis TLS verification is on by default (`REDIS_SSL_CERT_REQS`), object-storage
+>   credentials no longer default to `access-key`/`secret-key` in settings, cookies become
+>   `Secure` when `WEB_URL` is https, and cookie-authenticated writes must come from a Plane origin.
 
 ---
 

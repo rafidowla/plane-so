@@ -8,16 +8,16 @@ self-service Jira import endpoints added by this fork."""
 import csv
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 import pytest
 from django.db import connection
 from django.utils import timezone
+from freezegun import freeze_time
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from plane.db.models import (
-    Client,
     Issue,
     IssueAssignee,
     IssueComment,
@@ -27,11 +27,20 @@ from plane.db.models import (
     ProjectMember,
     ResourceCapacity,
     State,
-    Timesheet,
+    TimeTrackingSetting,
     User,
     WorklogTimer,
     WorkspaceMember,
 )
+
+
+@pytest.fixture(autouse=True)
+def _load_urlconf():
+    """Import the URLconf before any freeze_time block: freezegun swaps ``datetime.date``
+    for a fake class, and pydantic (pulled in lazily via openai) cannot subclass it."""
+    from django.urls import get_resolver
+
+    get_resolver().url_patterns
 
 
 @pytest.fixture
@@ -276,19 +285,17 @@ class TestWorklog:
         assert IssueWorklog.objects.get(id=r.data["id"]).source == "manual"
 
     def test_guest_sees_totals_only(self, session_client, tt):
-        # A guest (client) listing worklogs gets the reported total (duration)
-        # but none of the identity/source fields that reveal who logged it or how.
+        # S2 (PO answer 4): a guest gets no entry list at all on a work item they
+        # can see — only the single total-logged figure. (Was: a redacted list.)
         slug, pid, iid = _ids(tt)
         session_client.post(_wl_url(slug, pid, iid), {"duration": 60, "logged_date": "2026-06-22"}, format="json")
+        tt["project"].guest_view_all_features = True
+        tt["project"].save()
         guest = _member(tt["workspace"], tt["project"], role=5)
         session_client.force_authenticate(user=guest)
         r = session_client.get(_wl_url(slug, pid, iid))
         assert r.status_code == status.HTTP_200_OK
-        assert len(r.data) == 1
-        entry = r.data[0]
-        assert entry["duration"] == 60
-        for hidden in ("logged_by", "logged_by_detail", "created_by", "created_by_detail", "source", "description"):
-            assert hidden not in entry
+        assert r.json() == {"total_minutes": 60}
 
     def test_member_sees_full_detail(self, session_client, tt):
         # An internal member still gets the full record (source, who logged it).
@@ -345,13 +352,21 @@ class TestTimerAutoStop:
     def test_start_on_other_item_stops_running_timer(self, session_client, tt):
         slug, pid, iid = _ids(tt)
         other = _second_issue(tt)
-        assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
-        # pretend the first timer has been running for 25 minutes
-        WorklogTimer.objects.filter(user=tt["user"]).update(
-            started_at=timezone.now() - timedelta(minutes=25, seconds=30)
+        # Deterministic on purpose. (1) Pinned to mid-day: a 25-minute backdated run that
+        # starts near workspace midnight is split in two entries by the midnight rule.
+        # (2) The "still working?" check is off: with it on (default 20-80 min), a random
+        # per-timer-id draw of 20 min makes the server stop the run at 20 min, not 25.
+        TimeTrackingSetting.objects.update_or_create(
+            workspace=tt["workspace"], defaults={"idle_check_min_minutes": 0, "idle_check_max_minutes": 0}
         )
+        with freeze_time(datetime(2026, 6, 22, 12, 0, tzinfo=dt_timezone.utc)):
+            assert session_client.post(_timer_url(slug, pid, iid), {}, format="json").status_code == 201
+            # pretend the first timer has been running for 25 minutes
+            WorklogTimer.objects.filter(user=tt["user"]).update(
+                started_at=timezone.now() - timedelta(minutes=25, seconds=30)
+            )
 
-        res = session_client.post(_timer_url(slug, pid, other.id), {}, format="json")
+            res = session_client.post(_timer_url(slug, pid, other.id), {}, format="json")
 
         assert res.status_code == status.HTTP_201_CREATED
         body = res.json()
@@ -533,6 +548,10 @@ class TestTimerConcurrency:
 @pytest.mark.django_db
 class TestTimesheetApproval:
     def test_submit_then_approve_locks(self, session_client, tt):
+        # S3: weekly approval is opt-in (submit/review → 400 when the setting is off).
+        TimeTrackingSetting.objects.update_or_create(
+            workspace=tt["workspace"], defaults={"weekly_approval_enabled": True}
+        )
         slug, pid, iid = _ids(tt)
         session_client.post(
             _wl_url(slug, pid, iid), {"duration": 120, "logged_date": "2026-06-22"}, format="json"
@@ -571,13 +590,15 @@ class TestReport:
         # over-tightening the legitimate admin/PM use case.
         slug, pid, iid = _ids(tt)
         self._seed(session_client, tt)
-        r = session_client.get(
-            f"/api/workspaces/{slug}/time-report/?group_by=resource&start_date=2026-06-01&end_date=2026-06-30"
-        )
+        url = f"/api/workspaces/{slug}/time-report/?group_by=resource&start_date=2026-06-01&end_date=2026-06-30"
+        r = session_client.get(url)
         assert r.status_code == status.HTTP_200_OK
         assert r.data["totals"]["total_minutes"] == 120
         assert r.data["group_by"] == "resource"
-        # Billing fields are present for an admin.
+        # S5: billing fields exist only while the workspace's billing setting is on.
+        assert "billable_amount" not in r.data["totals"]
+        TimeTrackingSetting.objects.update_or_create(workspace=tt["workspace"], defaults={"billing_enabled": True})
+        r = session_client.get(url)
         assert "billable_amount" in r.data["totals"]
 
     def test_report_member_allowed(self, session_client, tt):
@@ -802,8 +823,9 @@ class TestReport:
             f"TTP-{issue2.sequence_id} Issue 2",
         }
         # A blank separator row, then a second header, then the task rows.
+        # S5: no "Billable (h)" column while billing is off (the default).
         blank_idx = rows.index([])
-        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Billable (h)", "Entries"]
+        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Entries"]
         task_rows = rows[blank_idx + 2 :]
         assert {r[1] for r in task_rows} == expected_names
         assert all(r[0] == tt["user"].display_name for r in task_rows)
@@ -823,11 +845,12 @@ class TestReport:
         assert r.status_code == status.HTTP_200_OK
         rows = list(csv.reader(r.content.decode().splitlines()))
 
-        # Resource summary is still workspace-wide (unaffected).
-        assert any(tt["user"].display_name in row for row in rows[:2])
-        # But the appended task-breakdown table is empty: header present, no rows.
+        # S5 scope fix: a plain member sees only their own time, so neither the
+        # resource summary nor the task breakdown carries anyone else.
+        assert not any(tt["user"].display_name in row for row in rows)
         blank_idx = rows.index([])
-        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Billable (h)", "Entries"]
+        assert blank_idx == 1  # header only, no resource rows
+        assert rows[blank_idx + 1] == ["Resource", "Task", "Project", "Total (h)", "Entries"]
         assert rows[blank_idx + 2 :] == []
 
     def test_report_csv_export_by_task_has_no_second_table(self, session_client, tt):
@@ -854,9 +877,11 @@ class TestReport:
         assert r_issue.status_code == status.HTTP_200_OK
         assert r_issue.data["groups"] == []
 
+        # S5 scope fix: the resource grouping is own-only for a plain member too.
         r_resource = session_client.get(f"/api/workspaces/{slug}/time-report/?group_by=resource")
         assert r_resource.status_code == status.HTTP_200_OK
-        assert r_resource.data["totals"]["total_minutes"] == 120
+        assert r_resource.data["totals"]["total_minutes"] == 0
+        assert r_resource.data["groups"] == []
 
 
 @pytest.mark.contract
@@ -878,10 +903,14 @@ class TestResourceCapacity:
         )
 
     def test_admin_sees_capacity_with_rates(self, session_client, tt):
+        # S5: rates are shown only while the workspace's billing setting is on.
         self._seed_capacity(tt)
         r = session_client.get(self.URL.format(slug=tt["workspace"].slug))
         assert r.status_code == status.HTTP_200_OK
         assert len(r.data) == 1
+        assert "cost_rate" not in r.data[0] and "billable_rate" not in r.data[0]
+        TimeTrackingSetting.objects.update_or_create(workspace=tt["workspace"], defaults={"billing_enabled": True})
+        r = session_client.get(self.URL.format(slug=tt["workspace"].slug))
         row = r.data[0]
         assert "cost_rate" in row and "billable_rate" in row
 
