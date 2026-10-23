@@ -14,6 +14,41 @@ docker compose -f docker-compose-local.yml up -d   # db, redis, mq, api on :8000
 cd apps/web && pnpm exec playwright install chromium
 ```
 
+### Local env adjustments (required since the 2026-10-23 upstream security sync)
+
+`setup.sh` writes env files aimed at the stock `localhost` dev setup. The suite
+runs the web app on `http://127.0.0.1:3002` behind Vite's `/api` proxy, so adjust
+these before the first run:
+
+1. **`apps/api/.env`: add `http://127.0.0.1:3002` to `CORS_ALLOWED_ORIGINS`.**
+   The Vite proxy (`changeOrigin: true`) rewrites `Host` to the API, but the
+   browser's `Origin` stays `http://127.0.0.1:3002`. Django's CSRF check and
+   upstream's same-origin check for cookie-authenticated writes both reject it
+   unless that origin is listed. Symptom: global setup's sign-in gets Django's
+   CSRF failure page, and `time/*` writes return 403. Recreate the API container
+   after the change (`docker compose -f docker-compose-local.yml up -d api`).
+2. **`apps/web/.env`: set `VITE_API_BASE_URL=""`.** The default
+   `http://localhost:8000` makes the SPA call the API cross-origin instead of
+   through the proxy. Symptom: "Plane didn't start up correctly".
+3. **Mark the instance as set up.** The time specs need `is_setup_done`, and the
+   instance endpoint caches its answer in Redis for 2 h, so clear the cache too:
+
+   ```bash
+   docker compose -f docker-compose-local.yml exec api python manage.py shell -c \
+     "from plane.license.models import Instance; Instance.objects.update(is_setup_done=True); from django.core.cache import cache; cache.clear()"
+   ```
+
+4. **Sign-in throttle.** Auth endpoints are throttled per IP
+   (`AUTHENTICATION_RATE_LIMIT`, default `10/minute`). One run uses about 7
+   sign-ins, so a second run within a minute fails in global setup with
+   `RATE_LIMIT_EXCEEDED`. Either wait a minute between runs, or set
+   `AUTHENTICATION_RATE_LIMIT="100/minute"` in your local `apps/api/.env` (never
+   in a deployed one) and recreate the API container.
+
+If building the API dev image fails at `uv sync` with a Python version error,
+check `docker run --rm python:3.12.5-alpine python --version`. A stale local tag
+can point at a different Python; `docker pull python:3.12.5-alpine` fixes it.
+
 The seed creates scratch users (`qa-visual@plane.test` admin,
 `qa-member@plane.test` and `qa-other@plane.test` members,
 `uat-outsider@example.com`; password `QaTest#2026` or `$E2E_PASSWORD`) and an
