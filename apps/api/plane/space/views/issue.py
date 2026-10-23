@@ -787,6 +787,9 @@ class IssueRetrievePublicEndpoint(BaseAPIView):
                         output_field=JSONField(),
                     ),
                     distinct=True,
+                    # FORK: Django 5 ArrayAgg yields None over zero rows; the Space app
+                    # calls .filter on these lists, so default to an empty array.
+                    default=Value([], output_field=ArrayField(JSONField())),
                 ),
                 reaction_items=ArrayAgg(
                     Case(
@@ -833,6 +836,9 @@ class IssueRetrievePublicEndpoint(BaseAPIView):
                         output_field=JSONField(),
                     ),
                     distinct=True,
+                    # FORK: Django 5 ArrayAgg yields None over zero rows; the Space app
+                    # calls .filter on these lists, so default to an empty array.
+                    default=Value([], output_field=ArrayField(JSONField())),
                 ),
             )
             .values(

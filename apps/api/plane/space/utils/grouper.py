@@ -141,6 +141,9 @@ def issue_on_results(
             ),
             filter=Q(votes__isnull=False, votes__deleted_at__isnull=True),
             distinct=True,
+            # FORK: Django 5 ArrayAgg yields None over zero rows; the Space app
+            # calls .filter on these lists, so default to an empty array.
+            default=Value([], output_field=ArrayField(JSONField())),
         ),
         reaction_items=ArrayAgg(
             Case(
@@ -175,6 +178,9 @@ def issue_on_results(
             ),
             filter=Q(issue_reactions__isnull=False, issue_reactions__deleted_at__isnull=True),
             distinct=True,
+            # FORK: Django 5 ArrayAgg yields None over zero rows; the Space app
+            # calls .filter on these lists, so default to an empty array.
+            default=Value([], output_field=ArrayField(JSONField())),
         ),
     ).values(*required_fields, "vote_items", "reaction_items")
 
