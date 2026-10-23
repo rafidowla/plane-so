@@ -7,6 +7,9 @@
 Covers: work item retrieve, comments (scope + author-or-admin edit/delete), attachments (membership, scope,
 issue binding, uploader-or-admin delete), project visibility for workspace guests, the project role ceiling and
 the smaller read paths (relations, activity, links, search).
+
+Since the 2026-10-23 upstream sync (WEB-9423 / INFRA-1180) a work item a restricted guest cannot see is a 404 on
+v1 (upstream's ``guest_cannot_view_issue``), not the fork's former 403.
 """
 
 from unittest.mock import MagicMock
@@ -163,7 +166,7 @@ def base(w, issue=None, project=None):
 class TestWorkItemRetrieve:
     def test_restricted_guest_denied_on_other_users_item(self, world):
         r = world.c["guest"].get(base(world, world.i_admin) + "/")
-        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert r.status_code == status.HTTP_404_NOT_FOUND
 
     def test_guest_can_open_own_item(self, world):
         r = world.c["guest"].get(base(world, world.i_guest) + "/")
@@ -184,7 +187,7 @@ class TestWorkItemRetrieve:
     def test_identifier_lookup_is_scoped_too(self, world):
         slug = world.ws.slug
         hidden = world.c["guest"].get(f"/api/v1/workspaces/{slug}/issues/GA-{world.i_admin.sequence_id}/")
-        assert hidden.status_code == status.HTTP_403_FORBIDDEN
+        assert hidden.status_code == status.HTTP_404_NOT_FOUND
         own = world.c["guest"].get(f"/api/v1/workspaces/{slug}/issues/GA-{world.i_guest.sequence_id}/")
         assert own.status_code == status.HTTP_200_OK, own.data
         member = world.c["member"].get(f"/api/v1/workspaces/{slug}/issues/GA-{world.i_admin.sequence_id}/")
@@ -192,7 +195,7 @@ class TestWorkItemRetrieve:
 
     def test_work_items_alias_route_is_scoped(self, world):
         url = f"/api/v1/workspaces/{world.ws.slug}/projects/{world.ga.id}/work-items/{world.i_admin.id}/"
-        assert world.c["guest"].get(url).status_code == status.HTTP_403_FORBIDDEN
+        assert world.c["guest"].get(url).status_code == status.HTTP_404_NOT_FOUND
         assert world.c["member"].get(url).status_code == status.HTTP_200_OK
 
     def test_search_only_finds_visible_items(self, world):
@@ -215,7 +218,7 @@ class TestComments:
     def test_list_scoped_to_guests_view_of_item(self, world):
         _comment(world.i_admin, world.admin)
         _comment(world.i_guest, world.guest)
-        assert world.c["guest"].get(self.url(world, world.i_admin)).status_code == status.HTTP_403_FORBIDDEN
+        assert world.c["guest"].get(self.url(world, world.i_admin)).status_code == status.HTTP_404_NOT_FOUND
         own = world.c["guest"].get(self.url(world, world.i_guest))
         assert own.status_code == status.HTTP_200_OK
         assert own.data["total_count"] == 1
@@ -224,13 +227,13 @@ class TestComments:
     def test_retrieve_scoped_to_guests_view_of_item(self, world):
         hidden = _comment(world.i_admin, world.admin)
         r = world.c["guest"].get(self.url(world, world.i_admin, hidden))
-        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert r.status_code == status.HTTP_404_NOT_FOUND
         assert world.c["member"].get(self.url(world, world.i_admin, hidden)).status_code == status.HTTP_200_OK
 
     def test_create_refused_on_hidden_item_allowed_on_own(self, world):
-        # the app answers 400 for this denial
+        # upstream WEB-9423: a hidden work item is a 404 on v1 (was the app's 400)
         denied = world.c["guest"].post(self.url(world, world.i_admin), {"comment_html": "<p>x</p>"}, format="json")
-        assert denied.status_code == status.HTTP_400_BAD_REQUEST
+        assert denied.status_code == status.HTTP_404_NOT_FOUND
         assert not IssueComment.objects.filter(issue=world.i_admin).exists()
         ok = world.c["guest"].post(self.url(world, world.i_guest), {"comment_html": "<p>x</p>"}, format="json")
         assert ok.status_code == status.HTTP_201_CREATED, ok.data
@@ -312,7 +315,7 @@ class TestAttachments:
     def test_list_scoped_to_guests_view_of_item(self, world):
         _attachment(world.i_admin, world.admin)
         _attachment(world.i_guest, world.guest)
-        assert world.c["guest"].get(self.url(world, world.i_admin)).status_code == status.HTTP_403_FORBIDDEN
+        assert world.c["guest"].get(self.url(world, world.i_admin)).status_code == status.HTTP_404_NOT_FOUND
         own = world.c["guest"].get(self.url(world, world.i_guest))
         assert own.status_code == status.HTTP_200_OK
         assert len(own.data) == 1
@@ -321,17 +324,17 @@ class TestAttachments:
     def test_download_scoped_to_guests_view_of_item(self, world):
         att = _attachment(world.i_admin, world.admin)
         r = world.c["guest"].get(self.url(world, world.i_admin, att))
-        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert r.status_code == status.HTTP_404_NOT_FOUND
 
     def test_upload_and_confirm_refused_on_hidden_item(self, world):
         payload = {"name": "a.png", "type": "image/png", "size": 10}
         r = world.c["guest"].post(self.url(world, world.i_admin), payload, format="json")
-        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert r.status_code == status.HTTP_404_NOT_FOUND
         assert not FileAsset.objects.filter(issue=world.i_admin).exists()
         att = _attachment(world.i_admin, world.admin)
         FileAsset.objects.filter(id=att.id).update(is_uploaded=False)
         r = world.c["guest"].patch(self.url(world, world.i_admin, att), {"is_uploaded": True}, format="json")
-        assert r.status_code == status.HTTP_403_FORBIDDEN
+        assert r.status_code == status.HTTP_404_NOT_FOUND
         att.refresh_from_db()
         assert att.is_uploaded is False
 
@@ -487,7 +490,7 @@ class TestParentScopedReads:
         def url(issue):
             return base(world, issue).replace("/issues/", "/work-items/") + "/relations/"
 
-        assert world.c["guest"].get(url(world.i_admin)).status_code == status.HTTP_403_FORBIDDEN
+        assert world.c["guest"].get(url(world.i_admin)).status_code == status.HTTP_404_NOT_FOUND
         assert world.c["guest"].get(url(world.i_guest)).status_code == status.HTTP_200_OK
         assert world.c["member"].get(url(world.i_admin)).status_code == status.HTTP_200_OK
 
@@ -495,8 +498,8 @@ class TestParentScopedReads:
         hidden = self.activity(world.i_admin, world.admin)
         own = self.activity(world.i_guest, world.guest)
         g, m = world.c["guest"], world.c["member"]
-        assert g.get(base(world, world.i_admin) + "/activities/").status_code == status.HTTP_403_FORBIDDEN
-        assert g.get(base(world, world.i_admin) + f"/activities/{hidden.id}/").status_code == status.HTTP_403_FORBIDDEN
+        assert g.get(base(world, world.i_admin) + "/activities/").status_code == status.HTTP_404_NOT_FOUND
+        assert g.get(base(world, world.i_admin) + f"/activities/{hidden.id}/").status_code == status.HTTP_404_NOT_FOUND
         assert g.get(base(world, world.i_guest) + "/activities/").status_code == status.HTTP_200_OK
         assert g.get(base(world, world.i_guest) + f"/activities/{own.id}/").status_code == status.HTTP_200_OK
         assert m.get(base(world, world.i_admin) + "/activities/").status_code == status.HTTP_200_OK
@@ -506,8 +509,8 @@ class TestParentScopedReads:
         hidden = self.link(world.i_admin)
         own = self.link(world.i_guest)
         g, m = world.c["guest"], world.c["member"]
-        assert g.get(base(world, world.i_admin) + "/links/").status_code == status.HTTP_403_FORBIDDEN
-        assert g.get(base(world, world.i_admin) + f"/links/{hidden.id}/").status_code == status.HTTP_403_FORBIDDEN
+        assert g.get(base(world, world.i_admin) + "/links/").status_code == status.HTTP_404_NOT_FOUND
+        assert g.get(base(world, world.i_admin) + f"/links/{hidden.id}/").status_code == status.HTTP_404_NOT_FOUND
         assert g.get(base(world, world.i_guest) + "/links/").status_code == status.HTTP_200_OK
         assert g.get(base(world, world.i_guest) + f"/links/{own.id}/").status_code == status.HTTP_200_OK
         assert m.get(base(world, world.i_admin) + "/links/").status_code == status.HTTP_200_OK
@@ -552,9 +555,9 @@ class TestIntakeScoping:
         assert {str(i["issue"]) for i in _results(r)} == {str(world.i_guest.id)}
 
     def test_restricted_guest_cannot_retrieve_other_users_intake_item(self, world, intake):
-        # same 403 as the app's IntakeIssueViewSet.retrieve (it already reveals existence, so 404 would hide nothing)
+        # upstream WEB-9423: v1 answers 404 for a work item the guest cannot see (the fork used the app's 403)
         r = world.c["guest"].get(self.url(world, world.i_admin))
-        assert r.status_code == status.HTTP_403_FORBIDDEN, getattr(r, "data", None)
+        assert r.status_code == status.HTTP_404_NOT_FOUND, getattr(r, "data", None)
         assert world.c["guest"].get(self.url(world, world.i_guest)).status_code == status.HTTP_200_OK
 
     def test_unknown_intake_item_is_still_a_404(self, world, intake):
@@ -567,7 +570,7 @@ class TestIntakeScoping:
         r = world.c["guest"].get(self.url(world))
         assert {str(i["issue"]) for i in _results(r)} == {str(world.i_admin.id)}
         assert world.c["guest"].get(self.url(world, world.i_admin)).status_code == status.HTTP_200_OK
-        assert world.c["guest"].get(self.url(world, world.i_guest)).status_code == status.HTTP_403_FORBIDDEN
+        assert world.c["guest"].get(self.url(world, world.i_guest)).status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.parametrize("who", ["admin", "member"])
     def test_team_members_still_see_every_intake_item(self, world, intake, who):
@@ -674,7 +677,7 @@ class TestModuleAndCycleScoping:
 
     def test_restricted_guest_cannot_open_other_users_cycle_item(self, world, cycle):
         g = world.c["guest"]
-        assert g.get(self.url(world, "cycle", cycle, world.i_admin)).status_code == status.HTTP_403_FORBIDDEN
+        assert g.get(self.url(world, "cycle", cycle, world.i_admin)).status_code == status.HTTP_404_NOT_FOUND
         assert g.get(self.url(world, "cycle", cycle, world.i_guest)).status_code == status.HTTP_200_OK
         assert world.c["member"].get(self.url(world, "cycle", cycle, world.i_admin)).status_code == status.HTTP_200_OK
 
