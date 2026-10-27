@@ -16,7 +16,7 @@
         "workspace_timezone": "Časové pásmo pracovního prostoru",
         "update_workspace": "Aktualizovat prostor",
         "delete_workspace": "Smazat tento prostor",
-        "delete_workspace_description": "Smazáním prostoru ho okamžitě odeberete všem členům. Hlavní správce ho může obnovit ve svém nastavení profilu, dokud nebude trvale odstraněn.",
+        "delete_workspace_description": "Smazáním prostoru ho okamžitě odeberete všem členům. Superadministrátor ho může obnovit ve svém nastavení profilu, dokud nebude trvale odstraněn.",
         "delete_btn": "Smazat prostor",
         "delete_modal": {
           "title": "Opravdu chcete smazat tento prostor?",
@@ -54,7 +54,7 @@
             "select_a_range": "Vyberte velikost organizace"
           }
         },
-        "super_admin_only_note": "Název a logo prostoru může měnit nebo prostor smazat pouze hlavní správce."
+        "super_admin_only_note": "Název a logo prostoru může měnit nebo prostor smazat pouze superadministrátor."
       },
       "members": {
         "title": "Členové",
@@ -81,7 +81,7 @@
             "invalid": "E-mail je neplatný"
           }
         },
-        "super_admin": "Hlavní správce"
+        "super_admin": "Superadministrátor"
       },
       "billing_and_plans": {
         "heading": "Fakturace a plány",

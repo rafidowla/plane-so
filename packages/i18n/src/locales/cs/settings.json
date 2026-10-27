@@ -68,7 +68,7 @@
     },
     "deleted_workspaces": {
       "title": "Smazané prostory",
-      "description": "Prostory, ve kterých jste byli hlavním správcem. Obnovte je dříve, než budou trvale odstraněny.",
+      "description": "Prostory, ve kterých jste byli superadministrátorem. Obnovte je dříve, než budou trvale odstraněny.",
       "dates": "Smazáno {deleted} · Trvale odstraněno {purge}",
       "restore": "Obnovit",
       "new_slug_label": "Jeho původní webová adresa je obsazená. Zvolte novou.",
