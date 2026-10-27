@@ -512,7 +512,37 @@
         "empty": "Nenhuma alteração registrada ainda.",
         "load_more": "Carregar mais",
         "load_failed": "Não foi possível carregar o log de auditoria. Tente novamente.",
-        "unknown_actor": "Usuário desconhecido"
+        "unknown_actor": "Usuário desconhecido",
+        "fields": {
+          "name": "Nome",
+          "slug": "Endereço web",
+          "logo": "Logo",
+          "organization_size": "Tamanho da empresa",
+          "timezone": "Fuso horário",
+          "background_color": "Cor de fundo",
+          "role_name": "Função",
+          "is_super_admin": "Superadministrador",
+          "owner": "Proprietário",
+          "email": "E-mail",
+          "deleted_at": "Excluído em",
+          "url": "URL",
+          "is_active": "Ativo",
+          "project": "Eventos de projeto",
+          "issue": "Eventos de itens de trabalho",
+          "module": "Eventos de módulo",
+          "cycle": "Eventos de ciclo",
+          "issue_comment": "Eventos de comentário",
+          "version": "Versão",
+          "work_days": "Dias úteis",
+          "minutes_per_day": "Minutos por dia",
+          "remind_after_minutes": "Lembrete após (minutos)",
+          "auto_stop_after_minutes": "Parada automática após (minutos)",
+          "idle_check_min_minutes": "Verificação de inatividade, mínimo (minutos)",
+          "idle_check_max_minutes": "Verificação de inatividade, máximo (minutos)",
+          "allow_member_manual_entry": "Membros podem registrar tempo manualmente",
+          "weekly_approval_enabled": "Aprovação semanal",
+          "billing_enabled": "Faturamento"
+        }
       }
     },
     "empty_state": {

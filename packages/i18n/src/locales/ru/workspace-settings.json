@@ -512,7 +512,37 @@
         "empty": "Изменений пока не зафиксировано.",
         "load_more": "Загрузить ещё",
         "load_failed": "Не удалось загрузить журнал аудита. Попробуйте снова.",
-        "unknown_actor": "Неизвестный пользователь"
+        "unknown_actor": "Неизвестный пользователь",
+        "fields": {
+          "name": "Название",
+          "slug": "Веб-адрес",
+          "logo": "Логотип",
+          "organization_size": "Размер компании",
+          "timezone": "Часовой пояс",
+          "background_color": "Цвет фона",
+          "role_name": "Роль",
+          "is_super_admin": "Суперадминистратор",
+          "owner": "Владелец",
+          "email": "Эл. почта",
+          "deleted_at": "Удалено",
+          "url": "URL",
+          "is_active": "Активен",
+          "project": "События проектов",
+          "issue": "События рабочих элементов",
+          "module": "События модулей",
+          "cycle": "События циклов",
+          "issue_comment": "События комментариев",
+          "version": "Версия",
+          "work_days": "Рабочие дни",
+          "minutes_per_day": "Минут в день",
+          "remind_after_minutes": "Напоминание через (мин)",
+          "auto_stop_after_minutes": "Автоостановка через (мин)",
+          "idle_check_min_minutes": "Проверка бездействия, минимум (мин)",
+          "idle_check_max_minutes": "Проверка бездействия, максимум (мин)",
+          "allow_member_manual_entry": "Участники могут вносить время вручную",
+          "weekly_approval_enabled": "Еженедельное утверждение",
+          "billing_enabled": "Выставление счетов"
+        }
       }
     },
     "empty_state": {

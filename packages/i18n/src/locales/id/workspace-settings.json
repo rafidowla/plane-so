@@ -512,7 +512,37 @@
         "empty": "Belum ada perubahan yang tercatat.",
         "load_more": "Muat lainnya",
         "load_failed": "Gagal memuat log audit. Coba lagi.",
-        "unknown_actor": "Pengguna tidak dikenal"
+        "unknown_actor": "Pengguna tidak dikenal",
+        "fields": {
+          "name": "Nama",
+          "slug": "Alamat web",
+          "logo": "Logo",
+          "organization_size": "Ukuran perusahaan",
+          "timezone": "Zona waktu",
+          "background_color": "Warna latar",
+          "role_name": "Peran",
+          "is_super_admin": "Super Admin",
+          "owner": "Pemilik",
+          "email": "Email",
+          "deleted_at": "Dihapus pada",
+          "url": "URL",
+          "is_active": "Aktif",
+          "project": "Peristiwa proyek",
+          "issue": "Peristiwa item kerja",
+          "module": "Peristiwa modul",
+          "cycle": "Peristiwa siklus",
+          "issue_comment": "Peristiwa komentar",
+          "version": "Versi",
+          "work_days": "Hari kerja",
+          "minutes_per_day": "Menit per hari",
+          "remind_after_minutes": "Pengingat setelah (menit)",
+          "auto_stop_after_minutes": "Berhenti otomatis setelah (menit)",
+          "idle_check_min_minutes": "Pemeriksaan idle, minimum (menit)",
+          "idle_check_max_minutes": "Pemeriksaan idle, maksimum (menit)",
+          "allow_member_manual_entry": "Anggota dapat mencatat waktu secara manual",
+          "weekly_approval_enabled": "Persetujuan mingguan",
+          "billing_enabled": "Penagihan"
+        }
       }
     },
     "empty_state": {

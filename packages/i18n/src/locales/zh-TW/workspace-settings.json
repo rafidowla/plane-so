@@ -512,7 +512,37 @@
         "empty": "尚未記錄任何變更。",
         "load_more": "載入更多",
         "load_failed": "無法載入稽核日誌，請再試一次。",
-        "unknown_actor": "未知使用者"
+        "unknown_actor": "未知使用者",
+        "fields": {
+          "name": "名稱",
+          "slug": "網址",
+          "logo": "標誌",
+          "organization_size": "公司規模",
+          "timezone": "時區",
+          "background_color": "背景色",
+          "role_name": "角色",
+          "is_super_admin": "超級管理員",
+          "owner": "擁有者",
+          "email": "電子郵件",
+          "deleted_at": "刪除時間",
+          "url": "URL",
+          "is_active": "啟用",
+          "project": "專案事件",
+          "issue": "工作項目事件",
+          "module": "模組事件",
+          "cycle": "週期事件",
+          "issue_comment": "留言事件",
+          "version": "版本",
+          "work_days": "工作日",
+          "minutes_per_day": "每天分鐘數",
+          "remind_after_minutes": "提醒間隔（分鐘）",
+          "auto_stop_after_minutes": "自動停止間隔（分鐘）",
+          "idle_check_min_minutes": "閒置檢查最小值（分鐘）",
+          "idle_check_max_minutes": "閒置檢查最大值（分鐘）",
+          "allow_member_manual_entry": "成員可手動記錄時間",
+          "weekly_approval_enabled": "每週審核",
+          "billing_enabled": "計費"
+        }
       }
     },
     "empty_state": {

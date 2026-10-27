@@ -512,7 +512,37 @@
         "empty": "Nie zarejestrowano jeszcze żadnych zmian.",
         "load_more": "Wczytaj więcej",
         "load_failed": "Nie udało się wczytać dziennika audytu. Spróbuj ponownie.",
-        "unknown_actor": "Nieznany użytkownik"
+        "unknown_actor": "Nieznany użytkownik",
+        "fields": {
+          "name": "Nazwa",
+          "slug": "Adres internetowy",
+          "logo": "Logo",
+          "organization_size": "Wielkość firmy",
+          "timezone": "Strefa czasowa",
+          "background_color": "Kolor tła",
+          "role_name": "Rola",
+          "is_super_admin": "Superadministrator",
+          "owner": "Właściciel",
+          "email": "E-mail",
+          "deleted_at": "Usunięto",
+          "url": "URL",
+          "is_active": "Aktywny",
+          "project": "Zdarzenia projektu",
+          "issue": "Zdarzenia elementów pracy",
+          "module": "Zdarzenia modułów",
+          "cycle": "Zdarzenia cykli",
+          "issue_comment": "Zdarzenia komentarzy",
+          "version": "Wersja",
+          "work_days": "Dni robocze",
+          "minutes_per_day": "Minuty dziennie",
+          "remind_after_minutes": "Przypomnienie po (minuty)",
+          "auto_stop_after_minutes": "Automatyczne zatrzymanie po (minuty)",
+          "idle_check_min_minutes": "Sprawdzanie bezczynności, minimum (minuty)",
+          "idle_check_max_minutes": "Sprawdzanie bezczynności, maksimum (minuty)",
+          "allow_member_manual_entry": "Członkowie mogą ręcznie rejestrować czas",
+          "weekly_approval_enabled": "Cotygodniowe zatwierdzanie",
+          "billing_enabled": "Rozliczenia"
+        }
       }
     },
     "empty_state": {

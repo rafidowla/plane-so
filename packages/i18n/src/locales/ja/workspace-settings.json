@@ -512,7 +512,37 @@
         "empty": "記録された変更はまだありません。",
         "load_more": "さらに読み込む",
         "load_failed": "監査ログを読み込めませんでした。もう一度お試しください。",
-        "unknown_actor": "不明なユーザー"
+        "unknown_actor": "不明なユーザー",
+        "fields": {
+          "name": "名前",
+          "slug": "Webアドレス",
+          "logo": "ロゴ",
+          "organization_size": "会社規模",
+          "timezone": "タイムゾーン",
+          "background_color": "背景色",
+          "role_name": "ロール",
+          "is_super_admin": "スーパー管理者",
+          "owner": "オーナー",
+          "email": "メール",
+          "deleted_at": "削除日時",
+          "url": "URL",
+          "is_active": "有効",
+          "project": "プロジェクトイベント",
+          "issue": "作業項目イベント",
+          "module": "モジュールイベント",
+          "cycle": "サイクルイベント",
+          "issue_comment": "コメントイベント",
+          "version": "バージョン",
+          "work_days": "稼働日",
+          "minutes_per_day": "1日あたりの分数",
+          "remind_after_minutes": "リマインダーまでの時間（分）",
+          "auto_stop_after_minutes": "自動停止までの時間（分）",
+          "idle_check_min_minutes": "アイドル確認の最小値（分）",
+          "idle_check_max_minutes": "アイドル確認の最大値（分）",
+          "allow_member_manual_entry": "メンバーによる手動の時間入力",
+          "weekly_approval_enabled": "週次承認",
+          "billing_enabled": "請求"
+        }
       }
     },
     "empty_state": {

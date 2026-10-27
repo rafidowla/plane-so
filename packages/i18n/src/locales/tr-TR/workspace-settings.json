@@ -512,7 +512,37 @@
         "empty": "Henüz kaydedilmiş değişiklik yok.",
         "load_more": "Daha fazla yükle",
         "load_failed": "Denetim günlüğü yüklenemedi. Tekrar deneyin.",
-        "unknown_actor": "Bilinmeyen kullanıcı"
+        "unknown_actor": "Bilinmeyen kullanıcı",
+        "fields": {
+          "name": "Ad",
+          "slug": "Web adresi",
+          "logo": "Logo",
+          "organization_size": "Şirket büyüklüğü",
+          "timezone": "Saat dilimi",
+          "background_color": "Arka plan rengi",
+          "role_name": "Rol",
+          "is_super_admin": "Süper Yönetici",
+          "owner": "Sahip",
+          "email": "E-posta",
+          "deleted_at": "Silinme tarihi",
+          "url": "URL",
+          "is_active": "Etkin",
+          "project": "Proje olayları",
+          "issue": "İş öğesi olayları",
+          "module": "Modül olayları",
+          "cycle": "Döngü olayları",
+          "issue_comment": "Yorum olayları",
+          "version": "Sürüm",
+          "work_days": "Çalışma günleri",
+          "minutes_per_day": "Günlük dakika",
+          "remind_after_minutes": "Hatırlatma süresi (dakika)",
+          "auto_stop_after_minutes": "Otomatik durdurma süresi (dakika)",
+          "idle_check_min_minutes": "Boşta kontrolü, en az (dakika)",
+          "idle_check_max_minutes": "Boşta kontrolü, en çok (dakika)",
+          "allow_member_manual_entry": "Üyeler zamanı elle girebilir",
+          "weekly_approval_enabled": "Haftalık onay",
+          "billing_enabled": "Faturalandırma"
+        }
       }
     },
     "empty_state": {

@@ -512,7 +512,37 @@
         "empty": "尚未记录任何更改。",
         "load_more": "加载更多",
         "load_failed": "无法加载审计日志，请重试。",
-        "unknown_actor": "未知用户"
+        "unknown_actor": "未知用户",
+        "fields": {
+          "name": "名称",
+          "slug": "网址",
+          "logo": "徽标",
+          "organization_size": "公司规模",
+          "timezone": "时区",
+          "background_color": "背景色",
+          "role_name": "角色",
+          "is_super_admin": "超级管理员",
+          "owner": "所有者",
+          "email": "邮箱",
+          "deleted_at": "删除时间",
+          "url": "URL",
+          "is_active": "启用",
+          "project": "项目事件",
+          "issue": "工作项事件",
+          "module": "模块事件",
+          "cycle": "周期事件",
+          "issue_comment": "评论事件",
+          "version": "版本",
+          "work_days": "工作日",
+          "minutes_per_day": "每天分钟数",
+          "remind_after_minutes": "提醒间隔（分钟）",
+          "auto_stop_after_minutes": "自动停止间隔（分钟）",
+          "idle_check_min_minutes": "空闲检查最小值（分钟）",
+          "idle_check_max_minutes": "空闲检查最大值（分钟）",
+          "allow_member_manual_entry": "成员可手动记录时间",
+          "weekly_approval_enabled": "每周审批",
+          "billing_enabled": "计费"
+        }
       }
     },
     "empty_state": {

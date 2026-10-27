@@ -512,7 +512,37 @@
         "empty": "Nog geen wijzigingen vastgelegd.",
         "load_more": "Meer laden",
         "load_failed": "Het auditlogboek kon niet worden geladen. Probeer het opnieuw.",
-        "unknown_actor": "Onbekende gebruiker"
+        "unknown_actor": "Onbekende gebruiker",
+        "fields": {
+          "name": "Naam",
+          "slug": "Webadres",
+          "logo": "Logo",
+          "organization_size": "Bedrijfsgrootte",
+          "timezone": "Tijdzone",
+          "background_color": "Achtergrondkleur",
+          "role_name": "Rol",
+          "is_super_admin": "Superbeheerder",
+          "owner": "Eigenaar",
+          "email": "E-mail",
+          "deleted_at": "Verwijderd op",
+          "url": "URL",
+          "is_active": "Actief",
+          "project": "Projectgebeurtenissen",
+          "issue": "Werkitemgebeurtenissen",
+          "module": "Modulegebeurtenissen",
+          "cycle": "Cyclusgebeurtenissen",
+          "issue_comment": "Reactiegebeurtenissen",
+          "version": "Versie",
+          "work_days": "Werkdagen",
+          "minutes_per_day": "Minuten per dag",
+          "remind_after_minutes": "Herinnering na (minuten)",
+          "auto_stop_after_minutes": "Automatisch stoppen na (minuten)",
+          "idle_check_min_minutes": "Inactiviteitscontrole, minimum (minuten)",
+          "idle_check_max_minutes": "Inactiviteitscontrole, maximum (minuten)",
+          "allow_member_manual_entry": "Leden kunnen handmatig tijd registreren",
+          "weekly_approval_enabled": "Wekelijkse goedkeuring",
+          "billing_enabled": "Facturering"
+        }
       }
     },
     "empty_state": {

@@ -512,7 +512,37 @@
         "empty": "Все още няма записани промени.",
         "load_more": "Зареди още",
         "load_failed": "Журналът не можа да се зареди. Опитайте отново.",
-        "unknown_actor": "Неизвестен потребител"
+        "unknown_actor": "Неизвестен потребител",
+        "fields": {
+          "name": "Име",
+          "slug": "Уеб адрес",
+          "logo": "Лого",
+          "organization_size": "Размер на компанията",
+          "timezone": "Часова зона",
+          "background_color": "Цвят на фона",
+          "role_name": "Роля",
+          "is_super_admin": "Супер администратор",
+          "owner": "Собственик",
+          "email": "Имейл",
+          "deleted_at": "Изтрито на",
+          "url": "URL",
+          "is_active": "Активен",
+          "project": "Събития за проекти",
+          "issue": "Събития за работни елементи",
+          "module": "Събития за модули",
+          "cycle": "Събития за цикли",
+          "issue_comment": "Събития за коментари",
+          "version": "Версия",
+          "work_days": "Работни дни",
+          "minutes_per_day": "Минути на ден",
+          "remind_after_minutes": "Напомняне след (минути)",
+          "auto_stop_after_minutes": "Автоматично спиране след (минути)",
+          "idle_check_min_minutes": "Проверка за неактивност, минимум (минути)",
+          "idle_check_max_minutes": "Проверка за неактивност, максимум (минути)",
+          "allow_member_manual_entry": "Членовете могат да въвеждат време ръчно",
+          "weekly_approval_enabled": "Седмично одобрение",
+          "billing_enabled": "Фактуриране"
+        }
       }
     },
     "empty_state": {

@@ -512,7 +512,37 @@
         "empty": "ცვლილებები ჯერ არ არის ჩაწერილი.",
         "load_more": "მეტის ჩატვირთვა",
         "load_failed": "აუდიტის ჟურნალი ვერ ჩაიტვირთა. სცადეთ ხელახლა.",
-        "unknown_actor": "უცნობი მომხმარებელი"
+        "unknown_actor": "უცნობი მომხმარებელი",
+        "fields": {
+          "name": "სახელი",
+          "slug": "ვებ მისამართი",
+          "logo": "ლოგო",
+          "organization_size": "კომპანიის ზომა",
+          "timezone": "დროის სარტყელი",
+          "background_color": "ფონის ფერი",
+          "role_name": "როლი",
+          "is_super_admin": "სუპერ ადმინი",
+          "owner": "მფლობელი",
+          "email": "ელფოსტა",
+          "deleted_at": "წაშლის თარიღი",
+          "url": "URL",
+          "is_active": "აქტიური",
+          "project": "პროექტის მოვლენები",
+          "issue": "სამუშაო ერთეულის მოვლენები",
+          "module": "მოდულის მოვლენები",
+          "cycle": "ციკლის მოვლენები",
+          "issue_comment": "კომენტარის მოვლენები",
+          "version": "ვერსია",
+          "work_days": "სამუშაო დღეები",
+          "minutes_per_day": "წუთები დღეში",
+          "remind_after_minutes": "შეხსენება (წუთის შემდეგ)",
+          "auto_stop_after_minutes": "ავტომატური გაჩერება (წუთის შემდეგ)",
+          "idle_check_min_minutes": "უმოქმედობის შემოწმება, მინიმუმი (წუთი)",
+          "idle_check_max_minutes": "უმოქმედობის შემოწმება, მაქსიმუმი (წუთი)",
+          "allow_member_manual_entry": "წევრებს შეუძლიათ დროის ხელით შეყვანა",
+          "weekly_approval_enabled": "ყოველკვირეული დამტკიცება",
+          "billing_enabled": "ბილინგი"
+        }
       }
     },
     "empty_state": {

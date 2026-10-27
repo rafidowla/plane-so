@@ -512,7 +512,37 @@
         "empty": "Chưa có thay đổi nào được ghi lại.",
         "load_more": "Tải thêm",
         "load_failed": "Không thể tải nhật ký kiểm tra. Hãy thử lại.",
-        "unknown_actor": "Người dùng không xác định"
+        "unknown_actor": "Người dùng không xác định",
+        "fields": {
+          "name": "Tên",
+          "slug": "Địa chỉ web",
+          "logo": "Logo",
+          "organization_size": "Quy mô công ty",
+          "timezone": "Múi giờ",
+          "background_color": "Màu nền",
+          "role_name": "Vai trò",
+          "is_super_admin": "Siêu quản trị viên",
+          "owner": "Chủ sở hữu",
+          "email": "Email",
+          "deleted_at": "Đã xóa lúc",
+          "url": "URL",
+          "is_active": "Đang hoạt động",
+          "project": "Sự kiện dự án",
+          "issue": "Sự kiện mục công việc",
+          "module": "Sự kiện mô-đun",
+          "cycle": "Sự kiện chu kỳ",
+          "issue_comment": "Sự kiện bình luận",
+          "version": "Phiên bản",
+          "work_days": "Ngày làm việc",
+          "minutes_per_day": "Số phút mỗi ngày",
+          "remind_after_minutes": "Nhắc sau (phút)",
+          "auto_stop_after_minutes": "Tự dừng sau (phút)",
+          "idle_check_min_minutes": "Kiểm tra không hoạt động, tối thiểu (phút)",
+          "idle_check_max_minutes": "Kiểm tra không hoạt động, tối đa (phút)",
+          "allow_member_manual_entry": "Thành viên có thể ghi thời gian thủ công",
+          "weekly_approval_enabled": "Phê duyệt hằng tuần",
+          "billing_enabled": "Thanh toán"
+        }
       }
     },
     "empty_state": {

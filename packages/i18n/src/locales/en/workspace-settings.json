@@ -512,7 +512,37 @@
         "empty": "No changes recorded yet.",
         "load_more": "Load more",
         "load_failed": "Couldn't load the audit log. Try again.",
-        "unknown_actor": "Unknown user"
+        "unknown_actor": "Unknown user",
+        "fields": {
+          "name": "Name",
+          "slug": "Web address",
+          "logo": "Logo",
+          "organization_size": "Company size",
+          "timezone": "Timezone",
+          "background_color": "Background color",
+          "role_name": "Role",
+          "is_super_admin": "Super Admin",
+          "owner": "Owner",
+          "email": "Email",
+          "deleted_at": "Deleted on",
+          "url": "URL",
+          "is_active": "Active",
+          "project": "Project events",
+          "issue": "Work item events",
+          "module": "Module events",
+          "cycle": "Cycle events",
+          "issue_comment": "Comment events",
+          "version": "Version",
+          "work_days": "Work days",
+          "minutes_per_day": "Minutes per day",
+          "remind_after_minutes": "Reminder after (minutes)",
+          "auto_stop_after_minutes": "Auto-stop after (minutes)",
+          "idle_check_min_minutes": "Idle check, minimum (minutes)",
+          "idle_check_max_minutes": "Idle check, maximum (minutes)",
+          "allow_member_manual_entry": "Members can log time manually",
+          "weekly_approval_enabled": "Weekly approval",
+          "billing_enabled": "Billing"
+        }
       }
     },
     "empty_state": {

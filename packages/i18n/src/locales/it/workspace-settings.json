@@ -512,7 +512,37 @@
         "empty": "Nessuna modifica registrata finora.",
         "load_more": "Carica altro",
         "load_failed": "Impossibile caricare il registro di audit. Riprova.",
-        "unknown_actor": "Utente sconosciuto"
+        "unknown_actor": "Utente sconosciuto",
+        "fields": {
+          "name": "Nome",
+          "slug": "Indirizzo web",
+          "logo": "Logo",
+          "organization_size": "Dimensione azienda",
+          "timezone": "Fuso orario",
+          "background_color": "Colore di sfondo",
+          "role_name": "Ruolo",
+          "is_super_admin": "Super amministratore",
+          "owner": "Proprietario",
+          "email": "Email",
+          "deleted_at": "Eliminato il",
+          "url": "URL",
+          "is_active": "Attivo",
+          "project": "Eventi di progetto",
+          "issue": "Eventi degli elementi di lavoro",
+          "module": "Eventi dei moduli",
+          "cycle": "Eventi dei cicli",
+          "issue_comment": "Eventi dei commenti",
+          "version": "Versione",
+          "work_days": "Giorni lavorativi",
+          "minutes_per_day": "Minuti al giorno",
+          "remind_after_minutes": "Promemoria dopo (minuti)",
+          "auto_stop_after_minutes": "Arresto automatico dopo (minuti)",
+          "idle_check_min_minutes": "Controllo inattività, minimo (minuti)",
+          "idle_check_max_minutes": "Controllo inattività, massimo (minuti)",
+          "allow_member_manual_entry": "I membri possono registrare il tempo manualmente",
+          "weekly_approval_enabled": "Approvazione settimanale",
+          "billing_enabled": "Fatturazione"
+        }
       }
     },
     "empty_state": {

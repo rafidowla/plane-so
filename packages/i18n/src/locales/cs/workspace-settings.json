@@ -512,7 +512,37 @@
         "empty": "Zatím nejsou zaznamenány žádné změny.",
         "load_more": "Načíst další",
         "load_failed": "Auditní protokol se nepodařilo načíst. Zkuste to znovu.",
-        "unknown_actor": "Neznámý uživatel"
+        "unknown_actor": "Neznámý uživatel",
+        "fields": {
+          "name": "Název",
+          "slug": "Webová adresa",
+          "logo": "Logo",
+          "organization_size": "Velikost firmy",
+          "timezone": "Časové pásmo",
+          "background_color": "Barva pozadí",
+          "role_name": "Role",
+          "is_super_admin": "Superadministrátor",
+          "owner": "Vlastník",
+          "email": "E-mail",
+          "deleted_at": "Smazáno",
+          "url": "URL",
+          "is_active": "Aktivní",
+          "project": "Události projektu",
+          "issue": "Události pracovních položek",
+          "module": "Události modulů",
+          "cycle": "Události cyklů",
+          "issue_comment": "Události komentářů",
+          "version": "Verze",
+          "work_days": "Pracovní dny",
+          "minutes_per_day": "Minuty za den",
+          "remind_after_minutes": "Připomenutí po (minuty)",
+          "auto_stop_after_minutes": "Automatické zastavení po (minuty)",
+          "idle_check_min_minutes": "Kontrola nečinnosti, minimum (minuty)",
+          "idle_check_max_minutes": "Kontrola nečinnosti, maximum (minuty)",
+          "allow_member_manual_entry": "Členové mohou zadávat čas ručně",
+          "weekly_approval_enabled": "Týdenní schvalování",
+          "billing_enabled": "Fakturace"
+        }
       }
     },
     "empty_state": {

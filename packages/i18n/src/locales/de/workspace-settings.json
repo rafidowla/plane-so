@@ -512,7 +512,37 @@
         "empty": "Noch keine Änderungen erfasst.",
         "load_more": "Mehr laden",
         "load_failed": "Das Audit-Protokoll konnte nicht geladen werden. Bitte erneut versuchen.",
-        "unknown_actor": "Unbekannter Benutzer"
+        "unknown_actor": "Unbekannter Benutzer",
+        "fields": {
+          "name": "Name",
+          "slug": "Webadresse",
+          "logo": "Logo",
+          "organization_size": "Unternehmensgröße",
+          "timezone": "Zeitzone",
+          "background_color": "Hintergrundfarbe",
+          "role_name": "Rolle",
+          "is_super_admin": "Super-Administrator",
+          "owner": "Inhaber",
+          "email": "E-Mail",
+          "deleted_at": "Gelöscht am",
+          "url": "URL",
+          "is_active": "Aktiv",
+          "project": "Projektereignisse",
+          "issue": "Arbeitselement-Ereignisse",
+          "module": "Modulereignisse",
+          "cycle": "Zyklusereignisse",
+          "issue_comment": "Kommentarereignisse",
+          "version": "Version",
+          "work_days": "Arbeitstage",
+          "minutes_per_day": "Minuten pro Tag",
+          "remind_after_minutes": "Erinnerung nach (Minuten)",
+          "auto_stop_after_minutes": "Automatischer Stopp nach (Minuten)",
+          "idle_check_min_minutes": "Inaktivitätsprüfung, Minimum (Minuten)",
+          "idle_check_max_minutes": "Inaktivitätsprüfung, Maximum (Minuten)",
+          "allow_member_manual_entry": "Mitglieder können Zeit manuell erfassen",
+          "weekly_approval_enabled": "Wöchentliche Freigabe",
+          "billing_enabled": "Abrechnung"
+        }
       }
     },
     "empty_state": {

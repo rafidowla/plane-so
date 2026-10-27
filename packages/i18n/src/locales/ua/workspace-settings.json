@@ -512,7 +512,37 @@
         "empty": "Змін ще не зафіксовано.",
         "load_more": "Завантажити ще",
         "load_failed": "Не вдалося завантажити журнал аудиту. Спробуйте ще раз.",
-        "unknown_actor": "Невідомий користувач"
+        "unknown_actor": "Невідомий користувач",
+        "fields": {
+          "name": "Назва",
+          "slug": "Веб-адреса",
+          "logo": "Логотип",
+          "organization_size": "Розмір компанії",
+          "timezone": "Часовий пояс",
+          "background_color": "Колір фону",
+          "role_name": "Роль",
+          "is_super_admin": "Суперадміністратор",
+          "owner": "Власник",
+          "email": "Ел. пошта",
+          "deleted_at": "Видалено",
+          "url": "URL",
+          "is_active": "Активний",
+          "project": "Події проєктів",
+          "issue": "Події робочих елементів",
+          "module": "Події модулів",
+          "cycle": "Події циклів",
+          "issue_comment": "Події коментарів",
+          "version": "Версія",
+          "work_days": "Робочі дні",
+          "minutes_per_day": "Хвилин на день",
+          "remind_after_minutes": "Нагадування через (хв)",
+          "auto_stop_after_minutes": "Автозупинка через (хв)",
+          "idle_check_min_minutes": "Перевірка бездіяльності, мінімум (хв)",
+          "idle_check_max_minutes": "Перевірка бездіяльності, максимум (хв)",
+          "allow_member_manual_entry": "Учасники можуть вносити час вручну",
+          "weekly_approval_enabled": "Щотижневе затвердження",
+          "billing_enabled": "Виставлення рахунків"
+        }
       }
     },
     "empty_state": {

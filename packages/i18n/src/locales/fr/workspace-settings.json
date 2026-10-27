@@ -512,7 +512,37 @@
         "empty": "Aucune modification enregistrée pour le moment.",
         "load_more": "Charger plus",
         "load_failed": "Impossible de charger le journal d'audit. Réessayez.",
-        "unknown_actor": "Utilisateur inconnu"
+        "unknown_actor": "Utilisateur inconnu",
+        "fields": {
+          "name": "Nom",
+          "slug": "Adresse web",
+          "logo": "Logo",
+          "organization_size": "Taille de l'entreprise",
+          "timezone": "Fuseau horaire",
+          "background_color": "Couleur d'arrière-plan",
+          "role_name": "Rôle",
+          "is_super_admin": "Super administrateur",
+          "owner": "Propriétaire",
+          "email": "E-mail",
+          "deleted_at": "Supprimé le",
+          "url": "URL",
+          "is_active": "Actif",
+          "project": "Événements de projet",
+          "issue": "Événements d'éléments de travail",
+          "module": "Événements de module",
+          "cycle": "Événements de cycle",
+          "issue_comment": "Événements de commentaire",
+          "version": "Version",
+          "work_days": "Jours ouvrés",
+          "minutes_per_day": "Minutes par jour",
+          "remind_after_minutes": "Rappel après (minutes)",
+          "auto_stop_after_minutes": "Arrêt automatique après (minutes)",
+          "idle_check_min_minutes": "Vérification d'inactivité, minimum (minutes)",
+          "idle_check_max_minutes": "Vérification d'inactivité, maximum (minutes)",
+          "allow_member_manual_entry": "Les membres peuvent saisir du temps manuellement",
+          "weekly_approval_enabled": "Approbation hebdomadaire",
+          "billing_enabled": "Facturation"
+        }
       }
     },
     "empty_state": {

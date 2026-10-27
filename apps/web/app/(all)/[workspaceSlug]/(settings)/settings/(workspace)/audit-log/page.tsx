@@ -10,6 +10,7 @@ import { useCallback, useState } from "react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
 // plane imports
+import { ROLE_DETAILS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@makeplane/propel/components/button";
 import { cn, renderFormattedDate, renderFormattedTime } from "@plane/utils";
@@ -32,17 +33,75 @@ const auditLogService = new WorkspaceAuditLogService();
 
 const PAGE_SIZE = 50;
 
-// Fields whose readable twin is shown instead (role -> role_name, owner_id -> owner).
-const HIDDEN_WHEN_TWIN: Record<string, string> = { role: "role_name", owner_id: "owner" };
+// Fields whose readable twin is shown instead (role -> role_name, owner_id -> owner, logo_asset_id -> logo).
+const HIDDEN_WHEN_TWIN: Record<string, string> = { role: "role_name", owner_id: "owner", logo_asset_id: "logo" };
 
-const formatValue = (value: unknown, yesNo: [string, string]): string => {
+// Stored field name -> key under workspace_settings.settings.audit_log.fields. Anything not listed
+// (e.g. work log or holiday fields) falls back to a humanized field name.
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  logo_asset_id: "logo",
+  ...Object.fromEntries(
+    [
+      "name",
+      "slug",
+      "logo",
+      "organization_size",
+      "timezone",
+      "background_color",
+      "role_name",
+      "is_super_admin",
+      "owner",
+      "email",
+      "deleted_at",
+      "url",
+      "is_active",
+      "project",
+      "issue",
+      "module",
+      "cycle",
+      "issue_comment",
+      "version",
+      "work_days",
+      "minutes_per_day",
+      "remind_after_minutes",
+      "auto_stop_after_minutes",
+      "idle_check_min_minutes",
+      "idle_check_max_minutes",
+      "allow_member_manual_entry",
+      "weekly_approval_enabled",
+      "billing_enabled",
+    ].map((key) => [key, key])
+  ),
+};
+
+const humanizeField = (key: string) => {
+  const words = key.replace(/_id$/, "").replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+type TTranslate = ReturnType<typeof useTranslation>["t"];
+
+const formatValue = (value: unknown, t: TTranslate): string => {
   if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return value ? yesNo[0] : yesNo[1];
+  if (typeof value === "boolean") return value ? t("common.yes") : t("common.no");
   if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "string" && ISO_DATE_TIME.test(value))
+    return `${renderFormattedDate(value)} ${renderFormattedTime(value, "12-hour")}`;
+  if (typeof value === "string" && ISO_DATE.test(value)) return renderFormattedDate(value) ?? value;
   return String(value);
 };
 
-const changeLines = (entry: TWorkspaceAuditLogEntry, yesNo: [string, string]) => {
+// role_name is stored in English; show the translated title when the numeric role is alongside it.
+const formatSide = (side: Record<string, unknown>, key: string, t: TTranslate): string => {
+  if (key === "role_name" && typeof side.role === "number" && side.role in ROLE_DETAILS)
+    return t(ROLE_DETAILS[side.role as keyof typeof ROLE_DETAILS].i18n_title);
+  return formatValue(side[key], t);
+};
+
+const changeLines = (entry: TWorkspaceAuditLogEntry, t: TTranslate) => {
   const before = entry.before ?? {};
   const after = entry.after ?? {};
   const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
@@ -53,15 +112,18 @@ const changeLines = (entry: TWorkspaceAuditLogEntry, yesNo: [string, string]) =>
       .filter((key) => !(key in before && key in after && JSON.stringify(before[key]) === JSON.stringify(after[key])))
       .map((key) => ({
         key,
-        before: key in before ? formatValue(before[key], yesNo) : null,
-        after: key in after ? formatValue(after[key], yesNo) : null,
+        label: FIELD_LABEL_KEYS[key]
+          ? t(`workspace_settings.settings.audit_log.fields.${FIELD_LABEL_KEYS[key]}`)
+          : humanizeField(key),
+        before: key in before ? formatSide(before, key, t) : null,
+        after: key in after ? formatSide(after, key, t) : null,
       }))
   );
 };
 
 function AuditLogRow({ entry }: { entry: TWorkspaceAuditLogEntry }) {
   const { t } = useTranslation();
-  const lines = changeLines(entry, [t("common.yes"), t("common.no")]);
+  const lines = changeLines(entry, t);
   return (
     <div className="grid grid-cols-1 gap-2 border-b border-subtle px-1 py-3 md:grid-cols-[9rem_12rem_1fr]">
       <div className="text-caption-md-regular text-tertiary">
@@ -89,7 +151,7 @@ function AuditLogRow({ entry }: { entry: TWorkspaceAuditLogEntry }) {
           <ul className="mt-1 space-y-0.5 text-caption-md-regular text-secondary">
             {lines.map((line) => (
               <li key={line.key} className="break-words">
-                <span className="text-tertiary">{line.key}: </span>
+                <span className="text-tertiary">{line.label}: </span>
                 {line.before !== null && <span className="line-through decoration-1">{line.before}</span>}
                 {line.before !== null && line.after !== null && <span className="text-tertiary"> → </span>}
                 {line.after !== null && <span>{line.after}</span>}

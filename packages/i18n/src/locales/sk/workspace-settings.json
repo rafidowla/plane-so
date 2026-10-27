@@ -512,7 +512,37 @@
         "empty": "Zatiaľ nie sú zaznamenané žiadne zmeny.",
         "load_more": "Načítať ďalšie",
         "load_failed": "Auditný denník sa nepodarilo načítať. Skúste to znova.",
-        "unknown_actor": "Neznámy používateľ"
+        "unknown_actor": "Neznámy používateľ",
+        "fields": {
+          "name": "Názov",
+          "slug": "Webová adresa",
+          "logo": "Logo",
+          "organization_size": "Veľkosť firmy",
+          "timezone": "Časové pásmo",
+          "background_color": "Farba pozadia",
+          "role_name": "Rola",
+          "is_super_admin": "Superadministrátor",
+          "owner": "Vlastník",
+          "email": "E-mail",
+          "deleted_at": "Odstránené",
+          "url": "URL",
+          "is_active": "Aktívne",
+          "project": "Udalosti projektu",
+          "issue": "Udalosti pracovných položiek",
+          "module": "Udalosti modulov",
+          "cycle": "Udalosti cyklov",
+          "issue_comment": "Udalosti komentárov",
+          "version": "Verzia",
+          "work_days": "Pracovné dni",
+          "minutes_per_day": "Minúty za deň",
+          "remind_after_minutes": "Pripomenutie po (minúty)",
+          "auto_stop_after_minutes": "Automatické zastavenie po (minúty)",
+          "idle_check_min_minutes": "Kontrola nečinnosti, minimum (minúty)",
+          "idle_check_max_minutes": "Kontrola nečinnosti, maximum (minúty)",
+          "allow_member_manual_entry": "Členovia môžu zadávať čas ručne",
+          "weekly_approval_enabled": "Týždenné schvaľovanie",
+          "billing_enabled": "Fakturácia"
+        }
       }
     },
     "empty_state": {

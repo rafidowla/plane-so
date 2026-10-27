@@ -512,7 +512,37 @@
         "empty": "Nu există încă modificări înregistrate.",
         "load_more": "Încarcă mai multe",
         "load_failed": "Jurnalul de audit nu a putut fi încărcat. Încearcă din nou.",
-        "unknown_actor": "Utilizator necunoscut"
+        "unknown_actor": "Utilizator necunoscut",
+        "fields": {
+          "name": "Nume",
+          "slug": "Adresă web",
+          "logo": "Logo",
+          "organization_size": "Dimensiunea companiei",
+          "timezone": "Fus orar",
+          "background_color": "Culoare de fundal",
+          "role_name": "Rol",
+          "is_super_admin": "Super administrator",
+          "owner": "Proprietar",
+          "email": "E-mail",
+          "deleted_at": "Șters la",
+          "url": "URL",
+          "is_active": "Activ",
+          "project": "Evenimente de proiect",
+          "issue": "Evenimente ale elementelor de lucru",
+          "module": "Evenimente de modul",
+          "cycle": "Evenimente de ciclu",
+          "issue_comment": "Evenimente de comentarii",
+          "version": "Versiune",
+          "work_days": "Zile lucrătoare",
+          "minutes_per_day": "Minute pe zi",
+          "remind_after_minutes": "Memento după (minute)",
+          "auto_stop_after_minutes": "Oprire automată după (minute)",
+          "idle_check_min_minutes": "Verificare inactivitate, minim (minute)",
+          "idle_check_max_minutes": "Verificare inactivitate, maxim (minute)",
+          "allow_member_manual_entry": "Membrii pot înregistra timp manual",
+          "weekly_approval_enabled": "Aprobare săptămânală",
+          "billing_enabled": "Facturare"
+        }
       }
     },
     "empty_state": {
