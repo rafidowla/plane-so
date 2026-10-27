@@ -484,6 +484,17 @@
         "heading": "Scripts",
         "new_script": "Nieuw script",
         "description": "Automatiseer je workflows met aangepaste scripts en automatiseringsregels."
+      },
+      "audit_log": {
+        "title": "Auditlogboek",
+        "description": "Wie wat heeft gewijzigd in deze werkruimte, en wanneer. Items kunnen niet worden bewerkt of verwijderd.",
+        "filter_all": "Alle wijzigingen",
+        "filter_workspace": "Werkruimte",
+        "filter_time_tracking": "Tijd en verlengingen",
+        "empty": "Nog geen wijzigingen vastgelegd.",
+        "load_more": "Meer laden",
+        "load_failed": "Het auditlogboek kon niet worden geladen. Probeer het opnieuw.",
+        "unknown_actor": "Onbekende gebruiker"
       }
     },
     "empty_state": {

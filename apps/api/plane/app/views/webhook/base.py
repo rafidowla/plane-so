@@ -3,7 +3,7 @@
 # See the LICENSE file for details.
 
 # Django imports
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 # Third party imports
 from rest_framework import status
@@ -11,10 +11,26 @@ from rest_framework.response import Response
 
 # Module imports
 from plane.db.models import Webhook, WebhookLog, Workspace
+from plane.db.models import WorkspaceAuditAction, WorkspaceAuditTarget  # FORK: PSR-125
+from plane.utils import workspace_audit  # FORK: PSR-125
 from plane.db.models.webhook import generate_token
 from ..base import BaseAPIView
 from plane.app.permissions import allow_permission, allow_workspace_super_admin, ROLE  # FORK: PSR-125
 from plane.app.serializers import WebhookSerializer, WebhookLogSerializer
+
+
+def _audit(request, webhook, action, before=None, after=None):
+    """FORK: PSR-125 -- audit log entry for a webhook change. Never includes ``secret_key``."""
+    workspace_audit.record(
+        webhook.workspace_id,
+        request.user,
+        action,
+        WorkspaceAuditTarget.WEBHOOK,
+        target_id=webhook.id,
+        target_label=workspace_audit.redact_url(webhook.url),
+        before=before,
+        after=after,
+    )
 
 
 class WebhookEndpoint(BaseAPIView):
@@ -28,7 +44,10 @@ class WebhookEndpoint(BaseAPIView):
                 context={"request": request, "show_secret_key": True},
             )
             if serializer.is_valid():
-                serializer.save(workspace_id=workspace.id)
+                with transaction.atomic():
+                    webhook = serializer.save(workspace_id=workspace.id)
+                    after = workspace_audit.webhook_state(webhook)
+                    _audit(request, webhook, WorkspaceAuditAction.WEBHOOK_CREATED, after=after)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
@@ -102,7 +121,12 @@ class WebhookEndpoint(BaseAPIView):
             ),
         )
         if serializer.is_valid():
-            serializer.save()
+            before = workspace_audit.webhook_state(webhook)
+            with transaction.atomic():
+                webhook = serializer.save()
+                changed_before, changed_after = workspace_audit.diff(before, workspace_audit.webhook_state(webhook))
+                if changed_after:
+                    _audit(request, webhook, WorkspaceAuditAction.WEBHOOK_UPDATED, changed_before, changed_after)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -110,7 +134,10 @@ class WebhookEndpoint(BaseAPIView):
     @allow_workspace_super_admin  # FORK: PSR-125
     def delete(self, request, slug, pk):
         webhook = Webhook.objects.get(pk=pk, workspace__slug=slug)
-        webhook.delete()
+        with transaction.atomic():
+            before = workspace_audit.webhook_state(webhook)
+            webhook.delete()
+            _audit(request, webhook, WorkspaceAuditAction.WEBHOOK_DELETED, before=before)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -120,7 +147,9 @@ class WebhookSecretRegenerateEndpoint(BaseAPIView):
     def post(self, request, slug, pk):
         webhook = Webhook.objects.get(workspace__slug=slug, pk=pk)
         webhook.secret_key = generate_token()
-        webhook.save()
+        with transaction.atomic():
+            webhook.save()
+            _audit(request, webhook, WorkspaceAuditAction.WEBHOOK_SECRET_REGENERATED)  # the secret is never logged
         serializer = WebhookSerializer(webhook, context={"show_secret_key": True})
         return Response(serializer.data, status=status.HTTP_200_OK)
 

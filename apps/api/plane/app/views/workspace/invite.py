@@ -21,6 +21,7 @@ from rest_framework.response import Response
 # Module imports
 from plane.app.permissions import WorkSpaceAdminPermission
 from plane.app.permissions import super_admin_forbidden  # FORK: PSR-125
+from plane.utils import workspace_audit  # FORK: PSR-125
 from plane.app.serializers import (
     WorkSpaceMemberInviteSerializer,
     WorkSpaceMemberInvitePublicSerializer,
@@ -117,6 +118,11 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         workspace_invitations = WorkspaceMemberInvite.objects.bulk_create(
             workspace_invitations, batch_size=10, ignore_conflicts=True
         )
+        # FORK: PSR-125 -- audit log. bulk_create(ignore_conflicts) can't say which rows landed, so
+        # the entry names the email only.
+        for invitation in workspace_invitations:
+            if int(invitation.role) == 20:
+                workspace_audit.record_admin_invite(workspace.id, request.user, invitation.email)
 
         current_site = base_host(request=request, is_app=True)
 
@@ -153,10 +159,15 @@ class WorkspaceInvitationsViewset(BaseViewSet):
             )
 
         # FORK: PSR-125 -- only a Super Admin can make (or unmake) an Admin invitation.
-        if not requesting_user.is_super_admin and 20 in (serializer.validated_data["role"], workspace_member_invite.role):
+        roles = (serializer.validated_data["role"], workspace_member_invite.role)
+        if not requesting_user.is_super_admin and 20 in roles:
             return super_admin_forbidden()
 
-        serializer.save()
+        before_role = workspace_member_invite.role
+        invite = serializer.save()
+        workspace_audit.record_invite_role_change(  # FORK: PSR-125
+            invite.workspace_id, request.user, invite, before_role, invite.role
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, slug, pk):

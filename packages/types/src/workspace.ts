@@ -107,6 +107,7 @@ export interface IWorkspaceMemberMe {
   view_props: IWorkspaceViewProps;
   workspace: string;
   draft_issue_count: number;
+  is_super_admin?: boolean; // FORK: PSR-125
 }
 
 export interface ILastActiveWorkspaceDetails {

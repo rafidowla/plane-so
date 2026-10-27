@@ -10,7 +10,7 @@ from datetime import date
 import uuid
 
 from dateutil.relativedelta import relativedelta
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Func, OuterRef, Prefetch, Q
 
 from django.db.models.fields import DateField
@@ -45,7 +45,8 @@ from plane.db.models import (
 )
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.permissions import is_workspace_super_admin, super_admin_forbidden  # FORK: PSR-125
-from plane.utils import workspace_lifecycle  # FORK: PSR-125
+from plane.utils import workspace_audit, workspace_lifecycle  # FORK: PSR-125
+from plane.db.models import WorkspaceAuditAction, WorkspaceAuditTarget  # FORK: PSR-125
 from plane.utils.constants import RESTRICTED_WORKSPACE_SLUGS
 from plane.license.utils.instance_value import get_configuration_value
 from plane.bgtasks.workspace_seed_task import workspace_seed
@@ -139,6 +140,15 @@ class WorkSpaceViewSet(BaseViewSet):
                     company_role=request.data.get("company_role", ""),
                     is_super_admin=True,  # FORK: PSR-125 -- the creator owns the new workspace
                 )
+                workspace_audit.record(  # FORK: PSR-125 -- audit log
+                    serializer.instance.id,
+                    request.user,
+                    WorkspaceAuditAction.WORKSPACE_CREATED,
+                    WorkspaceAuditTarget.WORKSPACE,
+                    target_id=serializer.instance.id,
+                    target_label=serializer.instance.name,
+                    after=workspace_audit.workspace_state(serializer.instance),
+                )
 
                 # Get total members and role
                 total_members = WorkspaceMember.objects.filter(workspace_id=serializer.data["id"]).count()
@@ -172,8 +182,13 @@ class WorkSpaceViewSet(BaseViewSet):
     # of delegating, or the two would recurse.)
     # FORK: PSR-125 -- name, URL (slug) and logo are Super Admin only; Admins keep the other fields.
     # Only a changed value counts: the settings form re-sends the current name and slug on every save.
-    SUPER_ADMIN_FIELDS = {"name": "name", "slug": "slug", "logo": "logo", "logo_asset": "logo_asset_id",
-                          "logo_asset_id": "logo_asset_id"}
+    SUPER_ADMIN_FIELDS = {
+        "name": "name",
+        "slug": "slug",
+        "logo": "logo",
+        "logo_asset": "logo_asset_id",
+        "logo_asset_id": "logo_asset_id",
+    }
 
     def _needs_super_admin(self, request, slug):
         if not isinstance(request.data, dict) or is_workspace_super_admin(request.user, slug=slug):
@@ -202,6 +217,39 @@ class WorkSpaceViewSet(BaseViewSet):
         if self._needs_super_admin(request, kwargs["slug"]):
             return super_admin_forbidden()
         return super().partial_update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        # FORK: PSR-125 -- audit log: record the fields that actually changed.
+        before = workspace_audit.workspace_state(serializer.instance)
+        with transaction.atomic():
+            workspace = serializer.save()
+            changed_before, changed_after = workspace_audit.diff(before, workspace_audit.workspace_state(workspace))
+            if changed_after:
+                workspace_audit.record(
+                    workspace.id,
+                    self.request.user,
+                    WorkspaceAuditAction.WORKSPACE_UPDATED,
+                    WorkspaceAuditTarget.WORKSPACE,
+                    target_id=workspace.id,
+                    target_label=workspace.name,
+                    before=changed_before,
+                    after=changed_after,
+                )
+
+    def perform_destroy(self, instance):
+        # FORK: PSR-125 -- audit log. The row survives the soft delete (it has no deleted_at) and is
+        # erased by the database cascade only when the workspace itself is purged.
+        name, slug = instance.name, instance.slug
+        instance.delete()
+        workspace_audit.record(
+            instance.id,
+            self.request.user,
+            WorkspaceAuditAction.WORKSPACE_DELETED,
+            WorkspaceAuditTarget.WORKSPACE,
+            target_id=instance.id,
+            target_label=name,
+            before={"name": name, "slug": slug},
+        )
 
     def remove_last_workspace_ids_from_user_settings(self, id: uuid.UUID) -> None:
         """

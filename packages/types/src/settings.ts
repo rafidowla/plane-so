@@ -10,12 +10,14 @@ import type { EUserWorkspaceRoles } from "./workspace";
 
 export type TProfileSettingsTabs = "general" | "preferences" | "notifications" | "security" | "api-tokens";
 
-export type TWorkspaceSettingsTabs = "general" | "members" | "billing-and-plans" | "export" | "webhooks";
+export type TWorkspaceSettingsTabs = "general" | "members" | "billing-and-plans" | "export" | "webhooks" | "audit-log"; // FORK: PSR-125
 export type TWorkspaceSettingsItem = {
   key: TWorkspaceSettingsTabs;
   i18n_label: string;
   href: string;
   access: EUserWorkspaceRoles[];
+  /** FORK: PSR-125 -- shown only to the workspace's Super Admins (on top of `access`). */
+  superAdminOnly?: boolean;
   highlight: (pathname: string, baseUrl: string) => boolean;
 };
 

@@ -484,6 +484,17 @@
         "heading": "Script",
         "new_script": "Script mới",
         "description": "Tự động hóa quy trình làm việc của bạn với các script và quy tắc tự động hóa tùy chỉnh."
+      },
+      "audit_log": {
+        "title": "Nhật ký kiểm tra",
+        "description": "Ai đã thay đổi gì trong không gian làm việc này và khi nào. Không thể sửa hoặc xóa các mục.",
+        "filter_all": "Tất cả thay đổi",
+        "filter_workspace": "Không gian làm việc",
+        "filter_time_tracking": "Thời gian và Gia hạn",
+        "empty": "Chưa có thay đổi nào được ghi lại.",
+        "load_more": "Tải thêm",
+        "load_failed": "Không thể tải nhật ký kiểm tra. Hãy thử lại.",
+        "unknown_actor": "Người dùng không xác định"
       }
     },
     "empty_state": {

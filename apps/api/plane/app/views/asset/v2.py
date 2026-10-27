@@ -74,6 +74,32 @@ def can_modify_asset(user, asset):
     return role in (ROLE.ADMIN.value, ROLE.MEMBER.value)
 
 
+def _audit_logo(workspace, request, before):
+    """FORK: PSR-125 -- audit log entry for a workspace logo change made through the asset API."""
+    from plane.db.models import WorkspaceAuditAction, WorkspaceAuditTarget
+    from plane.utils import workspace_audit
+
+    after = {"logo": workspace.logo, "logo_asset_id": workspace.logo_asset_id}
+
+    def _norm(state):
+        # "" and None both mean "no logo"; ids are stored as strings.
+        return {"logo": state["logo"] or None, "logo_asset_id": str(v) if (v := state["logo_asset_id"]) else None}
+
+    before, after = _norm(before), _norm(after)
+    changed_before, changed_after = workspace_audit.diff(before, after)
+    if changed_after:
+        workspace_audit.record(
+            workspace.id,
+            request.user,
+            WorkspaceAuditAction.WORKSPACE_UPDATED,
+            WorkspaceAuditTarget.WORKSPACE,
+            target_id=workspace.id,
+            target_label=workspace.name,
+            before=changed_before,
+            after=changed_after,
+        )
+
+
 class UserAssetsV2Endpoint(BaseAPIView):
     """This endpoint is used to upload user profile images."""
 
@@ -303,9 +329,11 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
             if workspace.logo_asset_id:
                 self.asset_delete(workspace.logo_asset_id)
             # Save the new logo
+            before = {"logo": workspace.logo, "logo_asset_id": workspace.logo_asset_id}
             workspace.logo = ""
             workspace.logo_asset_id = asset_id
             workspace.save()
+            _audit_logo(workspace, request, before)
             invalidate_cache_directly(path="/api/workspaces/", url_params=False, user=False, request=request)
             invalidate_cache_directly(
                 path="/api/users/me/workspaces/",
@@ -338,8 +366,10 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
             workspace = Workspace.objects.get(id=asset.workspace_id)
             if workspace is None:
                 return
+            before = {"logo": workspace.logo, "logo_asset_id": workspace.logo_asset_id}
             workspace.logo_asset_id = None
             workspace.save()
+            _audit_logo(workspace, request, before)
             invalidate_cache_directly(path="/api/workspaces/", url_params=False, user=False, request=request)
             invalidate_cache_directly(
                 path="/api/users/me/workspaces/",

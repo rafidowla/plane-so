@@ -484,6 +484,17 @@
         "heading": "Skripty",
         "new_script": "Nový skript",
         "description": "Automatizujte svoje pracovné postupy pomocou vlastných skriptov a automatizačných pravidiel."
+      },
+      "audit_log": {
+        "title": "Auditný denník",
+        "description": "Kto čo v tomto pracovnom priestore zmenil a kedy. Záznamy nemožno upraviť ani odstrániť.",
+        "filter_all": "Všetky zmeny",
+        "filter_workspace": "Pracovný priestor",
+        "filter_time_tracking": "Čas a obnovenia",
+        "empty": "Zatiaľ nie sú zaznamenané žiadne zmeny.",
+        "load_more": "Načítať ďalšie",
+        "load_failed": "Auditný denník sa nepodarilo načítať. Skúste to znova.",
+        "unknown_actor": "Neznámy používateľ"
       }
     },
     "empty_state": {

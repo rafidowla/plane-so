@@ -484,6 +484,17 @@
         "heading": "スクリプト",
         "new_script": "新しいスクリプト",
         "description": "カスタムスクリプトと自動化ルールでワークフローを自動化します。"
+      },
+      "audit_log": {
+        "title": "監査ログ",
+        "description": "このワークスペースで誰がいつ何を変更したか。エントリは編集・削除できません。",
+        "filter_all": "すべての変更",
+        "filter_workspace": "ワークスペース",
+        "filter_time_tracking": "時間と更新",
+        "empty": "記録された変更はまだありません。",
+        "load_more": "さらに読み込む",
+        "load_failed": "監査ログを読み込めませんでした。もう一度お試しください。",
+        "unknown_actor": "不明なユーザー"
       }
     },
     "empty_state": {

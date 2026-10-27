@@ -134,4 +134,7 @@ from .time_tracking import (
     MemberLeave,
 )
 
+# FORK: PSR-125 -- workspace audit log
+from .workspace_audit import WorkspaceAuditLog, WorkspaceAuditAction, WorkspaceAuditTarget
+
 from .description import Description, DescriptionVersion

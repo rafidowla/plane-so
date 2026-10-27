@@ -484,6 +484,17 @@
         "heading": "Skripte",
         "new_script": "Neues Skript",
         "description": "Automatisieren Sie Ihre Workflows mit benutzerdefinierten Skripten und Automatisierungsregeln."
+      },
+      "audit_log": {
+        "title": "Audit-Protokoll",
+        "description": "Wer was in diesem Workspace wann geändert hat. Einträge können nicht bearbeitet oder gelöscht werden.",
+        "filter_all": "Alle Änderungen",
+        "filter_workspace": "Workspace",
+        "filter_time_tracking": "Zeit und Verlängerungen",
+        "empty": "Noch keine Änderungen erfasst.",
+        "load_more": "Mehr laden",
+        "load_failed": "Das Audit-Protokoll konnte nicht geladen werden. Bitte erneut versuchen.",
+        "unknown_actor": "Unbekannter Benutzer"
       }
     },
     "empty_state": {

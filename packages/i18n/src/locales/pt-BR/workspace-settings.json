@@ -484,6 +484,17 @@
         "heading": "Scripts",
         "new_script": "Novo Script",
         "description": "Automatize seus fluxos de trabalho com scripts personalizados e regras de automação."
+      },
+      "audit_log": {
+        "title": "Log de auditoria",
+        "description": "Quem alterou o quê neste espaço de trabalho e quando. As entradas não podem ser editadas nem excluídas.",
+        "filter_all": "Todas as alterações",
+        "filter_workspace": "Espaço de trabalho",
+        "filter_time_tracking": "Tempo e renovações",
+        "empty": "Nenhuma alteração registrada ainda.",
+        "load_more": "Carregar mais",
+        "load_failed": "Não foi possível carregar o log de auditoria. Tente novamente.",
+        "unknown_actor": "Usuário desconhecido"
       }
     },
     "empty_state": {

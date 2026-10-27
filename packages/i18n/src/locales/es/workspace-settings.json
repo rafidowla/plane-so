@@ -484,6 +484,17 @@
         "heading": "Scripts",
         "new_script": "Nuevo script",
         "description": "Automatiza tus flujos de trabajo con scripts personalizados y reglas de automatización."
+      },
+      "audit_log": {
+        "title": "Registro de auditoría",
+        "description": "Quién cambió qué en este espacio de trabajo y cuándo. Las entradas no se pueden editar ni eliminar.",
+        "filter_all": "Todos los cambios",
+        "filter_workspace": "Espacio de trabajo",
+        "filter_time_tracking": "Tiempo y renovaciones",
+        "empty": "Aún no hay cambios registrados.",
+        "load_more": "Cargar más",
+        "load_failed": "No se pudo cargar el registro de auditoría. Inténtalo de nuevo.",
+        "unknown_actor": "Usuario desconocido"
       }
     },
     "empty_state": {

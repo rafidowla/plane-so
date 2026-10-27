@@ -6,6 +6,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import {
+  AuditLogsOutline,
   BillingsOutline,
   BuildingOutline,
   ExportOutline,
@@ -22,4 +23,5 @@ export const WORKSPACE_SETTINGS_ICONS: Record<TWorkspaceSettingsTabs, LucideIcon
   export: ExportOutline,
   "billing-and-plans": BillingsOutline,
   webhooks: WebhooksOutline,
+  "audit-log": AuditLogsOutline, // FORK: PSR-125
 };

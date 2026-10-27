@@ -484,6 +484,17 @@
         "heading": "Scripts",
         "new_script": "New Script",
         "description": "Automate your workflows with custom scripts and automation rules."
+      },
+      "audit_log": {
+        "title": "აუდიტის ჟურნალი",
+        "description": "ვინ რა შეცვალა ამ სამუშაო სივრცეში და როდის. ჩანაწერების რედაქტირება ან წაშლა შეუძლებელია.",
+        "filter_all": "ყველა ცვლილება",
+        "filter_workspace": "სამუშაო სივრცე",
+        "filter_time_tracking": "დრო და განახლებები",
+        "empty": "ცვლილებები ჯერ არ არის ჩაწერილი.",
+        "load_more": "მეტის ჩატვირთვა",
+        "load_failed": "აუდიტის ჟურნალი ვერ ჩაიტვირთა. სცადეთ ხელახლა.",
+        "unknown_actor": "უცნობი მომხმარებელი"
       }
     },
     "empty_state": {

@@ -484,6 +484,17 @@
         "heading": "Komut Dosyaları",
         "new_script": "Yeni Komut Dosyası",
         "description": "İş akışlarınızı özel komut dosyaları ve otomasyon kurallarıyla otomatikleştirin."
+      },
+      "audit_log": {
+        "title": "Denetim günlüğü",
+        "description": "Bu çalışma alanında kimin neyi ne zaman değiştirdiği. Kayıtlar düzenlenemez veya silinemez.",
+        "filter_all": "Tüm değişiklikler",
+        "filter_workspace": "Çalışma alanı",
+        "filter_time_tracking": "Zaman ve Yenilemeler",
+        "empty": "Henüz kaydedilmiş değişiklik yok.",
+        "load_more": "Daha fazla yükle",
+        "load_failed": "Denetim günlüğü yüklenemedi. Tekrar deneyin.",
+        "unknown_actor": "Bilinmeyen kullanıcı"
       }
     },
     "empty_state": {

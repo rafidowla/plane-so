@@ -62,6 +62,15 @@ export const WORKSPACE_SETTINGS: Record<TWorkspaceSettingsTabs, TWorkspaceSettin
     access: [EUserWorkspaceRoles.ADMIN],
     highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/settings/webhooks/`,
   },
+  // FORK: PSR-125 -- read-only history of admin changes, Super Admins only.
+  "audit-log": {
+    key: "audit-log",
+    i18n_label: "workspace_settings.settings.audit_log.title",
+    href: `/settings/audit-log`,
+    access: [EUserWorkspaceRoles.ADMIN],
+    superAdminOnly: true,
+    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/settings/audit-log/`,
+  },
 };
 
 export const WORKSPACE_SETTINGS_ACCESS = Object.fromEntries(
@@ -74,6 +83,7 @@ export const GROUPED_WORKSPACE_SETTINGS: Record<WORKSPACE_SETTINGS_CATEGORY, TWo
     WORKSPACE_SETTINGS["members"],
     WORKSPACE_SETTINGS["billing-and-plans"],
     WORKSPACE_SETTINGS["export"],
+    WORKSPACE_SETTINGS["audit-log"], // FORK: PSR-125
   ],
   [WORKSPACE_SETTINGS_CATEGORY.FEATURES]: [],
   [WORKSPACE_SETTINGS_CATEGORY.DEVELOPER]: [WORKSPACE_SETTINGS["webhooks"]],

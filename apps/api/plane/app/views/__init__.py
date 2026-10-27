@@ -53,6 +53,7 @@ from .workspace.lifecycle import (
     DeletedWorkspacesEndpoint,
     WorkspaceRestoreEndpoint,
 )
+from .workspace.audit_log import WorkspaceAuditLogEndpoint  # FORK: PSR-125
 from .workspace.favorite import (
     WorkspaceFavoriteEndpoint,
     WorkspaceFavoriteGroupEndpoint,

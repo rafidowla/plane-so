@@ -19,8 +19,8 @@ from plane.app.permissions import allow_workspace_super_admin
 from plane.app.serializers import WorkSpaceSerializer
 from plane.app.views.base import BaseAPIView
 from plane.bgtasks.workspace_delete_code_task import send_workspace_delete_code
-from plane.db.models import Workspace
-from plane.utils import workspace_lifecycle
+from plane.db.models import Workspace, WorkspaceAuditAction, WorkspaceAuditTarget
+from plane.utils import workspace_audit, workspace_lifecycle
 from plane.utils.constants import RESTRICTED_WORKSPACE_SLUGS
 
 _SLUG_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -109,6 +109,16 @@ class WorkspaceRestoreEndpoint(BaseAPIView):
                 since = locked.deleted_at
                 Workspace.all_objects.filter(pk=locked.pk).update(deleted_at=None, slug=slug)
                 workspace_lifecycle.restore_workspace_tree(locked, since)
+                workspace_audit.record(
+                    locked.id,
+                    request.user,
+                    WorkspaceAuditAction.WORKSPACE_RESTORED,
+                    WorkspaceAuditTarget.WORKSPACE,
+                    target_id=locked.id,
+                    target_label=locked.name,
+                    before={"deleted_at": since},
+                    after={"slug": slug},
+                )
         except IntegrityError:
             return Response(
                 {

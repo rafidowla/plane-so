@@ -484,6 +484,17 @@
         "heading": "Skrip",
         "new_script": "Skrip Baru",
         "description": "Otomatisasi alur kerja Anda dengan skrip kustom dan aturan otomatisasi."
+      },
+      "audit_log": {
+        "title": "Log audit",
+        "description": "Siapa mengubah apa di ruang kerja ini, dan kapan. Entri tidak dapat diedit atau dihapus.",
+        "filter_all": "Semua perubahan",
+        "filter_workspace": "Ruang kerja",
+        "filter_time_tracking": "Waktu dan Perpanjangan",
+        "empty": "Belum ada perubahan yang tercatat.",
+        "load_more": "Muat lainnya",
+        "load_failed": "Gagal memuat log audit. Coba lagi.",
+        "unknown_actor": "Pengguna tidak dikenal"
       }
     },
     "empty_state": {

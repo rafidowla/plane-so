@@ -25,14 +25,20 @@ from plane.app.serializers import (
 )
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Project, ProjectMember, Workspace, WorkspaceMember, DraftIssue
+from plane.db.models import User, WorkspaceAuditAction, WorkspaceAuditTarget  # FORK: PSR-125
+from plane.utils import workspace_audit  # FORK: PSR-125
 from plane.utils.cache import invalidate_cache
 
 from .. import BaseViewSet
 
 # FORK: PSR-125
-LAST_SUPER_ADMIN_ERROR = (
-    "This is the only Super Admin of the workspace. Make another member a Super Admin first."
-)
+LAST_SUPER_ADMIN_ERROR = "This is the only Super Admin of the workspace. Make another member a Super Admin first."
+
+
+def _owner_label(user_id):
+    if not user_id:
+        return ""
+    return workspace_audit.user_label(User.objects.filter(pk=user_id).first())
 
 
 def has_other_super_admin(workspace_id, member_id):
@@ -135,9 +141,7 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             )
 
         if "role" in request.data:
-            serializer = WorkSpaceMemberSerializer(
-                workspace_member, data={"role": request.data["role"]}, partial=True
-            )
+            serializer = WorkSpaceMemberSerializer(workspace_member, data={"role": request.data["role"]}, partial=True)
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             role = serializer.validated_data["role"]
@@ -193,10 +197,23 @@ class WorkSpaceMemberViewSet(BaseViewSet):
                 ProjectMember.objects.filter(
                     workspace_id=workspace_member.workspace_id, member_id=workspace_member.member_id
                 ).update(role=ROLE.GUEST.value, updated_at=timezone.now())
+            before = workspace_audit.member_state(workspace_member.role, workspace_member.is_super_admin)
             workspace_member.role = role
             workspace_member.is_super_admin = is_super_admin
             # Write only these columns so a concurrent removal or view_props save isn't reverted.
             workspace_member.save(update_fields=["role", "is_super_admin", "updated_at", "updated_by"])
+            after = workspace_audit.member_state(role, is_super_admin)
+            if before != after:  # FORK: PSR-125 -- audit log
+                workspace_audit.record(
+                    workspace_member.workspace_id,
+                    request.user,
+                    WorkspaceAuditAction.MEMBER_ROLE_CHANGED,
+                    WorkspaceAuditTarget.MEMBER,
+                    target_id=workspace_member.member_id,
+                    target_label=workspace_audit.user_label(workspace_member.member),
+                    before=before,
+                    after=after,
+                )
 
         return Response(WorkSpaceMemberSerializer(workspace_member).data, status=status.HTTP_200_OK)
 
@@ -248,9 +265,19 @@ class WorkSpaceMemberViewSet(BaseViewSet):
                 workspace__slug=slug, member_id=workspace_member.member_id, is_active=True
             ).update(is_active=False, updated_at=timezone.now())
 
+            before = workspace_audit.member_state(workspace_member.role, workspace_member.is_super_admin)
             workspace_member.is_active = False
             workspace_member.is_super_admin = False  # FORK: PSR-125 -- rejoining must not restore it
             workspace_member.save()
+            workspace_audit.record(  # FORK: PSR-125 -- audit log
+                workspace_member.workspace_id,
+                request.user,
+                WorkspaceAuditAction.MEMBER_REMOVED,
+                WorkspaceAuditTarget.MEMBER,
+                target_id=workspace_member.member_id,
+                target_label=workspace_audit.user_label(workspace_member.member),
+                before=before,
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @invalidate_cache(
@@ -303,9 +330,20 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             ).update(is_active=False, updated_at=timezone.now())
 
             # # Deactivate the user
+            before = workspace_audit.member_state(workspace_member.role, workspace_member.is_super_admin)
             workspace_member.is_active = False
             workspace_member.is_super_admin = False  # FORK: PSR-125 -- rejoining must not restore it
             workspace_member.save()
+            if before["role"] == ROLE.ADMIN.value:  # FORK: PSR-125 -- audit log (Admins only)
+                workspace_audit.record(
+                    workspace_member.workspace_id,
+                    request.user,
+                    WorkspaceAuditAction.MEMBER_LEFT,
+                    WorkspaceAuditTarget.MEMBER,
+                    target_id=workspace_member.member_id,
+                    target_label=workspace_audit.user_label(request.user),
+                    before=before,
+                )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -404,9 +442,24 @@ class WorkspaceOwnershipTransferEndpoint(BaseAPIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if workspace.owner_id == target.member_id:
-                return Response({"error": "This member already owns the workspace."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "This member already owns the workspace."}, status=status.HTTP_400_BAD_REQUEST
+                )
+            previous_owner_id = workspace.owner_id
             workspace.owner_id = target.member_id
             workspace.save(update_fields=["owner", "updated_at"])
+            workspace_audit.record(  # FORK: PSR-125 -- audit log
+                workspace.id,
+                request.user,
+                WorkspaceAuditAction.OWNERSHIP_TRANSFERRED,
+                WorkspaceAuditTarget.WORKSPACE,
+                target_id=workspace.id,
+                target_label=workspace.name,
+                before={
+                    "owner_id": str(previous_owner_id) if previous_owner_id else None,
+                    "owner": _owner_label(previous_owner_id),
+                },
+                after={"owner_id": str(target.member_id), "owner": workspace_audit.user_label(target.member)},
+            )
 
         return Response({"owner": str(target.member_id)}, status=status.HTTP_200_OK)
-

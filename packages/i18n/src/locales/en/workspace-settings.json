@@ -484,6 +484,17 @@
         "heading": "Scripts",
         "new_script": "New Script",
         "description": "Automate your workflows with custom scripts and automation rules."
+      },
+      "audit_log": {
+        "title": "Audit log",
+        "description": "Who changed what in this workspace, and when. Entries can't be edited or deleted.",
+        "filter_all": "All changes",
+        "filter_workspace": "Workspace",
+        "filter_time_tracking": "Time and Renewals",
+        "empty": "No changes recorded yet.",
+        "load_more": "Load more",
+        "load_failed": "Couldn't load the audit log. Try again.",
+        "unknown_actor": "Unknown user"
       }
     },
     "empty_state": {

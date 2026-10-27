@@ -19,6 +19,7 @@ from plane.db.models import WorkspaceMemberInvite, Workspace
 from plane.api.serializers import WorkspaceInviteSerializer
 from plane.utils.permissions import WorkspaceOwnerPermission
 from plane.app.permissions import is_workspace_super_admin, super_admin_forbidden  # FORK: PSR-125
+from plane.utils import workspace_audit  # FORK: PSR-125
 from plane.utils.openapi.parameters import WORKSPACE_SLUG_PARAMETER
 
 
@@ -94,7 +95,9 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         # FORK: PSR-125 -- only a Super Admin can bring in a new Admin.
         if serializer.validated_data.get("role") == 20 and not is_workspace_super_admin(request.user, slug=slug):
             return super_admin_forbidden()
-        serializer.save(workspace=workspace, created_by=request.user)
+        invite = serializer.save(workspace=workspace, created_by=request.user)
+        if invite.role == 20:  # FORK: PSR-125 -- audit log
+            workspace_audit.record_admin_invite(workspace.id, request.user, invite.email, invite.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     # FORK: put-permission — the router maps PUT to ``update``; the default skipped partial_update's
@@ -135,7 +138,11 @@ class WorkspaceInvitationsViewset(BaseViewSet):
             workspace_member_invite.role,
         ) and not is_workspace_super_admin(request.user, slug=slug):
             return super_admin_forbidden()
-        serializer.save()
+        before_role = workspace_member_invite.role
+        invite = serializer.save()
+        workspace_audit.record_invite_role_change(  # FORK: PSR-125
+            invite.workspace_id, request.user, invite, before_role, invite.role
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(

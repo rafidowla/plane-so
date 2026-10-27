@@ -484,6 +484,17 @@
         "heading": "Script-uri",
         "new_script": "Script nou",
         "description": "Automatizează fluxurile tale de lucru cu scripturi personalizate și reguli de automatizare."
+      },
+      "audit_log": {
+        "title": "Jurnal de audit",
+        "description": "Cine ce a modificat în acest spațiu de lucru și când. Intrările nu pot fi editate sau șterse.",
+        "filter_all": "Toate modificările",
+        "filter_workspace": "Spațiu de lucru",
+        "filter_time_tracking": "Timp și reînnoiri",
+        "empty": "Nu există încă modificări înregistrate.",
+        "load_more": "Încarcă mai multe",
+        "load_failed": "Jurnalul de audit nu a putut fi încărcat. Încearcă din nou.",
+        "unknown_actor": "Utilizator necunoscut"
       }
     },
     "empty_state": {

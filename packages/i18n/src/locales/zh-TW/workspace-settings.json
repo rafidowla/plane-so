@@ -484,6 +484,17 @@
         "heading": "指令碼",
         "new_script": "新指令碼",
         "description": "使用自訂指令碼和自動化規則，自動化您的工作流程。"
+      },
+      "audit_log": {
+        "title": "稽核日誌",
+        "description": "誰在何時變更了此工作區的哪些內容。項目無法編輯或刪除。",
+        "filter_all": "所有變更",
+        "filter_workspace": "工作區",
+        "filter_time_tracking": "時間與續約",
+        "empty": "尚未記錄任何變更。",
+        "load_more": "載入更多",
+        "load_failed": "無法載入稽核日誌，請再試一次。",
+        "unknown_actor": "未知使用者"
       }
     },
     "empty_state": {

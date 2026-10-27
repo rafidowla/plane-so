@@ -36,7 +36,8 @@ class Command(BaseCommand):
             # Create workspace
             workspace = Workspace.objects.create(slug=workspace_slug, name=workspace_name, owner=user)
             # Create workspace member
-            WorkspaceMember.objects.create(workspace=workspace, role=20, member=user, is_super_admin=True)  # FORK: PSR-125
+            # FORK: PSR-125 -- the creator is the workspace's Super Admin
+            WorkspaceMember.objects.create(workspace=workspace, role=20, member=user, is_super_admin=True)
             user_ids = User.objects.filter(email__in=members)
 
             _ = WorkspaceMember.objects.bulk_create(

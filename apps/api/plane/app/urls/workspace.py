@@ -43,6 +43,7 @@ from plane.app.views import (
     WorkspaceDeleteCodeEndpoint,
     DeletedWorkspacesEndpoint,
     WorkspaceRestoreEndpoint,
+    WorkspaceAuditLogEndpoint,
 )
 
 
@@ -122,6 +123,12 @@ urlpatterns = [
         "workspaces/<str:slug>/delete-code/",
         WorkspaceDeleteCodeEndpoint.as_view(),
         name="workspace-delete-code",
+    ),
+    # FORK: PSR-125 -- read-only audit log (Super Admins).
+    path(
+        "workspaces/<str:slug>/audit-log/",
+        WorkspaceAuditLogEndpoint.as_view(),
+        name="workspace-audit-log",
     ),
     # FORK: PSR-125 -- deleted workspaces the user can restore, and restore itself.
     path(

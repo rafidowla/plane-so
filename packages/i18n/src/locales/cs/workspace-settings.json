@@ -484,6 +484,17 @@
         "heading": "Skripty",
         "new_script": "Nový skript",
         "description": "Automatizujte své pracovní postupy pomocí vlastních skriptů a pravidel automatizace."
+      },
+      "audit_log": {
+        "title": "Auditní protokol",
+        "description": "Kdo co v tomto pracovním prostoru změnil a kdy. Záznamy nelze upravit ani smazat.",
+        "filter_all": "Všechny změny",
+        "filter_workspace": "Pracovní prostor",
+        "filter_time_tracking": "Čas a obnovení",
+        "empty": "Zatím nejsou zaznamenány žádné změny.",
+        "load_more": "Načíst další",
+        "load_failed": "Auditní protokol se nepodařilo načíst. Zkuste to znovu.",
+        "unknown_actor": "Neznámý uživatel"
       }
     },
     "empty_state": {

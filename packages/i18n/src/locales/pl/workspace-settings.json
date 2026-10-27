@@ -484,6 +484,17 @@
         "heading": "Skrypty",
         "new_script": "Nowy skrypt",
         "description": "Automatyzuj swoje przepływy pracy za pomocą niestandardowych skryptów i reguł automatyzacji."
+      },
+      "audit_log": {
+        "title": "Dziennik audytu",
+        "description": "Kto, co i kiedy zmienił w tym obszarze roboczym. Wpisów nie można edytować ani usuwać.",
+        "filter_all": "Wszystkie zmiany",
+        "filter_workspace": "Obszar roboczy",
+        "filter_time_tracking": "Czas i odnowienia",
+        "empty": "Nie zarejestrowano jeszcze żadnych zmian.",
+        "load_more": "Wczytaj więcej",
+        "load_failed": "Nie udało się wczytać dziennika audytu. Spróbuj ponownie.",
+        "unknown_actor": "Nieznany użytkownik"
       }
     },
     "empty_state": {

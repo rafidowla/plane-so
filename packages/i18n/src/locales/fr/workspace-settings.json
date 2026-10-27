@@ -484,6 +484,17 @@
         "heading": "Scripts",
         "new_script": "Nouveau script",
         "description": "Automatisez vos flux de travail avec des scripts personnalisés et des règles d’automatisation."
+      },
+      "audit_log": {
+        "title": "Journal d'audit",
+        "description": "Qui a modifié quoi dans cet espace de travail, et quand. Les entrées ne peuvent être ni modifiées ni supprimées.",
+        "filter_all": "Toutes les modifications",
+        "filter_workspace": "Espace de travail",
+        "filter_time_tracking": "Temps et renouvellements",
+        "empty": "Aucune modification enregistrée pour le moment.",
+        "load_more": "Charger plus",
+        "load_failed": "Impossible de charger le journal d'audit. Réessayez.",
+        "unknown_actor": "Utilisateur inconnu"
       }
     },
     "empty_state": {

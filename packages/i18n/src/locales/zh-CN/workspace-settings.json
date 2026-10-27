@@ -484,6 +484,17 @@
         "heading": "脚本",
         "new_script": "新建脚本",
         "description": "使用自定义脚本和自动化规则自动化您的工作流程。"
+      },
+      "audit_log": {
+        "title": "审计日志",
+        "description": "谁在何时更改了此工作区的哪些内容。条目无法编辑或删除。",
+        "filter_all": "所有更改",
+        "filter_workspace": "工作区",
+        "filter_time_tracking": "时间与续订",
+        "empty": "尚未记录任何更改。",
+        "load_more": "加载更多",
+        "load_failed": "无法加载审计日志，请重试。",
+        "unknown_actor": "未知用户"
       }
     },
     "empty_state": {

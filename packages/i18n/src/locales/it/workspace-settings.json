@@ -484,6 +484,17 @@
         "heading": "Script",
         "new_script": "Nuovo script",
         "description": "Automatizza i tuoi flussi di lavoro con script personalizzati e regole di automazione."
+      },
+      "audit_log": {
+        "title": "Registro di audit",
+        "description": "Chi ha modificato cosa in questo workspace e quando. Le voci non possono essere modificate o eliminate.",
+        "filter_all": "Tutte le modifiche",
+        "filter_workspace": "Workspace",
+        "filter_time_tracking": "Tempo e rinnovi",
+        "empty": "Nessuna modifica registrata finora.",
+        "load_more": "Carica altro",
+        "load_failed": "Impossibile caricare il registro di audit. Riprova.",
+        "unknown_actor": "Utente sconosciuto"
       }
     },
     "empty_state": {
