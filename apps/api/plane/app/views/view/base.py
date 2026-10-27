@@ -55,6 +55,12 @@ class WorkspaceViewViewSet(BaseViewSet):
     serializer_class = IssueViewSerializer
     model = IssueView
 
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    def create(self, request, slug):
+        # Creating a workspace view requires active workspace membership, with
+        # the same roles as list(). perform_create is a save hook, not a check.
+        return super().create(request, slug=slug)
+
     def perform_create(self, serializer):
         workspace = Workspace.objects.get(slug=self.kwargs.get("slug"))
         serializer.save(workspace_id=workspace.id, owned_by=self.request.user)
@@ -112,11 +118,30 @@ class WorkspaceViewViewSet(BaseViewSet):
                 return Response(serializer.data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # FORK: put-permission — had no permission check, so a user from any workspace could read this
-    # workspace's public views; gate it like ``list``.
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def retrieve(self, request, slug, pk):
+        # Requires workspace membership, matching list() above.
         issue_view = self.get_queryset().filter(pk=pk).first()
+
+        # get_queryset() is scoped to the URL workspace: a view outside it, or
+        # no view at all, is a 404, as the other retrieve endpoints do.
+        if issue_view is None:
+            return Response(
+                {"error": "The required object does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # As in list(), a workspace GUEST sees only views they own. 404 rather
+        # than 403, matching the missing-view branch above.
+        if (
+            WorkspaceMember.objects.filter(workspace__slug=slug, member=request.user, role=5, is_active=True).exists()
+            and issue_view.owned_by_id != request.user.id
+        ):
+            return Response(
+                {"error": "The required object does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         serializer = IssueViewSerializer(issue_view)
         recent_visited_task.delay(
             slug=slug,
@@ -274,6 +299,13 @@ class WorkspaceViewIssuesViewSet(BaseViewSet):
 class IssueViewViewSet(BaseViewSet):
     serializer_class = IssueViewSerializer
     model = IssueView
+
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    def create(self, request, slug, project_id):
+        # Creating a project view requires active project membership, with the
+        # same roles as list()/retrieve(). perform_create is a save hook, not a
+        # check.
+        return super().create(request, slug=slug, project_id=project_id)
 
     def perform_create(self, serializer):
         serializer.save(project_id=self.kwargs.get("project_id"), owned_by=self.request.user)

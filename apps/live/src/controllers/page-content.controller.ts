@@ -34,7 +34,7 @@ export class PageContentController {
       return res.status(200).json(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const validationErrors = error.errors.map((err) => ({
+        const validationErrors = error.issues.map((err) => ({
           path: err.path.join("."),
           message: err.message,
         }));

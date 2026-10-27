@@ -554,18 +554,15 @@ class DeployBoardViewSet(BaseViewSet):
     serializer_class = DeployBoardSerializer
     model = DeployBoard
 
-    # FORK: put-permission — PATCH/DELETE use the ModelViewSet defaults; with the base queryset
-    # (``DeployBoard.objects.all()``) a member of the URL project could edit or delete *any* project's deploy
-    # board by pk. Bind the lookup to the URL workspace + project.
     def get_queryset(self):
-        return (
-            super()
-            .get_queryset()
-            .filter(
-                workspace__slug=self.kwargs.get("slug"),
-                entity_name="project",
-                entity_identifier=self.kwargs.get("project_id"),
-            )
+        # retrieve/partial_update/destroy come from ModelViewSet and resolve the
+        # board through get_object() -> get_queryset(), so limit it to the URL
+        # workspace + project; a board outside that scope returns 404.
+        return DeployBoard.objects.filter(
+            workspace__slug=self.kwargs.get("slug"),
+            entity_name="project",
+            entity_identifier=self.kwargs.get("project_id"),
+            project_id=self.kwargs.get("project_id"),
         )
 
     def list(self, request, slug, project_id):

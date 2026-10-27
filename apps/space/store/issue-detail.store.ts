@@ -404,7 +404,6 @@ export class IssueDetailStore implements IIssueDetailStore {
     };
 
     const filteredVotes = (this.details[issueID].vote_items ?? []).filter(
-      // FORK: null when empty
       (v) => v.actor_details?.id !== this.rootStore.user.data?.id
     );
 
@@ -428,7 +427,6 @@ export class IssueDetailStore implements IIssueDetailStore {
 
   removeIssueVote = async (anchor: string, issueID: string) => {
     const newVotes = (this.details[issueID].vote_items ?? []).filter(
-      // FORK: null when empty
       (v) => v.actor_details?.id !== this.rootStore.user.data?.id
     );
 

@@ -16,7 +16,7 @@ import {
   getAllDocumentFormatsFromDocumentEditorBinaryData,
   getBinaryDataFromDocumentEditorHTMLString,
   replaceDocumentEditorContent,
-} from "@plane/editor";
+} from "@plane/editor/server";
 import { PageContentReplaceError, replacePageContent, replacePageContentSchema } from "@/lib/page-content-replace";
 
 const PAGE_ID = "3f0c8a52-6d0e-4a55-9d0a-3a5a4de5f6b1";

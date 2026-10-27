@@ -78,6 +78,7 @@ from plane.db.models import (
     Project,
     ProjectMember,
     CycleIssue,
+    User,  # FORK: guest-access PSR-119 — admin re-attribution on PATCH
     Workspace,
     WorkspaceMember,
 )
@@ -934,9 +935,17 @@ class IssueDetailAPIEndpoint(BaseAPIView):
             partial=True,
         )
         if serializer.is_valid():
-            # FORK: guest-access PSR-119 — authorship is only (re)assignable by a workspace Admin
-            if "created_by" in serializer.validated_data and not is_workspace_admin(request.user, slug):
-                serializer.validated_data.pop("created_by")
+            # FORK: guest-access PSR-119 — authorship is only (re)assignable by a workspace Admin. created_by is
+            # read-only on the serializer (upstream INFRA-772), so an Admin's re-attribution is applied after save.
+            reattribute_to = None
+            if request.data.get("created_by") and is_workspace_admin(request.user, slug):
+                reattribute_to = str(request.data.get("created_by"))
+                try:
+                    uuid.UUID(reattribute_to)
+                except ValueError:
+                    reattribute_to = None
+                if reattribute_to is None or not User.objects.filter(id=reattribute_to).exists():
+                    return Response({"created_by": ["Invalid user."]}, status=status.HTTP_400_BAD_REQUEST)
             if (
                 request.data.get("external_id")
                 and (issue.external_id != str(request.data.get("external_id")))
@@ -956,11 +965,14 @@ class IssueDetailAPIEndpoint(BaseAPIView):
                 )
 
             serializer.save()
+            if reattribute_to:
+                issue.created_by_id = reattribute_to
+                issue.save(update_fields=["created_by"])
             # Read-only fields are ignored on save, so they are not reported as changes either.
-            # FORK: guest-access PSR-119 — log the guest-filtered ``data``; drop a created_by that was not applied
+            # FORK: guest-access PSR-119 — log the guest-filtered ``data``; report created_by only when applied
             accepted_data = writable_data(serializer, data)
-            if "created_by" not in serializer.validated_data:
-                accepted_data.pop("created_by", None)
+            if reattribute_to:
+                accepted_data["created_by"] = reattribute_to
             issue_activity.delay(
                 type="issue.activity.updated",
                 requested_data=json.dumps(accepted_data, cls=DjangoJSONEncoder),

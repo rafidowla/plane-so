@@ -52,20 +52,19 @@ class ProjectInvitationsViewset(BaseViewSet):
             .select_related("workspace", "workspace__owner")
         )
 
-    # FORK: put-permission — list/retrieve/destroy were the ModelViewSet defaults (IsAuthenticated only,
-    # queryset scoped by URL slug/project only): any signed-in user could read invites (incl. their join tokens)
-    # or delete them for any project. Invites are managed by project admins, like ``create``.
+    # Every invitation action (list/retrieve/destroy, like create) is limited to
+    # project admins.
     @allow_permission([ROLE.ADMIN])
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+    def list(self, request, slug, project_id):
+        return super().list(request)
 
     @allow_permission([ROLE.ADMIN])
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+    def retrieve(self, request, slug, project_id, pk):
+        return super().retrieve(request)
 
     @allow_permission([ROLE.ADMIN])
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+    def destroy(self, request, slug, project_id, pk):
+        return super().destroy(request)
 
     @allow_permission([ROLE.ADMIN])
     def create(self, request, slug, project_id):
@@ -162,10 +161,8 @@ class UserProjectInvitationsViewset(BaseViewSet):
         workspace_role = workspace_member.role
         workspace = workspace_member.workspace
 
-        # Use the workspace-scoped, network-validated project IDs only.
-        # Raw project_ids may contain UUIDs from other workspaces; those are
-        # absent from the `projects` queryset and therefore bypass the SECRET
-        # network check above (GHSA-45hc-q4mw-jhxm).
+        # Membership writes use only the project IDs validated above: projects in
+        # this workspace that passed the network check.
         validated_project_ids = [str(p.id) for p in projects]
 
         # If the user was already part of the project, reactivate them with the
@@ -220,9 +217,7 @@ class ProjectJoinEndpoint(BaseAPIView):
             )
 
         # Require an authenticated session — the accepting user must be the
-        # person who was invited.  Without this check an attacker who knows the
-        # invitee email and obtains the token can hijack the project membership
-        # (GHSA-g36h-p63v-g9c7).
+        # person who was invited.
         if not request.user.is_authenticated:
             return Response(
                 {"error": "Authentication required to accept project invitation"},

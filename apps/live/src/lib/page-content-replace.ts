@@ -14,7 +14,7 @@ import {
   convertBase64StringToBinaryData,
   getAllDocumentFormatsFromDocumentEditorBinaryData,
   replaceDocumentEditorContent,
-} from "@plane/editor";
+} from "@plane/editor/server";
 
 /** The request carries a whole Yjs document (base64), far beyond express.json()'s 100kb default. */
 export const PAGE_CONTENT_BODY_LIMIT = "50mb";

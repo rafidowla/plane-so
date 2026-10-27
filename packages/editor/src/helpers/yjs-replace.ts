@@ -13,9 +13,10 @@
 // of the old state merges cleanly.
 
 import { getSchema } from "@tiptap/core";
-import { generateJSON } from "@tiptap/html";
+// Server-only (live): tiptap v3's default @tiptap/html codec needs a browser window.
+import { generateJSON } from "@tiptap/html/server";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { prosemirrorToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from "y-prosemirror";
+import { prosemirrorToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from "@tiptap/y-tiptap";
 import type * as Y from "yjs";
 // extensions
 import {
@@ -23,9 +24,9 @@ import {
   DocumentEditorExtensionsWithoutProps,
 } from "@/extensions/core-without-props";
 // helpers
-import { generateTitleProsemirrorJson } from "@/helpers/yjs-utils";
+import { generateTitleProsemirrorJson } from "@/helpers/document-codecs";
 
-// Same extension set and schema as the document editor helpers in yjs-utils.ts (not exported there).
+// Same extension set and schema as the document editor helpers in document-codecs.ts (not exported there).
 const DOCUMENT_EDITOR_EXTENSIONS = [...CoreEditorExtensionsWithoutProps, ...DocumentEditorExtensionsWithoutProps];
 const documentEditorSchema = getSchema(DOCUMENT_EDITOR_EXTENSIONS);
 
@@ -39,7 +40,7 @@ export type TReplaceDocumentEditorContentArgs = {
 };
 
 const replaceFragment = (fragment: Y.XmlFragment, target: ProseMirrorNode): void => {
-  // y-prosemirror's own ProseMirror -> Yjs update (the one the editor runs on every change): it rewrites
+  // y-tiptap's (y-prosemirror's) own ProseMirror -> Yjs update (the one the editor runs on every change): it rewrites
   // only what differs, so identical content produces no operations and untouched blocks keep their
   // identity for anyone editing them at the same moment.
   prosemirrorToYXmlFragment(target, fragment);
