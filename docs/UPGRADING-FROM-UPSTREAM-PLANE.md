@@ -153,6 +153,28 @@ most edits 1–12 lines. Keep this list handy during a merge:
 > - Deploy-time: Redis TLS verification is on by default (`REDIS_SSL_CERT_REQS`), object-storage
 >   credentials no longer default to `access-key`/`secret-key` in settings, cookies become
 >   `Secure` when `WEB_URL` is https, and cookie-authenticated writes must come from a Plane origin.
+>
+> **2026-10-27 sync (upstream `490619341f..a9e70360c5`, 15 commits, incl. Tiptap/Hocuspocus v3).**
+>
+> - No new upstream DB migrations, so no merge migration this time.
+> - Tiptap v3 (WIKI-1268, `b4b48c95da`): `y-prosemirror` → `@tiptap/y-tiptap` (same function
+>   names), and `@tiptap/html`'s default entry now needs a browser `window`. The fork's PSR-86
+>   `helpers/yjs-replace.ts` runs in `apps/live`, so it imports `generateJSON` from
+>   `@tiptap/html/server` (happy-dom) and is exported from `@plane/editor/server`, **not** the
+>   package root. `generateTitleProsemirrorJson` in `document-codecs.ts` is exported (FORK) for it.
+> - Zod 4: `ZodError.errors` is gone — use `.issues` (`apps/live` page-content controller).
+> - INFRA-772 made `created_by` read-only on the v1 issue serializer. The fork keeps PSR-119's
+>   Admin-only re-attribution: the v1 PATCH validates `created_by` (workspace Admin + existing
+>   user) and applies it after `serializer.save()`; create/link/comment keep `audit_created_by`.
+> - INFRA-496 added a BaseViewSet guard that 405s routed actions served by DRF's built-in
+>   handlers. The fork already implements permission-checked `update`/`retrieve`/`partial_update`
+>   on those viewsets (`# FORK: put-permission`), so the 17 matching entries were removed from
+>   `GUARD_REJECTED_ROUTES` in `test_routed_action_authorization.py` (comment explains why).
+> - Smoke-tested by hand: page typing/markdown/reload, PSR-86 replace into an open page (no
+>   duplication), public-board voting, time tracking (+ project flag off hides it), custom
+>   property, attachment upload + preview, Jira sample preview, Monday theme.
+> - Pre-existing, not from this sync: `expand=issue_attachments` (`app/serializers/base.py`) does
+>   not filter `is_uploaded=True`, so a failed upload stays listed on the work item.
 
 ---
 
