@@ -295,6 +295,17 @@ export const DescriptionInput = observer(function DescriptionInput(props: Props)
               onChange(description_html);
               setValue("isMigrationUpdate", !!options?.isMigrationUpdate);
               setValue("description_json", description_json);
+              // FORK: description-save-cancel (#16) — a block-ID-only migration update
+              // (e.g. on first open of an API-written description) is not a user edit:
+              // persist it silently (onSubmit sends skip_activity) instead of showing
+              // the Save/Cancel bar. Only when nothing else is pending, so a real
+              // unsaved edit is never saved without the Save click.
+              if (saveMode === "explicit" && options?.isMigrationUpdate && !hasUnsavedChanges.current) {
+                handleSubmit(handleDescriptionFormSubmit)()
+                  .catch((error) => console.error(`Failed to save description for ${entityId}:`, error))
+                  .finally(() => setIsSubmitting("submitted"));
+                return;
+              }
               hasUnsavedChanges.current = true;
               setHasUnsaved(true);
               // FORK: description-save-cancel (#16) — explicit mode waits for the Save button

@@ -236,6 +236,7 @@ def _apply_view_list_annotations(queryset):
             attachment_count=FileAsset.objects.filter(
                 issue_id=OuterRef("id"),
                 entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
+                is_uploaded=True,  # FORK: count finished uploads only
             )
             .order_by()
             .annotate(count=Func(F("id"), function="Count"))

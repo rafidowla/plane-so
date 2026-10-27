@@ -32,6 +32,7 @@ def get_issue_attachments_dict(issues_queryset: QuerySet) -> Dict[str, List[str]
     file_assets = FileAsset.objects.filter(
         issue_id__in=issues_queryset.values_list("id", flat=True),
         entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
+        is_uploaded=True,  # FORK: count finished uploads only
     ).annotate(work_item_id=F("issue_id"), asset_id=F("id"))
 
     attachment_dict = defaultdict(list)
