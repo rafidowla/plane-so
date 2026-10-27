@@ -322,8 +322,24 @@ class UserEndpoint(BaseViewSet):
         )
 
         for workspace in workspaces:
+            # FORK: PSR-125 -- never leave a workspace without a Super Admin.
+            if (
+                workspace.is_super_admin
+                and not WorkspaceMember.objects.filter(
+                    workspace_id=workspace.workspace_id, is_super_admin=True, is_active=True
+                )
+                .exclude(member=request.user)
+                .exists()
+            ):
+                return Response(
+                    {
+                        "error": "You cannot deactivate your account as you are the only Super Admin of some workspaces."  # noqa: E501
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if workspace.other_admin_exists > 0 or (workspace.total_members == 1):
                 workspace.is_active = False
+                workspace.is_super_admin = False  # FORK: PSR-125 -- rejoining must not restore it
                 workspaces_to_deactivate.append(workspace)
             else:
                 return Response(
@@ -333,7 +349,9 @@ class UserEndpoint(BaseViewSet):
 
         ProjectMember.objects.bulk_update(projects_to_deactivate, ["is_active"], batch_size=100)
 
-        WorkspaceMember.objects.bulk_update(workspaces_to_deactivate, ["is_active"], batch_size=100)
+        WorkspaceMember.objects.bulk_update(
+            workspaces_to_deactivate, ["is_active", "is_super_admin"], batch_size=100  # FORK: PSR-125
+        )
 
         # Delete all workspace invites
         WorkspaceMemberInvite.objects.filter(email=user.email).delete()

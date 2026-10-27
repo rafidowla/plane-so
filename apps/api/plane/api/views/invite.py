@@ -18,6 +18,7 @@ from plane.api.views.base import BaseViewSet
 from plane.db.models import WorkspaceMemberInvite, Workspace
 from plane.api.serializers import WorkspaceInviteSerializer
 from plane.utils.permissions import WorkspaceOwnerPermission
+from plane.app.permissions import is_workspace_super_admin, super_admin_forbidden  # FORK: PSR-125
 from plane.utils.openapi.parameters import WORKSPACE_SLUG_PARAMETER
 
 
@@ -90,6 +91,9 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         workspace = Workspace.objects.get(slug=slug)
         serializer = WorkspaceInviteSerializer(data=request.data, context={"slug": slug})
         serializer.is_valid(raise_exception=True)
+        # FORK: PSR-125 -- only a Super Admin can bring in a new Admin.
+        if serializer.validated_data.get("role") == 20 and not is_workspace_super_admin(request.user, slug=slug):
+            return super_admin_forbidden()
         serializer.save(workspace=workspace, created_by=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -125,6 +129,12 @@ class WorkspaceInvitationsViewset(BaseViewSet):
             workspace_member_invite, data=request.data, partial=True, context={"slug": slug}
         )
         serializer.is_valid(raise_exception=True)
+        # FORK: PSR-125 -- only a Super Admin can make (or unmake) an Admin invitation.
+        if 20 in (
+            serializer.validated_data.get("role"),
+            workspace_member_invite.role,
+        ) and not is_workspace_super_admin(request.user, slug=slug):
+            return super_admin_forbidden()
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
 

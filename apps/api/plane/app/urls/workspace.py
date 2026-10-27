@@ -38,6 +38,8 @@ from plane.app.views import (
     WorkspaceUserPreferenceViewSet,
     # FORK: draft-project-change (PSR-92)
     DraftProjectMappingEndpoint,
+    # FORK: PSR-125
+    WorkspaceOwnershipTransferEndpoint,
 )
 
 
@@ -105,6 +107,12 @@ urlpatterns = [
         "workspaces/<str:slug>/members/leave/",
         WorkSpaceMemberViewSet.as_view({"post": "leave"}),
         name="leave-workspace-members",
+    ),
+    # FORK: PSR-125 -- hand ownership to another Super Admin.
+    path(
+        "workspaces/<str:slug>/transfer-ownership/",
+        WorkspaceOwnershipTransferEndpoint.as_view(),
+        name="workspace-transfer-ownership",
     ),
     path(
         "users/last-visited-workspace/",

@@ -15,7 +15,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions import ROLE, allow_permission
+from plane.app.permissions import ROLE, allow_permission, allow_workspace_super_admin  # FORK: PSR-125
 from plane.app.serializers import (
     IssueWorklogSerializer,
     TimeTrackingMemberStatusSerializer,
@@ -57,6 +57,7 @@ class TimeTrackingSettingsEndpoint(BaseAPIView):
         return Response(data, status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def patch(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
         with transaction.atomic():

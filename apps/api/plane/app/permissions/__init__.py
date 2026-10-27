@@ -19,5 +19,14 @@ from .project import (
     ProjectLitePermission,
     ProjectAdminPermission,
 )
-from .base import allow_permission, issue_hidden_from_guest, ROLE
+from .base import (
+    allow_permission,
+    issue_hidden_from_guest,
+    ROLE,
+    # FORK: PSR-125
+    SUPER_ADMIN_REQUIRED_ERROR,
+    allow_workspace_super_admin,
+    is_workspace_super_admin,
+    super_admin_forbidden,
+)
 from .page import ProjectPagePermission

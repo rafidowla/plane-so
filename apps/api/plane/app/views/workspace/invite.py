@@ -20,6 +20,7 @@ from rest_framework.response import Response
 
 # Module imports
 from plane.app.permissions import WorkSpaceAdminPermission
+from plane.app.permissions import super_admin_forbidden  # FORK: PSR-125
 from plane.app.serializers import (
     WorkSpaceMemberInviteSerializer,
     WorkSpaceMemberInvitePublicSerializer,
@@ -64,6 +65,10 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                 {"error": "You cannot invite a user with higher role"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # FORK: PSR-125 -- only a Super Admin can bring in a new Admin.
+        if not requesting_user.is_super_admin and any(int(email.get("role", 5)) == 20 for email in emails):
+            return super_admin_forbidden()
 
         # Get the workspace object
         workspace = Workspace.objects.get(slug=slug)
@@ -147,6 +152,10 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # FORK: PSR-125 -- only a Super Admin can make (or unmake) an Admin invitation.
+        if not requesting_user.is_super_admin and 20 in (serializer.validated_data["role"], workspace_member_invite.role):
+            return super_admin_forbidden()
+
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -214,7 +223,9 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                     ).first()
                     if workspace_member is not None:
                         workspace_member.is_active = True
-                        workspace_member.role = workspace_invite.role
+                        # FORK: PSR-125 -- a stale invite must not demote a current Super Admin.
+                        if not workspace_member.is_super_admin:
+                            workspace_member.role = workspace_invite.role
                         workspace_member.save()
                     else:
                         # Create a Workspace
@@ -289,9 +300,10 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
                 multiple=True,
             )
             # Update the WorkspaceMember for this specific invitation
-            WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user).update(
-                is_active=True, role=invitation.role
-            )
+            # FORK: PSR-125 -- a stale invite must not demote a current Super Admin.
+            WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user).exclude(
+                is_super_admin=True
+            ).update(is_active=True, role=invitation.role)
 
         # Bulk create the user for all the workspaces
         WorkspaceMember.objects.bulk_create(

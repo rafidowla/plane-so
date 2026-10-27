@@ -44,6 +44,7 @@ class WorkSpaceSerializer(DynamicBaseSerializer):
     total_members = serializers.IntegerField(read_only=True)
     logo_url = serializers.CharField(read_only=True)
     role = serializers.IntegerField(read_only=True)
+    is_super_admin = serializers.BooleanField(read_only=True)  # FORK: PSR-125
 
     def validate_name(self, value):
         # Check if the name contains a URL
@@ -101,6 +102,7 @@ class WorkSpaceMemberSerializer(DynamicBaseSerializer):
             "id",
             "workspace",
             "is_active",
+            "is_super_admin",  # FORK: PSR-125 -- changed only through the role endpoint's own checks
             "created_by",
             "updated_by",
             "created_at",

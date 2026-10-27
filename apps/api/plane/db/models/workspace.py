@@ -211,6 +211,9 @@ class WorkspaceMember(BaseModel):
     getting_started_checklist = models.JSONField(default=dict)
     tips = models.JSONField(default=dict)
     explored_features = models.JSONField(default=dict)
+    # FORK: PSR-125 -- a Super Admin is an active Admin (role 20) with this flag. Keeping it a flag
+    # rather than a new role value leaves every existing ``role == 20`` / ``ROLE.ADMIN`` check intact.
+    is_super_admin = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ["workspace", "member", "deleted_at"]
@@ -219,7 +222,12 @@ class WorkspaceMember(BaseModel):
                 fields=["workspace", "member"],
                 condition=models.Q(deleted_at__isnull=True),
                 name="workspace_member_unique_workspace_member_when_deleted_at_null",
-            )
+            ),
+            # FORK: PSR-125 -- demoting or deactivating a member must clear the flag in the same write.
+            models.CheckConstraint(
+                condition=models.Q(is_super_admin=False) | models.Q(role=20, is_active=True),
+                name="workspace_member_super_admin_is_active_admin",
+            ),
         ]
         verbose_name = "Workspace Member"
         verbose_name_plural = "Workspace Members"

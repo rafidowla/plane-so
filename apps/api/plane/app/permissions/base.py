@@ -108,6 +108,37 @@ def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None):
     return decorator
 
 
+# FORK: PSR-125 -- workspace Super Admin. A Super Admin is an active Admin with
+# ``is_super_admin``; these gates sit on top of the normal Admin checks.
+SUPER_ADMIN_REQUIRED_ERROR = "Only a Super Admin of this workspace can do this."
+
+
+def is_workspace_super_admin(user, slug=None, workspace_id=None):
+    """Whether ``user`` is an active Super Admin of the workspace (by slug or id)."""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    lookup = {"workspace__slug": slug} if workspace_id is None else {"workspace_id": workspace_id}
+    return WorkspaceMember.objects.filter(
+        member=user, role=ROLE.ADMIN.value, is_active=True, is_super_admin=True, **lookup
+    ).exists()
+
+
+def super_admin_forbidden():
+    return Response({"error": SUPER_ADMIN_REQUIRED_ERROR}, status=status.HTTP_403_FORBIDDEN)
+
+
+def allow_workspace_super_admin(view_func):
+    """Allow the view only for a Super Admin of the workspace named by the ``slug`` URL kwarg."""
+
+    @wraps(view_func)
+    def _wrapped_view(instance, request, *args, **kwargs):
+        if is_workspace_super_admin(request.user, slug=kwargs["slug"]):
+            return view_func(instance, request, *args, **kwargs)
+        return super_admin_forbidden()
+
+    return _wrapped_view
+
+
 def issue_hidden_from_guest(request, slug, project_id, issue_id):
     """Return True when the caller is a *restricted* project guest who must not
     see the given issue's data or sub-resources.

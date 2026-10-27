@@ -13,12 +13,13 @@ from rest_framework.response import Response
 from plane.db.models import Webhook, WebhookLog, Workspace
 from plane.db.models.webhook import generate_token
 from ..base import BaseAPIView
-from plane.app.permissions import allow_permission, ROLE
+from plane.app.permissions import allow_permission, allow_workspace_super_admin, ROLE  # FORK: PSR-125
 from plane.app.serializers import WebhookSerializer, WebhookLogSerializer
 
 
 class WebhookEndpoint(BaseAPIView):
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def post(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
         try:
@@ -79,6 +80,7 @@ class WebhookEndpoint(BaseAPIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def patch(self, request, slug, pk):
         webhook = Webhook.objects.get(workspace__slug=slug, pk=pk)
         serializer = WebhookSerializer(
@@ -105,6 +107,7 @@ class WebhookEndpoint(BaseAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def delete(self, request, slug, pk):
         webhook = Webhook.objects.get(pk=pk, workspace__slug=slug)
         webhook.delete()
@@ -113,6 +116,7 @@ class WebhookEndpoint(BaseAPIView):
 
 class WebhookSecretRegenerateEndpoint(BaseAPIView):
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def post(self, request, slug, pk):
         webhook = Webhook.objects.get(workspace__slug=slug, pk=pk)
         webhook.secret_key = generate_token()

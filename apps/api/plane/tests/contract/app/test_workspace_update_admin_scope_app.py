@@ -39,10 +39,33 @@ class TestWorkspaceUpdateAdminScope:
         workspace.refresh_from_db()
         assert workspace.name == "Test Workspace"
 
+    # FORK: PSR-125 -- renaming is Super Admin only; a plain Admin may save other settings, and
+    # re-sending the unchanged name/slug (as the settings form does) is not a rename.
     @pytest.mark.parametrize("method", ["put", "patch"])
     def test_admin_can_update_workspace(self, workspace, method):
         client = _client_for(workspace, ADMIN)
         response = getattr(client, method)(
+            f"/api/workspaces/{workspace.slug}/",
+            {"name": workspace.name, "slug": workspace.slug, "organization_size": "2-10"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK, response.data
+        workspace.refresh_from_db()
+        assert workspace.organization_size == "2-10"
+
+    @pytest.mark.parametrize("method", ["put", "patch"])
+    def test_admin_cannot_rename_workspace(self, workspace, method):
+        client = _client_for(workspace, ADMIN)
+        response = getattr(client, method)(
+            f"/api/workspaces/{workspace.slug}/", {"name": "Renamed", "slug": workspace.slug}, format="json"
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN, response.data
+        workspace.refresh_from_db()
+        assert workspace.name == "Test Workspace"
+
+    @pytest.mark.parametrize("method", ["put", "patch"])
+    def test_super_admin_can_rename_workspace(self, session_client, workspace, method):
+        response = getattr(session_client, method)(
             f"/api/workspaces/{workspace.slug}/", {"name": "Renamed", "slug": workspace.slug}, format="json"
         )
         assert response.status_code == status.HTTP_200_OK, response.data

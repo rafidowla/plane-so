@@ -44,6 +44,7 @@ from plane.db.models import (
     Profile,
 )
 from plane.app.permissions import ROLE, allow_permission
+from plane.app.permissions import is_workspace_super_admin, super_admin_forbidden  # FORK: PSR-125
 from plane.utils.constants import RESTRICTED_WORKSPACE_SLUGS
 from plane.license.utils.instance_value import get_configuration_value
 from plane.bgtasks.workspace_seed_task import workspace_seed
@@ -128,6 +129,7 @@ class WorkSpaceViewSet(BaseViewSet):
                     member=request.user,
                     role=20,
                     company_role=request.data.get("company_role", ""),
+                    is_super_admin=True,  # FORK: PSR-125 -- the creator owns the new workspace
                 )
 
                 # Get total members and role
@@ -135,6 +137,7 @@ class WorkSpaceViewSet(BaseViewSet):
                 data = serializer.data
                 data["total_members"] = total_members
                 data["role"] = 20
+                data["is_super_admin"] = True  # FORK: PSR-125
 
                 workspace_seed.delay(serializer.data["id"])
 
@@ -159,13 +162,37 @@ class WorkSpaceViewSet(BaseViewSet):
     # member could rename the workspace or change its slug; PATCH requires admin. (partial_update calls
     # ModelViewSet.partial_update, which dispatches back to ``update`` — so gate here and stay partial instead
     # of delegating, or the two would recurse.)
+    # FORK: PSR-125 -- name, URL (slug) and logo are Super Admin only; Admins keep the other fields.
+    # Only a changed value counts: the settings form re-sends the current name and slug on every save.
+    SUPER_ADMIN_FIELDS = {"name": "name", "slug": "slug", "logo": "logo", "logo_asset": "logo_asset_id",
+                          "logo_asset_id": "logo_asset_id"}
+
+    def _needs_super_admin(self, request, slug):
+        if not isinstance(request.data, dict) or is_workspace_super_admin(request.user, slug=slug):
+            return False
+        sent = {key: request.data[key] for key in self.SUPER_ADMIN_FIELDS if key in request.data}
+        if not sent:
+            return False
+        workspace = Workspace.objects.filter(slug=slug).first()
+        if workspace is None:
+            return False
+        for key, value in sent.items():
+            current = getattr(workspace, self.SUPER_ADMIN_FIELDS[key])
+            if str(current or "") != str(value or ""):
+                return True
+        return False
+
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def update(self, request, *args, **kwargs):
+        if self._needs_super_admin(request, kwargs["slug"]):
+            return super_admin_forbidden()
         kwargs["partial"] = True
         return super().update(request, *args, **kwargs)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def partial_update(self, request, *args, **kwargs):
+        if self._needs_super_admin(request, kwargs["slug"]):
+            return super_admin_forbidden()
         return super().partial_update(request, *args, **kwargs)
 
     def remove_last_workspace_ids_from_user_settings(self, id: uuid.UUID) -> None:
@@ -177,6 +204,9 @@ class WorkSpaceViewSet(BaseViewSet):
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def destroy(self, request, *args, **kwargs):
+        # FORK: PSR-125 -- only a Super Admin may delete the workspace.
+        if not is_workspace_super_admin(request.user, slug=kwargs["slug"]):
+            return super_admin_forbidden()
         # Get the workspace
         workspace = self.get_object()
         self.remove_last_workspace_ids_from_user_settings(workspace.id)
@@ -200,6 +230,10 @@ class UserWorkSpacesEndpoint(BaseAPIView):
         role = WorkspaceMember.objects.filter(workspace=OuterRef("id"), member=request.user, is_active=True).values(
             "role"
         )
+        # FORK: PSR-125 -- the web app needs to know which workspaces the user is Super Admin of.
+        is_super_admin = WorkspaceMember.objects.filter(
+            workspace=OuterRef("id"), member=request.user, is_active=True
+        ).values("is_super_admin")
 
         workspace = (
             Workspace.objects.prefetch_related(
@@ -208,7 +242,7 @@ class UserWorkSpacesEndpoint(BaseAPIView):
                     queryset=WorkspaceMember.objects.filter(member=request.user, is_active=True),
                 )
             )
-            .annotate(role=role, total_members=member_count)
+            .annotate(role=role, is_super_admin=is_super_admin, total_members=member_count)
             .filter(workspace_member__member=request.user, workspace_member__is_active=True)
             .distinct()
         )

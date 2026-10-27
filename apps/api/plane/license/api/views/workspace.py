@@ -94,6 +94,7 @@ class InstanceWorkSpaceEndpoint(BaseAPIView):
                     workspace_id=serializer.data["id"],
                     member=request.user,
                     role=20,
+                    is_super_admin=True,  # FORK: PSR-125 -- the creator is the first Super Admin
                     company_role=request.data.get("company_role", ""),
                 )
                 return Response(serializer.data, status=status.HTTP_201_CREATED)

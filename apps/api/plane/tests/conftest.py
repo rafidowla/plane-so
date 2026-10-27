@@ -135,6 +135,7 @@ def workspace(create_user):
         slug="test-workspace",
     )
 
-    WorkspaceMember.objects.create(workspace=created_workspace, member=create_user, role=20)
+    # FORK: PSR-125 -- the creator of a workspace is its first Super Admin.
+    WorkspaceMember.objects.create(workspace=created_workspace, member=create_user, role=20, is_super_admin=True)
 
     return created_workspace

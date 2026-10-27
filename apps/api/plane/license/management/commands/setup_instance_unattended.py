@@ -125,7 +125,9 @@ class Command(BaseCommand):
                     i += 1
                     slug = f"{base}-{i}"
                 workspace = Workspace.objects.create(name=workspace_name, slug=slug, owner=user)
-                WorkspaceMember.objects.create(workspace=workspace, member=user, role=20)
+                WorkspaceMember.objects.create(
+                    workspace=workspace, member=user, role=20, is_super_admin=True  # FORK: PSR-125
+                )
                 step["workspace_create"] = True
                 profile.last_workspace_id = workspace.id
                 made_workspace = True

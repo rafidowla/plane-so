@@ -59,6 +59,7 @@ from .workspace.member import (
     WorkspaceMemberUserEndpoint,
     WorkspaceProjectMemberEndpoint,
     WorkspaceMemberUserViewsEndpoint,
+    WorkspaceOwnershipTransferEndpoint,  # FORK: PSR-125
 )
 from .workspace.invite import (
     WorkspaceInvitationsViewset,

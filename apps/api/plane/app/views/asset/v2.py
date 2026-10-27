@@ -23,6 +23,7 @@ from plane.app.serializers import FileAssetSerializer
 from plane.db.models import DraftIssue, FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember
 from plane.settings.storage import S3Storage
 from plane.app.permissions import allow_permission, ROLE
+from plane.app.permissions import is_workspace_super_admin, super_admin_forbidden  # FORK: PSR-125
 from plane.utils.cache import invalidate_cache_directly
 from plane.utils.path_validator import sanitize_filename
 from plane.utils.attachment_mime import (
@@ -48,7 +49,8 @@ def can_modify_asset(user, asset):
         .first()
     )
     if asset.entity_type == FileAsset.EntityTypeContext.WORKSPACE_LOGO:
-        return workspace_role == ROLE.ADMIN.value
+        # FORK: PSR-125 -- the workspace logo belongs to Super Admins.
+        return is_workspace_super_admin(user, workspace_id=asset.workspace_id)
 
     role = workspace_role
     if asset.project_id:
@@ -378,11 +380,9 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
             workspace_member = WorkspaceMember.objects.filter(
                 workspace__slug=slug, member=request.user, is_active=True
             ).first()
-            if not workspace_member or workspace_member.role != ROLE.ADMIN.value:
-                return Response(
-                    {"error": "Only workspace admins can upload a workspace logo."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+            # FORK: PSR-125 -- the workspace logo belongs to Super Admins.
+            if not workspace_member or not workspace_member.is_super_admin:
+                return super_admin_forbidden()
 
         # Check if the file type is allowed
         allowed_types = [
