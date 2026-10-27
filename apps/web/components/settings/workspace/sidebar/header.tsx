@@ -22,7 +22,7 @@ export const WorkspaceSettingsSidebarHeader = observer(function WorkspaceSetting
   // router
   const router = useAppRouter();
   // store hooks
-  const { getWorkspaceRoleByWorkspaceSlug } = useUserPermissions();
+  const { getWorkspaceRoleByWorkspaceSlug, workspaceUserInfo } = useUserPermissions();
   const { currentWorkspace } = useWorkspace();
   // derived values
   const currentWorkspaceRole = currentWorkspace?.slug
@@ -30,6 +30,8 @@ export const WorkspaceSettingsSidebarHeader = observer(function WorkspaceSetting
     : undefined;
   // translation
   const { t } = useTranslation();
+  // FORK: PSR-125 -- a Super Admin is an Admin with a flag; show the Super Admin title.
+  const isSuperAdmin = !!(currentWorkspace?.slug && workspaceUserInfo[currentWorkspace.slug]?.is_super_admin);
 
   if (!currentWorkspaceRole) return null;
 
@@ -54,7 +56,11 @@ export const WorkspaceSettingsSidebarHeader = observer(function WorkspaceSetting
           />
           <div className="truncate">
             <p className="truncate text-body-sm-medium">{currentWorkspace?.name}</p>
-            <p className="truncate text-caption-md-regular">{t(ROLE_DETAILS[currentWorkspaceRole].i18n_title)}</p>
+            <p className="truncate text-caption-md-regular">
+              {isSuperAdmin
+                ? t("workspace_settings.settings.members.super_admin")
+                : t(ROLE_DETAILS[currentWorkspaceRole].i18n_title)}
+            </p>
           </div>
         </div>
       </div>

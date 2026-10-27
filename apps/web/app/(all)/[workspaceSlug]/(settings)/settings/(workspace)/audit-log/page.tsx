@@ -46,13 +46,17 @@ const changeLines = (entry: TWorkspaceAuditLogEntry, yesNo: [string, string]) =>
   const before = entry.before ?? {};
   const after = entry.after ?? {};
   const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
-  return keys
-    .filter((key) => !(HIDDEN_WHEN_TWIN[key] && keys.includes(HIDDEN_WHEN_TWIN[key])))
-    .map((key) => ({
-      key,
-      before: key in before ? formatValue(before[key], yesNo) : null,
-      after: key in after ? formatValue(after[key], yesNo) : null,
-    }));
+  return (
+    keys
+      .filter((key) => !(HIDDEN_WHEN_TWIN[key] && keys.includes(HIDDEN_WHEN_TWIN[key])))
+      // Some entries carry the full before/after state for context; only list what changed.
+      .filter((key) => !(key in before && key in after && JSON.stringify(before[key]) === JSON.stringify(after[key])))
+      .map((key) => ({
+        key,
+        before: key in before ? formatValue(before[key], yesNo) : null,
+        after: key in after ? formatValue(after[key], yesNo) : null,
+      }))
+  );
 };
 
 function AuditLogRow({ entry }: { entry: TWorkspaceAuditLogEntry }) {

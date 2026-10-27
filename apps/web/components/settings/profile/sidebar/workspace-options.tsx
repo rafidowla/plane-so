@@ -13,10 +13,12 @@ import { SettingsSidebarItem } from "@/components/settings/sidebar/item";
 import { WorkspaceLogo } from "@/components/workspace/logo";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
+import { useWorkspaceCreation } from "@/hooks/use-workspace-creation"; // FORK: PSR-125
 
 export const ProfileSettingsSidebarWorkspaceOptions = observer(function ProfileSettingsSidebarWorkspaceOptions() {
   // store hooks
   const { workspaces } = useWorkspace();
+  const { canCreate: canCreateWorkspace } = useWorkspaceCreation(); // FORK: PSR-125
   // translation
   const { t } = useTranslation();
 
@@ -35,13 +37,16 @@ export const ProfileSettingsSidebarWorkspaceOptions = observer(function ProfileS
           />
         ))}
         <div className="mt-1.5">
-          <SettingsSidebarItem
-            as="link"
-            href="/create-workspace/"
-            icon={PlusCircleOutline}
-            label={t("create_workspace")}
-            isActive={false}
-          />
+          {/* FORK: PSR-125 -- only offered to users who may create a workspace. */}
+          {canCreateWorkspace && (
+            <SettingsSidebarItem
+              as="link"
+              href="/create-workspace/"
+              icon={PlusCircleOutline}
+              label={t("create_workspace")}
+              isActive={false}
+            />
+          )}
           <SettingsSidebarItem
             as="link"
             href="/invitations/"

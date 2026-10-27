@@ -39,6 +39,7 @@ import { useProjectState } from "@/hooks/store/use-project-state";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+import { useWorkspaceCreation } from "@/hooks/use-workspace-creation"; // FORK: PSR-125
 
 interface IWorkspaceAuthWrapper {
   children: ReactNode;
@@ -58,6 +59,7 @@ export const WorkspaceAuthWrapper = observer(function WorkspaceAuthWrapper(props
   } = useMember();
   const { workspaces, fetchSidebarNavigationPreferences, fetchProjectNavigationPreferences } = useWorkspace();
   const { isMobile } = usePlatformOS();
+  const { canCreate: canCreateWorkspace } = useWorkspaceCreation(); // FORK: PSR-125
   const { loader, workspaceInfoBySlug, fetchUserWorkspaceInfo, fetchUserProjectPermissions, allowPermissions } =
     useUserPermissions();
   const { fetchWorkspaceStates } = useProjectState();
@@ -225,9 +227,12 @@ export const WorkspaceAuthWrapper = observer(function WorkspaceAuthWrapper(props
               <ButtonElement variant="secondary" size="sm" stretch="auto" render={<Link href="/invitations" />}>
                 Check pending invites
               </ButtonElement>
-              <ButtonElement variant="primary" size="sm" stretch="auto" render={<Link href="/create-workspace" />}>
-                Create new workspace
-              </ButtonElement>
+              {/* FORK: PSR-125 -- only offered to users who may create a workspace. */}
+              {canCreateWorkspace && (
+                <ButtonElement variant="primary" size="sm" stretch="auto" render={<Link href="/create-workspace" />}>
+                  Create new workspace
+                </ButtonElement>
+              )}
             </div>
           </div>
         </div>

@@ -78,7 +78,7 @@ const CreateWorkspacePage = observer(function CreateWorkspacePage() {
             <div className="flex h-full w-4/5 flex-col items-center justify-center gap-1 text-16 font-medium">
               <img
                 src={WorkspaceCreationDisabled}
-                className="mb-4 h-full w-full object-contain"
+                className="mb-4 max-h-[45vh] w-full object-contain"
                 alt="Workspace creation disabled"
               />
               {/* FORK: PSR-125 -- creation is limited to Super Admins unless the instance switch blocks it. */}
