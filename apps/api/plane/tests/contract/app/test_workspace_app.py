@@ -11,6 +11,7 @@ from plane.db.models import Workspace, WorkspaceMember
 
 
 @pytest.mark.contract
+@pytest.mark.usefixtures("instance_admin")  # FORK: PSR-125 -- creating a workspace needs an instance admin
 class TestWorkspaceAPI:
     """Test workspace CRUD operations"""
 

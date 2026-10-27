@@ -45,6 +45,7 @@ from plane.db.models import (
 )
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.permissions import is_workspace_super_admin, super_admin_forbidden  # FORK: PSR-125
+from plane.utils import workspace_lifecycle  # FORK: PSR-125
 from plane.utils.constants import RESTRICTED_WORKSPACE_SLUGS
 from plane.license.utils.instance_value import get_configuration_value
 from plane.bgtasks.workspace_seed_task import workspace_seed
@@ -95,6 +96,13 @@ class WorkSpaceViewSet(BaseViewSet):
             if DISABLE_WORKSPACE_CREATION == "1":
                 return Response(
                     {"error": "Workspace creation is not allowed"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # FORK: PSR-125 -- only instance admins and Super Admins may create workspaces.
+            if not workspace_lifecycle.can_create_workspace(request.user):
+                return Response(
+                    {"error": workspace_lifecycle.CREATION_FORBIDDEN_ERROR},
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
@@ -204,11 +212,36 @@ class WorkSpaceViewSet(BaseViewSet):
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def destroy(self, request, *args, **kwargs):
-        # FORK: PSR-125 -- only a Super Admin may delete the workspace.
+        # FORK: PSR-125 -- only a Super Admin may delete the workspace, and only after typing its
+        # name and re-confirming who they are (password, or an emailed code for accounts without one).
         if not is_workspace_super_admin(request.user, slug=kwargs["slug"]):
             return super_admin_forbidden()
         # Get the workspace
         workspace = self.get_object()
+        data = request.data if isinstance(request.data, dict) else {}
+        if str(data.get("confirm_name") or "").strip() != workspace.name.strip():
+            return Response(
+                {"error": "Type the workspace name exactly to confirm.", "error_code": "WORKSPACE_NAME_MISMATCH"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if workspace_lifecycle.too_many_failed_checks(workspace.id, request.user.id):
+            return Response(
+                {"error": "Too many failed attempts. Try again in 15 minutes.", "error_code": "TOO_MANY_ATTEMPTS"},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if not workspace_lifecycle.verify_delete_identity(
+            request.user, workspace.id, password=data.get("password"), code=data.get("code")
+        ):
+            workspace_lifecycle.record_failed_check(workspace.id, request.user.id)
+            uses_password = workspace_lifecycle.uses_password(request.user)
+            return Response(
+                {
+                    "error": "Your password is incorrect." if uses_password else "The code is wrong or has expired.",
+                    "error_code": "PASSWORD_INCORRECT" if uses_password else "CODE_INVALID",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        workspace_lifecycle.clear_delete_checks(workspace.id, request.user.id)
         self.remove_last_workspace_ids_from_user_settings(workspace.id)
         return super().destroy(request, *args, **kwargs)
 

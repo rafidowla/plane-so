@@ -12,7 +12,7 @@ from rest_framework.response import Response
 
 # Module imports
 from plane.app.views.base import BaseAPIView, BaseViewSet
-from plane.app.permissions import ROLE, allow_permission
+from plane.app.permissions import ROLE, allow_permission, allow_workspace_super_admin  # FORK: PSR-125
 from plane.app.serializers import ResourceCapacitySerializer
 from plane.db.models import (
     ResourceCapacity,
@@ -108,6 +108,7 @@ class ResourceCapacityViewSet(BaseViewSet):
         )
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def upsert(self, request, slug):
         """Create or update the capacity row for a given user."""
         user_id = request.data.get("user")
@@ -161,6 +162,7 @@ class TimeTrackingMemberCapacityEndpoint(BaseAPIView):
     ``{user_id, weekly_capacity}``)."""
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def put(self, request, slug, user_id):
         workspace = Workspace.objects.get(slug=slug)
         if not _is_internal_member(workspace.id, user_id):

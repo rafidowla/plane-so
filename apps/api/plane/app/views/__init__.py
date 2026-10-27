@@ -47,6 +47,12 @@ from .workspace.draft import WorkspaceDraftIssueViewSet
 
 from .workspace.home import WorkspaceHomePreferenceViewSet
 
+# FORK: PSR-125 -- delete confirmation code, deleted workspaces, restore.
+from .workspace.lifecycle import (
+    WorkspaceDeleteCodeEndpoint,
+    DeletedWorkspacesEndpoint,
+    WorkspaceRestoreEndpoint,
+)
 from .workspace.favorite import (
     WorkspaceFavoriteEndpoint,
     WorkspaceFavoriteGroupEndpoint,

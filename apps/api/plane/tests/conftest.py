@@ -139,3 +139,24 @@ def workspace(create_user):
     WorkspaceMember.objects.create(workspace=created_workspace, member=create_user, role=20, is_super_admin=True)
 
     return created_workspace
+
+
+@pytest.fixture
+def instance_admin(create_user):
+    """FORK: PSR-125 -- make ``create_user`` an instance (god-mode) admin, who may create workspaces
+    without already being a Super Admin somewhere."""
+    import uuid
+
+    from django.utils import timezone
+
+    from plane.license.models import Instance, InstanceAdmin
+
+    instance = Instance.objects.create(
+        instance_name="Test Instance",
+        instance_id=str(uuid.uuid4()),
+        current_version="1.0.0",
+        last_checked_at=timezone.now(),
+        is_setup_done=True,
+    )
+    InstanceAdmin.objects.create(user=create_user, instance=instance, role=20)
+    return create_user

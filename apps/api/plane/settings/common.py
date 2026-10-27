@@ -514,6 +514,9 @@ WEBHOOK_LOG_RETENTION_DAYS = _retention_days("WEBHOOK_LOG_RETENTION_DAYS", 14)
 # Email notification logs are retained on their own window.
 EMAIL_LOG_RETENTION_DAYS = _retention_days("EMAIL_LOG_RETENTION_DAYS", 7)
 
+# FORK: PSR-125 -- a deleted workspace is kept (and restorable) for this many days, then purged.
+WORKSPACE_HARD_DELETE_AFTER_DAYS = _retention_days("WORKSPACE_HARD_DELETE_AFTER_DAYS", 30)
+
 # Instance Changelog URL
 INSTANCE_CHANGELOG_URL = os.environ.get("INSTANCE_CHANGELOG_URL", "")
 

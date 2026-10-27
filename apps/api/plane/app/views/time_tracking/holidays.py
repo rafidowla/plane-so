@@ -29,7 +29,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions import ROLE, allow_permission
+from plane.app.permissions import ROLE, allow_permission, allow_workspace_super_admin  # FORK: PSR-125
 from plane.app.views.base import BaseAPIView
 from plane.db.models import (
     DayPortion,
@@ -163,6 +163,7 @@ class HolidayCalendarEndpoint(BaseAPIView):
         return Response([calendar_out(c, counts.get(c.id, 0)) for c in calendars], status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def post(self, request, slug):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:
@@ -209,6 +210,7 @@ class HolidayCalendarDetailEndpoint(BaseAPIView):
     """``PATCH`` / ``DELETE holiday-calendars/<id>/``."""
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def patch(self, request, slug, calendar_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:
@@ -264,6 +266,7 @@ class HolidayCalendarDetailEndpoint(BaseAPIView):
         return Response(calendar_out(calendar, member_counts(workspace.id).get(calendar.id, 0)), status=200)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def delete(self, request, slug, calendar_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:
@@ -325,6 +328,7 @@ class HolidayEndpoint(BaseAPIView):
         return Response([holiday_out(h) for h in rows.order_by("date", "id")], status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def post(self, request, slug, calendar_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:
@@ -375,6 +379,7 @@ class HolidayDetailEndpoint(BaseAPIView):
         return holiday
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def patch(self, request, slug, calendar_id, holiday_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:
@@ -410,6 +415,7 @@ class HolidayDetailEndpoint(BaseAPIView):
         return Response(holiday_out(holiday), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def delete(self, request, slug, calendar_id, holiday_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:
@@ -436,6 +442,7 @@ class MemberHolidayCalendarEndpoint(BaseAPIView):
     ``null`` clears the assignment: the person uses the workspace default calendar."""
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def put(self, request, slug, user_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:

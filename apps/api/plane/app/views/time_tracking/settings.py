@@ -139,6 +139,7 @@ class TimeTrackingMemberStatusEndpoint(BaseAPIView):
     earlier stops their running timer now."""
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def post(self, request, slug, user_id):
         workspace = Workspace.objects.get(slug=slug)
         if not WorkspaceMember.objects.filter(

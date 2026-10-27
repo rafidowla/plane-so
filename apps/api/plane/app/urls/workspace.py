@@ -40,6 +40,9 @@ from plane.app.views import (
     DraftProjectMappingEndpoint,
     # FORK: PSR-125
     WorkspaceOwnershipTransferEndpoint,
+    WorkspaceDeleteCodeEndpoint,
+    DeletedWorkspacesEndpoint,
+    WorkspaceRestoreEndpoint,
 )
 
 
@@ -113,6 +116,23 @@ urlpatterns = [
         "workspaces/<str:slug>/transfer-ownership/",
         WorkspaceOwnershipTransferEndpoint.as_view(),
         name="workspace-transfer-ownership",
+    ),
+    # FORK: PSR-125 -- emailed code that confirms a delete (accounts without a password).
+    path(
+        "workspaces/<str:slug>/delete-code/",
+        WorkspaceDeleteCodeEndpoint.as_view(),
+        name="workspace-delete-code",
+    ),
+    # FORK: PSR-125 -- deleted workspaces the user can restore, and restore itself.
+    path(
+        "users/me/deleted-workspaces/",
+        DeletedWorkspacesEndpoint.as_view(),
+        name="user-deleted-workspaces",
+    ),
+    path(
+        "users/me/deleted-workspaces/<uuid:workspace_id>/restore/",
+        WorkspaceRestoreEndpoint.as_view(),
+        name="user-deleted-workspace-restore",
     ),
     path(
         "users/last-visited-workspace/",

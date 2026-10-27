@@ -163,6 +163,13 @@ class Workspace(BaseModel):
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
+        # FORK: PSR-125 -- mark the cascade as running so a restore waits until it has finished.
+        if soft:
+            from plane.settings.redis import redis_instance
+            from plane.utils.workspace_lifecycle import DELETION_RUNNING_TTL_SECONDS, deletion_running_key
+
+            redis_instance().set(deletion_running_key(self.pk), "1", ex=DELETION_RUNNING_TTL_SECONDS)
+
         # Call the parent class's delete method first
         result = super().delete(using=using, soft=soft, *args, **kwargs)
 

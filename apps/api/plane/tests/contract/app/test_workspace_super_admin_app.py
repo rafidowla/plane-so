@@ -429,7 +429,8 @@ def test_plain_admin_webhooks_read_only(workspace, plain_admin_client):
 def test_plain_admin_time_settings_read_only(workspace, plain_admin_client):
     url = f"/api/workspaces/{workspace.slug}/time/settings/"
     assert plain_admin_client.get(url).status_code == status.HTTP_200_OK
-    assert plain_admin_client.patch(url, {"minutes_per_day": 420}, format="json").status_code == status.HTTP_403_FORBIDDEN
+    response = plain_admin_client.patch(url, {"minutes_per_day": 420}, format="json")
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 # --- ownership transfer ---------------------------------------------------------------------
@@ -478,7 +479,7 @@ def test_plain_admin_cannot_transfer_ownership(workspace, plain_admin_client, pl
 
 @pytest.mark.contract
 @pytest.mark.django_db
-def test_workspace_creator_is_super_admin(session_client, create_user):
+def test_workspace_creator_is_super_admin(session_client, create_user, instance_admin):
     response = session_client.post("/api/workspaces/", {"name": "Fresh", "slug": "fresh-ws"}, format="json")
     assert response.status_code == status.HTTP_201_CREATED, response.data
     assert response.data["is_super_admin"] is True

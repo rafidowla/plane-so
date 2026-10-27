@@ -28,6 +28,10 @@ def soft_delete_related_objects(app_label, model_name, instance_pk, using=None):
     except model_class.DoesNotExist:
         return
 
+    # FORK: PSR-125 -- a workspace restored before this queued cascade ran must not be emptied.
+    if app_label == "db" and model_name == "workspace" and instance.deleted_at is None:
+        return
+
     # Get all related fields that are reverse relationships
     all_related = [
         f for f in instance._meta.get_fields() if (f.one_to_many or f.one_to_one) and f.auto_created and not f.concrete
@@ -104,6 +108,13 @@ def soft_delete_related_objects(app_label, model_name, instance_pk, using=None):
         instance.deleted_at = timezone.now()
         instance.save()
 
+    # FORK: PSR-125 -- the workspace cascade is done; restore may now run.
+    if app_label == "db" and model_name == "workspace":
+        from plane.utils.workspace_lifecycle import deletion_running_key
+        from plane.settings.redis import redis_instance
+
+        redis_instance().delete(deletion_running_key(instance_pk))
+
 
 # @shared_task
 def restore_related_objects(app_label, model_name, instance_pk, using=None):
@@ -134,6 +145,10 @@ def hard_delete():
     )
 
     days = settings.HARD_DELETE_AFTER_DAYS
+    # FORK: PSR-125 -- deleted workspaces have their own (shorter) keep window.
+    _ = Workspace.all_objects.filter(
+        deleted_at__lt=timezone.now() - timezone.timedelta(days=settings.WORKSPACE_HARD_DELETE_AFTER_DAYS)
+    ).delete()
     # check delete workspace
     _ = Workspace.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
 

@@ -24,7 +24,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions import ROLE, allow_permission
+from plane.app.permissions import ROLE, allow_permission, allow_workspace_super_admin  # FORK: PSR-125
 from plane.app.views.base import BaseAPIView
 from plane.app.views.time_tracking.holidays import (
     parse_date,
@@ -142,6 +142,7 @@ class MemberLeaveEndpoint(BaseAPIView):
         return Response([leave_out(r, r.user.display_name or "") for r in rows], status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def post(self, request, slug):
         workspace = Workspace.objects.only("id").get(slug=slug)
         data = request.data
@@ -191,6 +192,7 @@ class MemberLeaveDetailEndpoint(BaseAPIView):
         return leave
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def patch(self, request, slug, leave_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         data = request.data
@@ -227,6 +229,7 @@ class MemberLeaveDetailEndpoint(BaseAPIView):
         return Response(leave_out(leave, display_name_of(leave.user_id)), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    @allow_workspace_super_admin  # FORK: PSR-125
     def delete(self, request, slug, leave_id):
         workspace = Workspace.objects.only("id").get(slug=slug)
         try:
