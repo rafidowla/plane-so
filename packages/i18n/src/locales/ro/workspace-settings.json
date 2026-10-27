@@ -16,7 +16,7 @@
         "workspace_timezone": "Fusul orar al spațiului de lucru",
         "update_workspace": "Actualizează spațiul de lucru",
         "delete_workspace": "Șterge acest spațiu de lucru",
-        "delete_workspace_description": "La ștergerea spațiului de lucru, toate datele și resursele din cadrul acestuia vor fi eliminate definitiv și nu vor putea fi recuperate.",
+        "delete_workspace_description": "Ștergerea unui spațiu de lucru îl elimină imediat pentru toți membrii. Un Super administrator îl poate restaura din setările profilului său până când este eliminat definitiv.",
         "delete_btn": "Șterge acest spațiu de lucru",
         "delete_modal": {
           "title": "Ești sigur că vrei să ștergi acest spațiu de lucru?",
@@ -26,7 +26,23 @@
           "success_title": "Spațiul de lucru a fost șters.",
           "success_message": "Vei fi redirecționat în curând către pagina de profil.",
           "error_title": "Ceva nu a funcționat.",
-          "error_message": "Încearcă din nou, te rog."
+          "error_message": "Încearcă din nou, te rog.",
+          "body": "Aceasta elimină „{name}” imediat pentru toți membrii. Îl poți restaura din Setările profilului → Spații de lucru șterse până când este eliminat definitiv.",
+          "name_label": "Tastează numele spațiului de lucru pentru confirmare",
+          "password_label": "Introdu parola",
+          "code_label": "Introdu codul pe care ți l-am trimis pe email",
+          "send_code": "Trimite-mi un cod pe email",
+          "resend_code": "Trimite un cod nou",
+          "code_sent": "Cod trimis. Verifică-ți emailul.",
+          "confirm": "Șterge spațiul de lucru",
+          "errors": {
+            "name_mismatch": "Numele nu se potrivește cu acest spațiu de lucru.",
+            "password_incorrect": "Parola este incorectă.",
+            "code_invalid": "Codul este greșit sau a expirat.",
+            "too_many_attempts": "Prea multe încercări. Încearcă din nou peste câteva minute.",
+            "too_many_codes": "Prea multe coduri trimise. Încearcă din nou peste 10 minute.",
+            "use_code": "Contul tău nu are parolă. Trimite-ți în schimb un cod pe email."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Dimensiunea companiei este obligatorie",
             "select_a_range": "Selectează dimensiunea companiei"
           }
-        }
+        },
+        "super_admin_only_note": "Numai un Super administrator poate schimba numele și logoul spațiului de lucru sau îl poate șterge."
       },
       "members": {
         "title": "Membri",
@@ -63,7 +80,8 @@
             "required": "Avem nevoie de o adresă de email pentru a trimite invitația.",
             "invalid": "Adresa de email este invalidă"
           }
-        }
+        },
+        "super_admin": "Super administrator"
       },
       "billing_and_plans": {
         "heading": "Facturare și abonamente",

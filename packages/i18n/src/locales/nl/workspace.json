@@ -29,6 +29,12 @@
         "url_alphanumeric": "URL's mogen alleen ('-') en alfanumerieke tekens bevatten.",
         "url_length": "Beperk je URL tot 48 tekens.",
         "url_already_taken": "Deze werkruimte-URL is al in gebruik!"
+      },
+      "super_admin_only": {
+        "title": "Alleen Superbeheerders kunnen werkruimtes aanmaken",
+        "description": "Vraag een Superbeheerder van je werkruimte om er een aan te maken of je uit te nodigen. Als je een werkruimte hebt verwijderd, kun je die nog steeds herstellen.",
+        "restore_button": "Een verwijderde werkruimte herstellen",
+        "onboarding": "Je hebt geen uitnodigingen voor werkruimtes en alleen Superbeheerders kunnen nieuwe werkruimtes aanmaken. Vraag een Superbeheerder van de werkruimte om je uit te nodigen en kom dan hier terug om deel te nemen."
       }
     },
     "request_email": {

@@ -41,7 +41,7 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
   const [isImageUploadModalOpen, setIsImageUploadModalOpen] = useState(false);
   // store hooks
   const { currentWorkspace, updateWorkspace } = useWorkspace();
-  const { allowPermissions } = useUserPermissions();
+  const { allowPermissions, workspaceUserInfo } = useUserPermissions();
   const { t } = useTranslation();
 
   // form info
@@ -56,6 +56,9 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
   });
   // derived values
   const workspaceLogo = watch("logo_url");
+  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  // FORK: PSR-125 -- name, logo and delete are Super Admin only; Admins keep company size and timezone.
+  const isSuperAdmin = !!(currentWorkspace && workspaceUserInfo[currentWorkspace.slug]?.is_super_admin);
 
   const onSubmit = async (formData: IWorkspace) => {
     if (!currentWorkspace) return;
@@ -63,10 +66,11 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
     setIsLoading(true);
 
     const payload: Partial<IWorkspace> = {
-      name: formData.name,
       organization_size: formData.organization_size,
       timezone: formData.timezone,
     };
+    // FORK: PSR-125 -- only a Super Admin may rename the workspace.
+    if (isSuperAdmin) payload.name = formData.name;
 
     try {
       await updateWorkspace(currentWorkspace.slug, payload);
@@ -125,8 +129,6 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
     if (currentWorkspace) reset({ ...currentWorkspace });
   }, [currentWorkspace, reset]);
 
-  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
-
   if (!currentWorkspace) return null;
 
   return (
@@ -150,7 +152,7 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
       <div className={cn("flex w-full flex-col gap-y-7", { "opacity-60": !isAdmin })}>
         <div className="flex items-center gap-5">
           <div className="flex shrink-0 flex-col gap-1">
-            <button type="button" onClick={() => setIsImageUploadModalOpen(true)} disabled={!isAdmin}>
+            <button type="button" onClick={() => setIsImageUploadModalOpen(true)} disabled={!isSuperAdmin}>
               {workspaceLogo && workspaceLogo !== "" ? (
                 <div className="relative flex size-14">
                   <img
@@ -171,7 +173,7 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
             <button type="button" onClick={handleCopyUrl} className="text-left text-body-xs-regular tracking-tight">{`${
               typeof window !== "undefined" && window.location.origin.replace("http://", "").replace("https://", "")
             }/${currentWorkspace.slug}`}</button>
-            {isAdmin && (
+            {isSuperAdmin && (
               <button
                 type="button"
                 className="flex items-center gap-1.5 text-left text-caption-sm-medium text-accent-primary"
@@ -211,7 +213,7 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
                         onChange={onChange}
                         ref={ref}
                         placeholder={t("workspace_settings.settings.general.name")}
-                        disabled={!isAdmin}
+                        disabled={!isSuperAdmin}
                       />
                     </InputGroup>
                   </Field>
@@ -289,6 +291,11 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
             </div>
           </div>
         </div>
+        {isAdmin && !isSuperAdmin && (
+          <p className="text-body-xs-regular text-tertiary" data-testid="workspace-details-super-admin-note">
+            {t("workspace_settings.settings.general.super_admin_only_note")}
+          </p>
+        )}
         {isAdmin && (
           <div className="flex items-center justify-between py-2">
             <Button
@@ -304,7 +311,7 @@ export const WorkspaceDetails = observer(function WorkspaceDetails() {
           </div>
         )}
       </div>
-      {isAdmin && (
+      {isSuperAdmin && (
         <div className="mt-10">
           <DeleteWorkspaceSection workspace={currentWorkspace} />
         </div>

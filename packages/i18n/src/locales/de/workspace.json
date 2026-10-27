@@ -29,6 +29,12 @@
         "url_alphanumeric": "URLs dürfen nur ('-') und alphanumerische Zeichen enthalten.",
         "url_length": "URL ist auf 48 Zeichen begrenzt.",
         "url_already_taken": "Die Arbeitsbereichs-URL ist bereits vergeben!"
+      },
+      "super_admin_only": {
+        "title": "Nur Super-Administratoren können Arbeitsbereiche erstellen",
+        "description": "Bitten Sie einen Super-Administrator Ihres Arbeitsbereichs, einen zu erstellen oder Sie einzuladen. Wenn Sie einen Arbeitsbereich gelöscht haben, können Sie ihn weiterhin wiederherstellen.",
+        "restore_button": "Gelöschten Arbeitsbereich wiederherstellen",
+        "onboarding": "Sie haben keine Einladungen zu Arbeitsbereichen, und nur Super-Administratoren können neue Arbeitsbereiche erstellen. Bitten Sie einen Super-Administrator des Arbeitsbereichs, Sie einzuladen, und kehren Sie dann hierher zurück, um beizutreten."
       }
     },
     "request_email": {

@@ -16,7 +16,7 @@
         "workspace_timezone": "작업 공간 시간대",
         "update_workspace": "작업 공간 업데이트",
         "delete_workspace": "이 작업 공간 삭제",
-        "delete_workspace_description": "작업 공간을 삭제하면 해당 작업 공간 내의 모든 데이터와 리소스가 영구적으로 삭제되며 복구할 수 없습니다.",
+        "delete_workspace_description": "작업 공간을 삭제하면 모든 멤버에게서 즉시 제거됩니다. 슈퍼 관리자는 영구 삭제되기 전까지 프로필 설정에서 복원할 수 있습니다.",
         "delete_btn": "이 작업 공간 삭제",
         "delete_modal": {
           "title": "이 작업 공간을 삭제하시겠습니까?",
@@ -26,7 +26,23 @@
           "success_title": "작업 공간 삭제됨.",
           "success_message": "곧 프로필 페이지로 이동합니다.",
           "error_title": "작업이 실패했습니다.",
-          "error_message": "다시 시도해주세요."
+          "error_message": "다시 시도해주세요.",
+          "body": "모든 멤버에게서 \"{name}\"이(가) 즉시 제거됩니다. 영구 삭제되기 전까지 프로필 설정 → 삭제된 작업 공간에서 복원할 수 있습니다.",
+          "name_label": "확인을 위해 작업 공간 이름을 입력하세요",
+          "password_label": "비밀번호를 입력하세요",
+          "code_label": "이메일로 보내드린 코드를 입력하세요",
+          "send_code": "이메일로 코드 받기",
+          "resend_code": "새 코드 보내기",
+          "code_sent": "코드를 보냈습니다. 이메일을 확인하세요.",
+          "confirm": "작업 공간 삭제",
+          "errors": {
+            "name_mismatch": "이름이 이 작업 공간과 일치하지 않습니다.",
+            "password_incorrect": "비밀번호가 올바르지 않습니다.",
+            "code_invalid": "코드가 잘못되었거나 만료되었습니다.",
+            "too_many_attempts": "시도 횟수가 너무 많습니다. 몇 분 후에 다시 시도해주세요.",
+            "too_many_codes": "전송된 코드가 너무 많습니다. 10분 후에 다시 시도해주세요.",
+            "use_code": "계정에 비밀번호가 없습니다. 대신 이메일로 코드를 받으세요."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "회사 규모가 필요합니다",
             "select_a_range": "조직 규모 선택"
           }
-        }
+        },
+        "super_admin_only_note": "작업 공간 이름과 로고를 변경하거나 작업 공간을 삭제할 수 있는 사람은 슈퍼 관리자뿐입니다."
       },
       "members": {
         "title": "멤버",
@@ -63,7 +80,8 @@
             "required": "초대하려면 이메일 주소가 필요합니다.",
             "invalid": "이메일이 유효하지 않습니다"
           }
-        }
+        },
+        "super_admin": "슈퍼 관리자"
       },
       "billing_and_plans": {
         "heading": "청구 및 플랜",

@@ -65,6 +65,24 @@
       "title": "連接",
       "heading": "連接",
       "description": "管理您的工作區連接設定。"
+    },
+    "deleted_workspaces": {
+      "title": "已刪除的工作區",
+      "description": "您曾擔任超級管理員的工作區。請在永久刪除之前還原。",
+      "dates": "刪除於 {deleted} · 將於 {purge} 永久刪除",
+      "restore": "還原",
+      "new_slug_label": "其原有的網址已被使用。請選擇新的網址。",
+      "empty": "沒有可還原的已刪除工作區。",
+      "restored_title": "工作區已還原。",
+      "restored_message": "正在帶您前往。",
+      "errors": {
+        "delete_in_progress": "此工作區仍在刪除中。請幾分鐘後再試。",
+        "slug_invalid": "該網址無效。請使用字母、數字、- 和 _。",
+        "slug_taken": "該網址已被使用。請選擇新的網址。",
+        "restore_conflict": "由於部分資料現在發生衝突，無法還原此工作區。",
+        "generic": "操作失敗。請再試一次。",
+        "load_failed": "無法載入已刪除的工作區。"
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "偏好設定",
       "notifications": "通知",
       "api-tokens": "個人存取權杖",
-      "connections": "連接"
+      "connections": "連接",
+      "deleted-workspaces": "已刪除的工作區"
     },
     "tabs": {
       "summary": "摘要",

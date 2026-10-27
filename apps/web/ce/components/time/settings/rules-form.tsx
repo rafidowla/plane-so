@@ -13,6 +13,7 @@ import { cn } from "@plane/utils";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import type { TTimeSettings } from "../reports/types";
 import { TIME_SETTINGS_KEY } from "../use-time-settings";
+import { useTimeSettingsReadOnly } from "./read-only";
 import {
   settingsErrorMessage,
   normalizeDays,
@@ -65,12 +66,14 @@ function Toggle({
   hint,
   checked,
   onChange,
+  disabled,
 }: {
   id: string;
   label: string;
   hint: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -80,6 +83,7 @@ function Toggle({
         role="switch"
         data-testid={`setting-${id}`}
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
         className="mt-1 size-4"
       />
@@ -95,6 +99,7 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
   const [form, setForm] = useState<TSettingsForm>(() => settingsToForm(settings));
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
 
   const errors = validateSettingsForm(form);
   const patch = toPatch(settings, form);
@@ -109,6 +114,7 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
       inputMode="numeric"
       data-testid={`setting-${key}`}
       value={form[key]}
+      disabled={readOnly}
       onChange={(e) => set(key, e.target.value)}
       className={cn(
         "text-sm w-32 rounded border bg-transparent px-2 py-1",
@@ -120,7 +126,7 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
   const weekly = weeklyMinutesOf(form.work_days, Number(form.minutes_per_day) || 0);
 
   const save = async () => {
-    if (!dirty) return;
+    if (readOnly || !dirty) return;
     setSaving(true);
     try {
       const updated = await timeTrackingService.updateTimeSettings(workspaceSlug, patch);
@@ -150,6 +156,7 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
                 key={day.iso}
                 type="button"
                 aria-pressed={on}
+                disabled={readOnly}
                 data-testid={`workday-${day.iso}`}
                 onClick={() =>
                   set(
@@ -214,6 +221,7 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
           label="Members can add time by hand"
           hint="When off, members can only use the timer; admins can still add entries."
           checked={form.allow_member_manual_entry}
+          disabled={readOnly}
           onChange={(v) => set("allow_member_manual_entry", v)}
         />
         <Toggle
@@ -221,6 +229,7 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
           label="Weekly approval"
           hint="Members submit each week for review. Adds a Timesheets tab to Analytics."
           checked={form.weekly_approval_enabled}
+          disabled={readOnly}
           onChange={(v) => set("weekly_approval_enabled", v)}
         />
         <Toggle
@@ -228,6 +237,7 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
           label="Billing"
           hint="Shows billable time and amounts in reports."
           checked={form.billing_enabled}
+          disabled={readOnly}
           onChange={(v) => set("billing_enabled", v)}
         />
       </div>
@@ -237,19 +247,22 @@ export function RulesForm({ workspaceSlug, settings }: TProps) {
           {serverError}
         </div>
       )}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="primary"
-          size="sm"
-          stretch="auto"
-          label="Save settings"
-          loading={saving}
-          disabled={!dirty || Object.keys(errors).length > 0}
-          onClick={save}
-          data-testid="settings-save"
-        />
-        {dirty && Object.keys(errors).length === 0 && <span className="text-xs text-tertiary">Unsaved changes</span>}
-      </div>
+      {/* FORK: PSR-125 — no Save for a plain Admin */}
+      {!readOnly && (
+        <div className="flex items-center gap-3">
+          <Button
+            variant="primary"
+            size="sm"
+            stretch="auto"
+            label="Save settings"
+            loading={saving}
+            disabled={!dirty || Object.keys(errors).length > 0}
+            onClick={save}
+            data-testid="settings-save"
+          />
+          {dirty && Object.keys(errors).length === 0 && <span className="text-xs text-tertiary">Unsaved changes</span>}
+        </div>
+      )}
     </section>
   );
 }

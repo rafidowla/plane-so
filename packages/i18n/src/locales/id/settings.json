@@ -65,6 +65,24 @@
       "title": "Koneksi",
       "heading": "Koneksi",
       "description": "Kelola pengaturan koneksi ruang kerja Anda."
+    },
+    "deleted_workspaces": {
+      "title": "Ruang kerja yang dihapus",
+      "description": "Ruang kerja yang pernah Anda kelola sebagai Super Admin. Pulihkan sebelum dihapus permanen.",
+      "dates": "Dihapus {deleted} · Dihapus permanen pada {purge}",
+      "restore": "Pulihkan",
+      "new_slug_label": "Alamat web lamanya sudah dipakai. Pilih yang baru.",
+      "empty": "Tidak ada ruang kerja yang dihapus untuk dipulihkan.",
+      "restored_title": "Ruang kerja dipulihkan.",
+      "restored_message": "Mengarahkan Anda ke sana sekarang.",
+      "errors": {
+        "delete_in_progress": "Ruang kerja ini masih dalam proses penghapusan. Coba lagi dalam beberapa menit.",
+        "slug_invalid": "Alamat web tersebut tidak valid. Gunakan huruf, angka, - dan _.",
+        "slug_taken": "Alamat web tersebut sudah dipakai. Pilih yang baru.",
+        "restore_conflict": "Ruang kerja ini tidak dapat dipulihkan karena sebagian datanya kini berkonflik.",
+        "generic": "Gagal. Silakan coba lagi.",
+        "load_failed": "Tidak dapat memuat ruang kerja yang dihapus."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Preferensi",
       "notifications": "Notifikasi",
       "api-tokens": "Token Akses Personal",
-      "connections": "Koneksi"
+      "connections": "Koneksi",
+      "deleted-workspaces": "Ruang kerja yang dihapus"
     },
     "tabs": {
       "summary": "Ringkasan",

@@ -20,6 +20,7 @@ from rest_framework.test import APIClient
 from plane.bgtasks.deletion_task import hard_delete, soft_delete_related_objects
 from plane.db.models import (
     Issue,
+    Profile,
     Project,
     ProjectIdentifier,
     ProjectMember,
@@ -113,6 +114,34 @@ def test_super_admin_of_deleted_workspace_only_cannot_create(_seed, session_clie
     _soft_delete_via_api(session_client, workspace)
     response = _create(session_client, f"ws-{uuid.uuid4().hex[:8]}")
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def _can_create(user):
+    Profile.objects.get_or_create(user=user)
+    response = _client(user).get("/api/users/me/settings/")
+    assert response.status_code == status.HTTP_200_OK, response.data
+    return response.data["can_create_workspace"]
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_user_settings_report_can_create_workspace(workspace, plain_admin):
+    # Slice 4: the web app hides "Create workspace" from this flag, so it must match the gate.
+    assert _can_create(workspace.owner) is True
+    assert _can_create(plain_admin.member) is False
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_user_settings_report_can_create_for_instance_admin(instance_admin):
+    assert _can_create(instance_admin) is True
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_user_settings_report_cannot_create_after_only_workspace_deleted(session_client, workspace):
+    _soft_delete_via_api(session_client, workspace)
+    assert _can_create(workspace.owner) is False
 
 
 # --- delete re-confirmation -----------------------------------------------------------------

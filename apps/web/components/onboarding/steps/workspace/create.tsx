@@ -18,7 +18,7 @@ import type { IUser, IWorkspace } from "@plane/types";
 import { Spinner } from "@plane/blocks/spinner";
 import { cn, validateWorkspaceName, validateSlug } from "@plane/utils";
 // hooks
-import { useInstance } from "@/hooks/store/use-instance";
+import { useWorkspaceCreation } from "@/hooks/use-workspace-creation";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUserProfile, useUserSettings } from "@/hooks/store/user";
 // services
@@ -47,12 +47,12 @@ export const WorkspaceCreateStep = observer(function WorkspaceCreateStep({
   // plane hooks
   const { t } = useTranslation();
   // store hooks
-  const { config } = useInstance();
+  const { canCreate: canCreateWorkspace, blockedBy: workspaceCreationBlockedBy } = useWorkspaceCreation(); // FORK: PSR-125
   const { updateUserProfile } = useUserProfile();
   const { fetchCurrentUserSettings } = useUserSettings();
   const { createWorkspace, fetchWorkspaces } = useWorkspace();
 
-  const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
+  const isWorkspaceCreationDisabled = !canCreateWorkspace;
 
   // form info
   const {
@@ -118,10 +118,17 @@ export const WorkspaceCreateStep = observer(function WorkspaceCreateStep({
   if (isWorkspaceCreationDisabled) {
     return (
       <div className="flex flex-col gap-10">
+        {/* FORK: PSR-125 -- creation may be limited to Super Admins rather than the instance admin */}
         <span className="text-center text-14 text-tertiary">
-          You don&apos;t seem to have any invites to a workspace and your instance admin has restricted creation of new
-          workspaces. Please ask a workspace owner or admin to invite you to a workspace first and come back to this
-          screen to join.
+          {workspaceCreationBlockedBy === "super_admin" ? (
+            t("workspace_creation.errors.super_admin_only.onboarding")
+          ) : (
+            <>
+              You don&apos;t seem to have any invites to a workspace and your instance admin has restricted creation of
+              new workspaces. Please ask a workspace owner or admin to invite you to a workspace first and come back to
+              this screen to join.
+            </>
+          )}
         </span>
       </div>
     );

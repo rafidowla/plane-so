@@ -16,7 +16,7 @@
         "workspace_timezone": "Strefa czasowa przestrzeni roboczej",
         "update_workspace": "Zaktualizuj przestrzeń",
         "delete_workspace": "Usuń tę przestrzeń",
-        "delete_workspace_description": "Usunięcie przestrzeni spowoduje wymazanie wszystkich danych i zasobów. Ta akcja jest nieodwracalna.",
+        "delete_workspace_description": "Usunięcie przestrzeni natychmiast usuwa ją dla wszystkich członków. Superadministrator może ją przywrócić w ustawieniach swojego profilu, dopóki nie zostanie trwale usunięta.",
         "delete_btn": "Usuń przestrzeń",
         "delete_modal": {
           "title": "Czy na pewno chcesz usunąć tę przestrzeń?",
@@ -26,7 +26,23 @@
           "success_title": "Przestrzeń usunięta.",
           "success_message": "Zostaniesz przekierowany do profilu.",
           "error_title": "Nie udało się.",
-          "error_message": "Spróbuj ponownie."
+          "error_message": "Spróbuj ponownie.",
+          "body": "Spowoduje to natychmiastowe usunięcie „{name}” dla wszystkich członków. Możesz ją przywrócić w Ustawieniach profilu → Usunięte przestrzenie, dopóki nie zostanie trwale usunięta.",
+          "name_label": "Wpisz nazwę przestrzeni, aby potwierdzić",
+          "password_label": "Wprowadź swoje hasło",
+          "code_label": "Wprowadź kod wysłany do Ciebie e-mailem",
+          "send_code": "Wyślij mi kod e-mailem",
+          "resend_code": "Wyślij nowy kod",
+          "code_sent": "Kod wysłany. Sprawdź swoją pocztę.",
+          "confirm": "Usuń przestrzeń",
+          "errors": {
+            "name_mismatch": "Nazwa nie pasuje do tej przestrzeni.",
+            "password_incorrect": "To hasło jest nieprawidłowe.",
+            "code_invalid": "Ten kod jest nieprawidłowy lub wygasł.",
+            "too_many_attempts": "Zbyt wiele prób. Spróbuj ponownie za kilka minut.",
+            "too_many_codes": "Wysłano zbyt wiele kodów. Spróbuj ponownie za 10 minut.",
+            "use_code": "Twoje konto nie ma hasła. Zamiast tego wyślij sobie kod e-mailem."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Rozmiar firmy jest wymagany",
             "select_a_range": "Wybierz rozmiar organizacji"
           }
-        }
+        },
+        "super_admin_only_note": "Tylko superadministrator może zmienić nazwę i logo przestrzeni lub ją usunąć."
       },
       "members": {
         "title": "Członkowie",
@@ -63,7 +80,8 @@
             "required": "Wymagany jest adres e-mail.",
             "invalid": "E-mail jest nieprawidłowy"
           }
-        }
+        },
+        "super_admin": "Superadministrator"
       },
       "billing_and_plans": {
         "heading": "Rozliczenia i plany",

@@ -16,6 +16,7 @@ import type {
 } from "@plane/types";
 // services
 import { WorkspaceService } from "@/services/workspace.service";
+import type { TWorkspaceDeleteConfirmation } from "@/services/workspace.service"; // FORK: PSR-125
 // store
 import type { CoreRootStore } from "@/store/root.store";
 // sub-stores
@@ -45,7 +46,7 @@ export interface IWorkspaceRootStore {
   createWorkspace: (data: Partial<IWorkspace>) => Promise<IWorkspace>;
   updateWorkspace: (workspaceSlug: string, data: Partial<IWorkspace>) => Promise<IWorkspace>;
   updateWorkspaceLogo: (workspaceSlug: string, logoURL: string) => void;
-  deleteWorkspace: (workspaceSlug: string) => Promise<void>;
+  deleteWorkspace: (workspaceSlug: string, confirmation: TWorkspaceDeleteConfirmation) => Promise<void>;
   fetchSidebarNavigationPreferences: (workspaceSlug: string) => Promise<void>;
   updateSidebarPreference: (
     workspaceSlug: string,
@@ -242,18 +243,13 @@ export class BaseWorkspaceRootStore implements IWorkspaceRootStore {
    * delete workspace using the workspace slug
    * @param workspaceSlug
    */
-  deleteWorkspace = async (workspaceSlug: string) => {
-    try {
-      await this.workspaceService.deleteWorkspace(workspaceSlug);
-      const updatedWorkspacesList = this.workspaces;
-      const workspaceId = this.getWorkspaceBySlug(workspaceSlug)?.id;
-      delete updatedWorkspacesList[`${workspaceId}`];
-      runInAction(() => {
-        this.workspaces = updatedWorkspacesList;
-      });
-    } catch (error) {
-      console.error("Failed to delete workspace:", error);
-    }
+  // FORK: PSR-125 -- takes the re-confirmation body and rethrows, so the dialog can show why it failed.
+  deleteWorkspace = async (workspaceSlug: string, confirmation: TWorkspaceDeleteConfirmation) => {
+    await this.workspaceService.deleteWorkspace(workspaceSlug, confirmation);
+    const workspaceId = this.getWorkspaceBySlug(workspaceSlug)?.id;
+    runInAction(() => {
+      if (workspaceId) delete this.workspaces[workspaceId];
+    });
   };
 
   fetchSidebarNavigationPreferences = async (workspaceSlug: string) => {

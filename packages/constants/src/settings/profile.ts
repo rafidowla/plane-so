@@ -49,6 +49,11 @@ export const PROFILE_SETTINGS: Record<
     key: "api-tokens",
     i18n_label: "profile.actions.api-tokens",
   },
+  // FORK: PSR-125
+  "deleted-workspaces": {
+    key: "deleted-workspaces",
+    i18n_label: "profile.actions.deleted-workspaces",
+  },
 };
 
 export const PROFILE_SETTINGS_TABS: TProfileSettingsTabs[] = Object.keys(PROFILE_SETTINGS) as TProfileSettingsTabs[];
@@ -62,6 +67,7 @@ export const GROUPED_PROFILE_SETTINGS: Record<
     PROFILE_SETTINGS["preferences"],
     PROFILE_SETTINGS["notifications"],
     PROFILE_SETTINGS["security"],
+    PROFILE_SETTINGS["deleted-workspaces"], // FORK: PSR-125
   ],
   [PROFILE_SETTINGS_CATEGORY.DEVELOPER]: [PROFILE_SETTINGS["api-tokens"]],
 };

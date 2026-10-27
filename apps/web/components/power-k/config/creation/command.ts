@@ -21,7 +21,7 @@ import type { TPowerKCommandConfig, TPowerKContext } from "@/components/power-k/
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser } from "@/hooks/store/user";
-import { useInstance } from "@/hooks/store/use-instance";
+import { useWorkspaceCreation } from "@/hooks/use-workspace-creation";
 
 export type TPowerKCreationCommandKeys =
   | "create_work_item"
@@ -37,7 +37,7 @@ export type TPowerKCreationCommandKeys =
  */
 export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommandKeys, TPowerKCommandConfig> => {
   // store
-  const { config } = useInstance();
+  const { canCreate: canCreateWorkspace } = useWorkspaceCreation(); // FORK: PSR-125
   const {
     canCreateWorkItemInAnyProject, // FORK: guest-access (PSR-119)
     permission: { allowPermissions },
@@ -65,7 +65,7 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
       ctx.params.workspaceSlug?.toString(),
       ctx.params.projectId?.toString()
     );
-  const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
+  const isWorkspaceCreationDisabled = !canCreateWorkspace;
 
   const getProjectDetails = (ctx: TPowerKContext) =>
     ctx.params.projectId ? getPartialProjectById(ctx.params.projectId.toString()) : undefined;

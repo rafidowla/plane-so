@@ -8,12 +8,13 @@ import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { AlertOctagonOutline } from "@makeplane/propel/icons";
 // plane imports
+import { useTranslation } from "@plane/i18n";
 import type { IWorkspaceMemberInvitation, TOnboardingSteps } from "@plane/types";
 // components
 import { LogoSpinner } from "@/components/common/logo-spinner";
 // hooks
 import { useUser } from "@/hooks/store/user";
-import { useInstance } from "@/hooks/store/use-instance";
+import { useWorkspaceCreation } from "@/hooks/use-workspace-creation";
 // local imports
 import { CreateWorkspace } from "./create-workspace";
 import { Invitations } from "./invitations";
@@ -37,9 +38,10 @@ export const CreateOrJoinWorkspaces = observer(function CreateOrJoinWorkspaces(p
   const [currentView, setCurrentView] = useState<ECreateOrJoinWorkspaceViews | null>(null);
   // store hooks
   const { data: user } = useUser();
-  const { config } = useInstance();
+  const { canCreate: canCreateWorkspace, blockedBy: workspaceCreationBlockedBy } = useWorkspaceCreation(); // FORK: PSR-125
+  const { t } = useTranslation();
   // derived values
-  const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
+  const isWorkspaceCreationDisabled = !canCreateWorkspace;
 
   useEffect(() => {
     if (invitations.length > 0) {
@@ -77,10 +79,17 @@ export const CreateOrJoinWorkspaces = observer(function CreateOrJoinWorkspaces(p
               <div className="flex h-96 w-full items-center justify-center">
                 <div className="mt-4 flex w-full items-start justify-center gap-2.5 rounded-sm border border-accent-strong/20 bg-accent-primary/10 px-6 py-4 text-13 leading-5 text-accent-secondary">
                   <AlertOctagonOutline className="mt-1 size-5 flex-shrink-0" />
+                  {/* FORK: PSR-125 -- creation may be limited to Super Admins rather than the instance admin */}
                   <span>
-                    You don&apos;t seem to have any invites to a workspace and your instance admin has restricted
-                    creation of new workspaces. Please ask a workspace owner or admin to invite you to a workspace first
-                    and come back to this screen to join.
+                    {workspaceCreationBlockedBy === "super_admin" ? (
+                      t("workspace_creation.errors.super_admin_only.onboarding")
+                    ) : (
+                      <>
+                        You don&apos;t seem to have any invites to a workspace and your instance admin has restricted
+                        creation of new workspaces. Please ask a workspace owner or admin to invite you to a workspace
+                        first and come back to this screen to join.
+                      </>
+                    )}
                   </span>
                 </div>
               </div>

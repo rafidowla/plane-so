@@ -65,6 +65,24 @@
       "title": "Connections",
       "heading": "Connections",
       "description": "Manage your workspace connections settings."
+    },
+    "deleted_workspaces": {
+      "title": "Deleted workspaces",
+      "description": "Workspaces you were a Super Admin of. Restore one before it is removed for good.",
+      "dates": "Deleted {deleted} · Removed for good on {purge}",
+      "restore": "Restore",
+      "new_slug_label": "Its old web address is taken. Choose a new one.",
+      "empty": "No deleted workspaces to restore.",
+      "restored_title": "Workspace restored.",
+      "restored_message": "Taking you to it now.",
+      "errors": {
+        "delete_in_progress": "This workspace is still being deleted. Try again in a few minutes.",
+        "slug_invalid": "That web address isn't valid. Use letters, numbers, - and _.",
+        "slug_taken": "That web address is taken. Choose a new one.",
+        "restore_conflict": "This workspace can't be restored because some of its data now conflicts.",
+        "generic": "That didn't work. Try again, please.",
+        "load_failed": "Couldn't load deleted workspaces."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Preferences",
       "notifications": "Notifications",
       "api-tokens": "Personal Access Tokens",
-      "connections": "Connections"
+      "connections": "Connections",
+      "deleted-workspaces": "Deleted workspaces"
     },
     "tabs": {
       "summary": "Summary",

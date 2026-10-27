@@ -65,6 +65,24 @@
       "title": "Połączenia",
       "heading": "Połączenia",
       "description": "Zarządzaj ustawieniami połączeń przestrzeni roboczej."
+    },
+    "deleted_workspaces": {
+      "title": "Usunięte przestrzenie",
+      "description": "Przestrzenie, w których przysługiwała Ci rola superadministratora. Przywróć jedną z nich, zanim zostanie trwale usunięta.",
+      "dates": "Usunięto {deleted} · Trwałe usunięcie {purge}",
+      "restore": "Przywróć",
+      "new_slug_label": "Jej dawny adres internetowy jest zajęty. Wybierz nowy.",
+      "empty": "Brak usuniętych przestrzeni do przywrócenia.",
+      "restored_title": "Przestrzeń została przywrócona.",
+      "restored_message": "Przenosimy Cię do niej.",
+      "errors": {
+        "delete_in_progress": "Ta przestrzeń jest nadal usuwana. Spróbuj ponownie za kilka minut.",
+        "slug_invalid": "Ten adres internetowy jest nieprawidłowy. Użyj liter, cyfr, - i _.",
+        "slug_taken": "Ten adres internetowy jest zajęty. Wybierz nowy.",
+        "restore_conflict": "Tej przestrzeni nie można przywrócić, ponieważ niektóre jej dane są teraz w konflikcie.",
+        "generic": "To nie zadziałało. Spróbuj ponownie.",
+        "load_failed": "Nie udało się załadować usuniętych przestrzeni."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Preferencje",
       "notifications": "Powiadomienia",
       "api-tokens": "Osobiste tokeny dostępu",
-      "connections": "Połączenia"
+      "connections": "Połączenia",
+      "deleted-workspaces": "Usunięte przestrzenie"
     },
     "tabs": {
       "summary": "Podsumowanie",

@@ -18,7 +18,7 @@ import WorkspaceCreationDisabled from "@/app/assets/workspace/workspace-creation
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form";
 // hooks
 import { useUser, useUserProfile } from "@/hooks/store/user";
-import { useInstance } from "@/hooks/store/use-instance";
+import { useWorkspaceCreation } from "@/hooks/use-workspace-creation";
 import { useAppRouter } from "@/hooks/use-app-router";
 // wrappers
 import { AuthenticationWrapper } from "@/lib/wrappers/authentication-wrapper";
@@ -28,7 +28,7 @@ const CreateWorkspacePage = observer(function CreateWorkspacePage() {
   // router
   const router = useAppRouter();
   // store hooks
-  const { config } = useInstance();
+  const { canCreate: canCreateWorkspace, blockedBy: workspaceCreationBlockedBy } = useWorkspaceCreation(); // FORK: PSR-125
   const { data: currentUser } = useUser();
   const { updateUserProfile } = useUserProfile();
   // states
@@ -38,8 +38,9 @@ const CreateWorkspacePage = observer(function CreateWorkspacePage() {
     organization_size: "",
   });
   // derived values
-  const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
+  const isWorkspaceCreationDisabled = !canCreateWorkspace;
   const requestAccessLabel = t("workspace_creation.errors.creation_disabled.request_button");
+  const restoreLabel = t("workspace_creation.errors.super_admin_only.restore_button"); // FORK: PSR-125
 
   // methods
   const getMailtoHref = () => {
@@ -80,11 +81,16 @@ const CreateWorkspacePage = observer(function CreateWorkspacePage() {
                 className="mb-4 h-full w-full object-contain"
                 alt="Workspace creation disabled"
               />
+              {/* FORK: PSR-125 -- creation is limited to Super Admins unless the instance switch blocks it. */}
               <div className="text-center text-16 font-medium">
-                {t("workspace_creation.errors.creation_disabled.title")}
+                {workspaceCreationBlockedBy === "super_admin"
+                  ? t("workspace_creation.errors.super_admin_only.title")
+                  : t("workspace_creation.errors.creation_disabled.title")}
               </div>
               <p className="text-center text-13 break-words text-tertiary">
-                {t("workspace_creation.errors.creation_disabled.description")}
+                {workspaceCreationBlockedBy === "super_admin"
+                  ? t("workspace_creation.errors.super_admin_only.description")
+                  : t("workspace_creation.errors.creation_disabled.description")}
               </p>
               <div className="mt-6 flex gap-4">
                 <Button
@@ -96,14 +102,25 @@ const CreateWorkspacePage = observer(function CreateWorkspacePage() {
                 />
                 {/* Button chrome on a mailto link: the anchor carries the label as its own content (which
                     takes precedence over Button's label slot) so it always has an accessible name. */}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  stretch="auto"
-                  nativeButton={false}
-                  render={<a href={getMailtoHref()}>{requestAccessLabel}</a>}
-                  label={requestAccessLabel}
-                />
+                {workspaceCreationBlockedBy === "super_admin" ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    stretch="auto"
+                    nativeButton={false}
+                    render={<Link href="/settings/profile/deleted-workspaces">{restoreLabel}</Link>}
+                    label={restoreLabel}
+                  />
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    stretch="auto"
+                    nativeButton={false}
+                    render={<a href={getMailtoHref()}>{requestAccessLabel}</a>}
+                    label={requestAccessLabel}
+                  />
+                )}
               </div>
             </div>
           ) : (

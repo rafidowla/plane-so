@@ -26,7 +26,11 @@ export interface IWorkspaceMembership {
   member: string;
   role: EUserPermissions;
   is_active?: boolean;
+  is_super_admin?: boolean; // FORK: PSR-125
 }
+
+// FORK: PSR-125
+export type TWorkspaceMemberUpdate = { role?: EUserPermissions; is_super_admin?: boolean };
 
 export interface IWorkspaceMemberStore {
   // observables
@@ -49,7 +53,7 @@ export interface IWorkspaceMemberStore {
   fetchWorkspaceMembers: (workspaceSlug: string) => Promise<IWorkspaceMember[]>;
   fetchWorkspaceMemberInvitations: (workspaceSlug: string) => Promise<IWorkspaceMemberInvitation[]>;
   // crud actions
-  updateMember: (workspaceSlug: string, userId: string, data: { role: EUserPermissions }) => Promise<void>;
+  updateMember: (workspaceSlug: string, userId: string, data: TWorkspaceMemberUpdate) => Promise<void>;
   removeMemberFromWorkspace: (workspaceSlug: string, userId: string) => Promise<void>;
   // invite actions
   inviteMembersToWorkspace: (workspaceSlug: string, data: IWorkspaceBulkInviteFormData) => Promise<void>;
@@ -209,6 +213,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       role: workspaceMember.role,
       member: this.memberRoot?.memberMap?.[workspaceMember.member],
       is_active: workspaceMember.is_active,
+      is_super_admin: workspaceMember.is_super_admin, // FORK: PSR-125
     };
     return memberDetails;
   });
@@ -242,6 +247,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
             member: member.member.id,
             role: member.role,
             is_active: member.is_active,
+            is_super_admin: !!member.is_super_admin, // FORK: PSR-125
           });
         });
       });
@@ -254,14 +260,17 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
    * @param userId
    * @param data
    */
-  updateMember = async (workspaceSlug: string, userId: string, data: { role: EUserPermissions }) => {
+  // FORK: PSR-125 -- also carries is_super_admin.
+  updateMember = async (workspaceSlug: string, userId: string, data: TWorkspaceMemberUpdate) => {
     const memberDetails = this.getWorkspaceMemberDetails(userId);
     if (!memberDetails) throw new Error("Member not found");
     // original data to revert back in case of error
     const originalProjectMemberData = { ...this.workspaceMemberMap?.[workspaceSlug]?.[userId] };
     try {
       runInAction(() => {
-        set(this.workspaceMemberMap, [workspaceSlug, userId, "role"], data.role);
+        if (data.role !== undefined) set(this.workspaceMemberMap, [workspaceSlug, userId, "role"], data.role);
+        if (data.is_super_admin !== undefined)
+          set(this.workspaceMemberMap, [workspaceSlug, userId, "is_super_admin"], data.is_super_admin);
       });
       await this.workspaceService.updateWorkspaceMember(workspaceSlug, memberDetails.id, data);
     } catch (error) {

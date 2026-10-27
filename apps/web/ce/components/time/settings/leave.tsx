@@ -33,6 +33,7 @@ import {
   type TLeaveForm,
 } from "./holidays-utils";
 import { useTrackingMembers } from "./members";
+import { useTimeSettingsReadOnly } from "./read-only";
 import type { TLeave } from "./types";
 
 type TPerson = { user_id: string; display_name: string; tracked: boolean };
@@ -170,6 +171,7 @@ function LeaveRow({ workspaceSlug, leave, people }: { workspaceSlug: string; lea
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
 
   const save = async (form: TLeaveForm) => {
     setBusy(true);
@@ -194,7 +196,7 @@ function LeaveRow({ workspaceSlug, leave, people }: { workspaceSlug: string; lea
     }
   };
 
-  if (editing) {
+  if (editing && !readOnly) {
     return (
       <tr className="border-t border-subtle" data-testid="leave-row" data-editing>
         <td colSpan={5} className="px-3 py-2">
@@ -224,17 +226,19 @@ function LeaveRow({ workspaceSlug, leave, people }: { workspaceSlug: string; lea
       <td className={TD_CLASS}>{portionLabel(leave.portion)}</td>
       <td className={cn(TD_CLASS, "text-secondary")}>{leave.note || "–"}</td>
       <td className="px-3 py-2">
-        <span className="flex items-center justify-end gap-3">
-          <button
-            type="button"
-            className="text-xs text-accent-primary hover:underline"
-            data-testid="leave-edit-open"
-            onClick={() => setEditing(true)}
-          >
-            Edit
-          </button>
-          <DeleteButton label={`Delete leave for ${leave.display_name}`} testId="leave-delete" onConfirm={remove} />
-        </span>
+        {!readOnly && (
+          <span className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              className="text-xs text-accent-primary hover:underline"
+              data-testid="leave-edit-open"
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </button>
+            <DeleteButton label={`Delete leave for ${leave.display_name}`} testId="leave-delete" onConfirm={remove} />
+          </span>
+        )}
       </td>
     </tr>
   );
@@ -247,6 +251,7 @@ export function LeaveSettings({ workspaceSlug }: { workspaceSlug: string }) {
   const [formError, setFormError] = useState<string | null>(null);
   // bump to reset the add form after a save
   const [formKey, setFormKey] = useState(0);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
 
   const add = async (form: TLeaveForm) => {
     setBusy(true);
@@ -269,16 +274,18 @@ export function LeaveSettings({ workspaceSlug }: { workspaceSlug: string }) {
         title="Leave"
         hint="Time off for one person, entered by an admin. It lowers that person's expected hours on working days; a day that is also a holiday still counts once."
       />
-      <LeaveForm
-        key={formKey}
-        initial={{ user_id: "", start_date: todayIso(), end_date: todayIso(), portion: "full", note: "" }}
-        people={people}
-        submitLabel="Add leave"
-        testId="leave-new"
-        busy={busy}
-        serverError={formError}
-        onSubmit={add}
-      />
+      {!readOnly && (
+        <LeaveForm
+          key={formKey}
+          initial={{ user_id: "", start_date: todayIso(), end_date: todayIso(), portion: "full", note: "" }}
+          people={people}
+          submitLabel="Add leave"
+          testId="leave-new"
+          busy={busy}
+          serverError={formError}
+          onSubmit={add}
+        />
+      )}
       {error && !data ? (
         <ErrorLine message={holidayErrorMessage(error, "Couldn't load leave.")} />
       ) : isLoading || !data ? (

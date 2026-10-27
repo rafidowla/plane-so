@@ -16,7 +16,7 @@
         "workspace_timezone": "Zeitzone des Arbeitsbereichs",
         "update_workspace": "Arbeitsbereich aktualisieren",
         "delete_workspace": "Diesen Arbeitsbereich löschen",
-        "delete_workspace_description": "Das Löschen des Arbeitsbereichs entfernt alle Daten und Ressourcen. Diese Aktion ist nicht umkehrbar.",
+        "delete_workspace_description": "Wenn Sie einen Arbeitsbereich löschen, wird er sofort für alle Mitglieder entfernt. Ein Super-Administrator kann ihn in seinen Profileinstellungen wiederherstellen, bis er endgültig entfernt wird.",
         "delete_btn": "Arbeitsbereich löschen",
         "delete_modal": {
           "title": "Möchten Sie diesen Arbeitsbereich wirklich löschen?",
@@ -26,7 +26,23 @@
           "success_title": "Arbeitsbereich gelöscht.",
           "success_message": "Sie werden auf Ihr Profil umgeleitet.",
           "error_title": "Fehlgeschlagen.",
-          "error_message": "Bitte versuchen Sie es erneut."
+          "error_message": "Bitte versuchen Sie es erneut.",
+          "body": "Dadurch wird „{name}“ sofort für alle Mitglieder entfernt. Sie können ihn unter Profileinstellungen → Gelöschte Arbeitsbereiche wiederherstellen, bis er endgültig entfernt wird.",
+          "name_label": "Geben Sie zur Bestätigung den Namen des Arbeitsbereichs ein",
+          "password_label": "Geben Sie Ihr Passwort ein",
+          "code_label": "Geben Sie den Code ein, den wir Ihnen per E-Mail gesendet haben",
+          "send_code": "Code per E-Mail senden",
+          "resend_code": "Neuen Code senden",
+          "code_sent": "Code gesendet. Prüfen Sie Ihre E-Mails.",
+          "confirm": "Arbeitsbereich löschen",
+          "errors": {
+            "name_mismatch": "Der Name stimmt nicht mit diesem Arbeitsbereich überein.",
+            "password_incorrect": "Dieses Passwort ist falsch.",
+            "code_invalid": "Dieser Code ist falsch oder abgelaufen.",
+            "too_many_attempts": "Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut.",
+            "too_many_codes": "Zu viele Codes gesendet. Bitte versuchen Sie es in 10 Minuten erneut.",
+            "use_code": "Ihr Konto hat kein Passwort. Lassen Sie sich stattdessen einen Code per E-Mail senden."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Die Unternehmensgröße ist erforderlich",
             "select_a_range": "Organisationsgröße auswählen"
           }
-        }
+        },
+        "super_admin_only_note": "Nur ein Super-Administrator kann den Namen und das Logo des Arbeitsbereichs ändern oder den Arbeitsbereich löschen."
       },
       "members": {
         "title": "Mitglieder",
@@ -63,7 +80,8 @@
             "required": "Eine E-Mail-Adresse ist erforderlich.",
             "invalid": "E-Mail ist ungültig"
           }
-        }
+        },
+        "super_admin": "Super-Administrator"
       },
       "billing_and_plans": {
         "heading": "Abrechnung und Pläne",

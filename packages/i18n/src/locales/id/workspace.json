@@ -29,6 +29,12 @@
         "url_alphanumeric": "URL hanya boleh berisi ('-') dan karakter alfanumerik.",
         "url_length": "Batasi URL Anda hingga 48 karakter.",
         "url_already_taken": "URL ruang kerja sudah diambil!"
+      },
+      "super_admin_only": {
+        "title": "Hanya Super Admin yang dapat membuat ruang kerja",
+        "description": "Minta Super Admin di ruang kerja Anda untuk membuatkannya atau mengundang Anda. Jika Anda menghapus ruang kerja, Anda masih dapat memulihkannya.",
+        "restore_button": "Pulihkan ruang kerja yang dihapus",
+        "onboarding": "Anda tidak memiliki undangan ruang kerja, dan hanya Super Admin yang dapat membuat ruang kerja baru. Minta Super Admin ruang kerja untuk mengundang Anda, lalu kembali ke sini untuk bergabung."
       }
     },
     "request_email": {

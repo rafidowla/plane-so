@@ -30,6 +30,20 @@ import type {
 // services
 import { APIService } from "@/services/api.service";
 
+// FORK: PSR-125
+export type TWorkspaceDeleteConfirmation = { confirm_name: string; password?: string; code?: string };
+
+// FORK: PSR-125
+export type TDeletedWorkspace = {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  deleted_at: string;
+  purge_at: string;
+  is_slug_available: boolean;
+};
+
 export class WorkspaceService extends APIService {
   constructor() {
     super(API_BASE_URL);
@@ -67,8 +81,36 @@ export class WorkspaceService extends APIService {
       });
   }
 
-  async deleteWorkspace(workspaceSlug: string): Promise<any> {
-    return this.delete(`/api/workspaces/${workspaceSlug}/`)
+  // FORK: PSR-125 -- the body re-confirms the delete: the typed name plus a password or emailed code.
+  async deleteWorkspace(workspaceSlug: string, confirmation: TWorkspaceDeleteConfirmation): Promise<any> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/`, confirmation)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // FORK: PSR-125 -- emails a one-time delete code (accounts without a password).
+  async requestWorkspaceDeleteCode(workspaceSlug: string): Promise<{ sent: boolean }> {
+    return this.post(`/api/workspaces/${workspaceSlug}/delete-code/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // FORK: PSR-125 -- deleted workspaces the user can still restore.
+  async fetchDeletedWorkspaces(): Promise<TDeletedWorkspace[]> {
+    return this.get(`/api/users/me/deleted-workspaces/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // FORK: PSR-125
+  async restoreWorkspace(workspaceId: string, slug?: string): Promise<IWorkspace> {
+    return this.post(`/api/users/me/deleted-workspaces/${workspaceId}/restore/`, slug ? { slug } : {})
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

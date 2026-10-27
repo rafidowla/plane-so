@@ -65,6 +65,24 @@
       "title": "Connessioni",
       "heading": "Connessioni",
       "description": "Gestisci le impostazioni delle connessioni del tuo spazio di lavoro."
+    },
+    "deleted_workspaces": {
+      "title": "Spazi di lavoro eliminati",
+      "description": "Spazi di lavoro di cui eri Super amministratore. Ripristinane uno prima che venga rimosso definitivamente.",
+      "dates": "Eliminato il {deleted} · Rimosso definitivamente il {purge}",
+      "restore": "Ripristina",
+      "new_slug_label": "Il suo vecchio indirizzo web è già in uso. Scegline uno nuovo.",
+      "empty": "Nessuno spazio di lavoro eliminato da ripristinare.",
+      "restored_title": "Spazio di lavoro ripristinato.",
+      "restored_message": "Ti stiamo portando lì ora.",
+      "errors": {
+        "delete_in_progress": "Questo spazio di lavoro è ancora in fase di eliminazione. Riprova tra qualche minuto.",
+        "slug_invalid": "Questo indirizzo web non è valido. Usa lettere, numeri, - e _.",
+        "slug_taken": "Questo indirizzo web è già in uso. Scegline uno nuovo.",
+        "restore_conflict": "Questo spazio di lavoro non può essere ripristinato perché alcuni suoi dati ora sono in conflitto.",
+        "generic": "Non ha funzionato. Riprova, per favore.",
+        "load_failed": "Impossibile caricare gli spazi di lavoro eliminati."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Preferenze",
       "notifications": "Notifiche",
       "api-tokens": "Token di accesso personali",
-      "connections": "Connessioni"
+      "connections": "Connessioni",
+      "deleted-workspaces": "Spazi di lavoro eliminati"
     },
     "tabs": {
       "summary": "Riepilogo",

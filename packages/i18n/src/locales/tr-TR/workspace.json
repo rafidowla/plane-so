@@ -29,6 +29,12 @@
         "url_alphanumeric": "URL'ler yalnızca ('-') ve alfasayısal karakterler içerebilir.",
         "url_length": "URL'nizi 48 karakterle sınırlayın.",
         "url_already_taken": "Çalışma alanı URL'si zaten alınmış!"
+      },
+      "super_admin_only": {
+        "title": "Yalnızca Süper Yöneticiler çalışma alanı oluşturabilir",
+        "description": "Çalışma alanınızın bir Süper Yöneticisinden bir çalışma alanı oluşturmasını veya sizi davet etmesini isteyin. Bir çalışma alanını sildiyseniz, onu yine de geri yükleyebilirsiniz.",
+        "restore_button": "Silinen bir çalışma alanını geri yükle",
+        "onboarding": "Hiçbir çalışma alanı davetiniz yok ve yeni çalışma alanlarını yalnızca Süper Yöneticiler oluşturabilir. Çalışma alanının bir Süper Yöneticisinden sizi davet etmesini isteyin, ardından katılmak için buraya geri dönün."
       }
     },
     "request_email": {

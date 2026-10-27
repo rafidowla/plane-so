@@ -24,27 +24,38 @@ import { getFileURL } from "@plane/utils";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import type { TWorkspaceMemberUpdate } from "@/store/member/workspace/workspace-member.store";
 
 export interface RowData {
   member: IWorkspaceMember;
   role: EUserPermissions;
   is_active: boolean;
+  is_super_admin?: boolean; // FORK: PSR-125
 }
 
 type NameProps = {
   rowData: RowData;
   workspaceSlug: string;
   isAdmin: boolean;
+  isSuperAdmin?: boolean; // FORK: PSR-125
   currentUser: IUser | undefined;
   setRemoveMemberModal: (rowData: RowData) => void;
 };
 
-type TRoleOption = { key: EUserPermissions; label: string };
+// FORK: PSR-125 -- "super_admin" is Admin + the Super Admin flag; the API stores it that way.
+type TRoleKey = EUserPermissions | "super_admin";
+type TRoleOption = { key: TRoleKey; label: string };
 
-const ROLE_OPTIONS: TRoleOption[] = Object.entries(ROLE).map(([key, label]) => ({
-  key: Number(key) as EUserPermissions,
-  label,
-}));
+const SUPER_ADMIN_KEY = "super_admin" as const;
+
+const roleKeyOf = (row: { role: EUserPermissions; is_super_admin?: boolean }): TRoleKey =>
+  row.is_super_admin && row.role === EUserPermissions.ADMIN ? SUPER_ADMIN_KEY : row.role;
+
+// The PATCH body for moving a member to a role key. Leaving Super Admin is sent explicitly.
+const updateFor = (key: TRoleKey, wasSuperAdmin: boolean): TWorkspaceMemberUpdate => {
+  if (key === SUPER_ADMIN_KEY) return { role: EUserPermissions.ADMIN, is_super_admin: true };
+  return wasSuperAdmin ? { role: key, is_super_admin: false } : { role: key };
+};
 
 type AccountTypeProps = {
   rowData: RowData;
@@ -52,12 +63,14 @@ type AccountTypeProps = {
 };
 
 export function NameColumn(props: NameProps) {
-  const { rowData, workspaceSlug, isAdmin, currentUser, setRemoveMemberModal } = props;
+  const { rowData, workspaceSlug, isAdmin, isSuperAdmin = false, currentUser, setRemoveMemberModal } = props;
   // plane hooks
   const { t } = useTranslation();
   // derived values
   const { avatar_url, display_name, email, first_name, id, last_name } = rowData.member;
   const isSuspended = rowData.is_active === false;
+  // FORK: PSR-125 -- only a Super Admin can remove an Admin; the API refuses it otherwise.
+  const canRemove = isAdmin && (isSuperAdmin || rowData.role !== EUserPermissions.ADMIN);
 
   return (
     <div className="group relative">
@@ -89,7 +102,7 @@ export function NameColumn(props: NameProps) {
           </span>
         </div>
 
-        {!isSuspended && (isAdmin || id === currentUser?.id) && (
+        {!isSuspended && (canRemove || id === currentUser?.id) && (
           <div className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100">
             <Menu>
               <MenuTrigger
@@ -122,7 +135,8 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
   // form info
   const { control } = useForm();
   // store hooks
-  const { allowPermissions } = useUserPermissions();
+  const { t } = useTranslation();
+  const { allowPermissions, workspaceUserInfo } = useUserPermissions();
 
   const {
     workspace: { updateMember },
@@ -132,8 +146,19 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
   // derived values
   const isCurrentUser = currentUser?.id === rowData.member.id;
   const isAdminRole = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
-  const isRoleNonEditable = isCurrentUser || !isAdminRole;
+  // FORK: PSR-125 -- a plain Admin can only move Members and Guests between those two roles;
+  // a Super Admin can set any role, including Super Admin.
+  const viewerIsSuperAdmin = !!workspaceUserInfo[workspaceSlug]?.is_super_admin;
+  const rowKey = roleKeyOf(rowData);
+  const rowIsAdmin = rowData.role === EUserPermissions.ADMIN;
+  const isRoleNonEditable = isCurrentUser || !isAdminRole || (rowIsAdmin && !viewerIsSuperAdmin);
   const isSuspended = rowData.is_active === false;
+  const superAdminLabel = t("workspace_settings.settings.members.super_admin");
+  const labelOf = (key: TRoleKey) => (key === SUPER_ADMIN_KEY ? superAdminLabel : ROLE[key]);
+  const keys: TRoleKey[] = viewerIsSuperAdmin
+    ? [SUPER_ADMIN_KEY, EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST]
+    : [EUserPermissions.MEMBER, EUserPermissions.GUEST];
+  const options: TRoleOption[] = keys.map((key) => ({ key, label: labelOf(key) }));
 
   return (
     <>
@@ -143,7 +168,7 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
         </div>
       ) : isRoleNonEditable ? (
         <div className="flex w-32">
-          <span>{ROLE[rowData.role]}</span>
+          <span>{labelOf(rowKey)}</span>
         </div>
       ) : (
         <Controller
@@ -153,12 +178,17 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
           render={() => (
             <div className="w-32">
               <Select<TRoleOption>
-                value={ROLE_OPTIONS.find((role) => role.key === rowData.role) ?? null}
+                value={options.find((role) => role.key === rowKey) ?? null}
                 onChange={(val) => {
                   if (!workspaceSlug) return;
-                  updateMember(workspaceSlug.toString(), rowData.member.id, {
-                    role: Number(val) as EUserPermissions,
-                  }).catch((err: unknown) => {
+                  const key: TRoleKey =
+                    String(val) === SUPER_ADMIN_KEY ? SUPER_ADMIN_KEY : (Number(val) as EUserPermissions);
+                  if (key === rowKey) return;
+                  updateMember(
+                    workspaceSlug.toString(),
+                    rowData.member.id,
+                    updateFor(key, rowKey === SUPER_ADMIN_KEY)
+                  ).catch((err: unknown) => {
                     const error = err as { error?: string | string[] };
                     const errorString = Array.isArray(error?.error) ? error.error[0] : error?.error;
 
@@ -169,14 +199,14 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
                     });
                   });
                 }}
-                getValues={() => ROLE_OPTIONS}
+                getValues={() => options}
                 getOptionValue={(role) => String(role.key)}
                 getOptionLabel={(role) => role.label}
                 showSearch={false}
                 pinSelected={false}
               >
                 <Select.Trigger<TRoleOption> variant="select-ghost-md">
-                  <span className="min-w-0 flex-1 truncate text-left">{ROLE[rowData.role]}</span>
+                  <span className="min-w-0 flex-1 truncate text-left">{labelOf(rowKey)}</span>
                 </Select.Trigger>
               </Select>
             </div>

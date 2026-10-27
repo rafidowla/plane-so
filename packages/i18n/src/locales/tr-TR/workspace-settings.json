@@ -16,7 +16,7 @@
         "workspace_timezone": "Çalışma Alanı Saat Dilimi",
         "update_workspace": "Çalışma Alanını Güncelle",
         "delete_workspace": "Bu çalışma alanını sil",
-        "delete_workspace_description": "Bir çalışma alanı silindiğinde, içindeki tüm veri ve kaynaklar kalıcı olarak kaldırılır ve kurtarılamaz.",
+        "delete_workspace_description": "Bir çalışma alanını silmek, onu tüm üyeler için hemen kaldırır. Süper Yönetici, kalıcı olarak kaldırılana kadar onu profil ayarlarından geri yükleyebilir.",
         "delete_btn": "Bu çalışma alanını sil",
         "delete_modal": {
           "title": "Bu çalışma alanını silmek istediğinizden emin misiniz?",
@@ -26,7 +26,23 @@
           "success_title": "Çalışma alanı silindi.",
           "success_message": "Kısa süre sonra profil sayfanıza yönlendirileceksiniz.",
           "error_title": "Bu işe yaramadı.",
-          "error_message": "Lütfen tekrar deneyin."
+          "error_message": "Lütfen tekrar deneyin.",
+          "body": "Bu işlem \"{name}\" çalışma alanını tüm üyeler için hemen kaldırır. Kalıcı olarak kaldırılana kadar Profil ayarları → Silinen çalışma alanları bölümünden geri yükleyebilirsiniz.",
+          "name_label": "Onaylamak için çalışma alanının adını yazın",
+          "password_label": "Şifrenizi girin",
+          "code_label": "E-posta ile gönderdiğimiz kodu girin",
+          "send_code": "Bana e-posta ile kod gönder",
+          "resend_code": "Yeni kod gönder",
+          "code_sent": "Kod gönderildi. E-postanızı kontrol edin.",
+          "confirm": "Çalışma alanını sil",
+          "errors": {
+            "name_mismatch": "Ad bu çalışma alanıyla eşleşmiyor.",
+            "password_incorrect": "Bu şifre yanlış.",
+            "code_invalid": "Bu kod yanlış veya süresi dolmuş.",
+            "too_many_attempts": "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.",
+            "too_many_codes": "Çok fazla kod gönderildi. Lütfen 10 dakika sonra tekrar deneyin.",
+            "use_code": "Hesabınızın şifresi yok. Bunun yerine kendinize e-posta ile bir kod gönderin."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Şirket büyüklüğü gereklidir",
             "select_a_range": "Kuruluş büyüklüğünü seçin"
           }
-        }
+        },
+        "super_admin_only_note": "Çalışma alanının adını ve logosunu yalnızca Süper Yönetici değiştirebilir veya çalışma alanını silebilir."
       },
       "members": {
         "title": "Üyeler",
@@ -63,7 +80,8 @@
             "required": "Davet etmek için bir e-posta adresine ihtiyacımız var.",
             "invalid": "E-posta geçersiz"
           }
-        }
+        },
+        "super_admin": "Süper Yönetici"
       },
       "billing_and_plans": {
         "heading": "Faturalandırma ve Planlar",

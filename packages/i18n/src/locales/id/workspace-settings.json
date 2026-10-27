@@ -16,7 +16,7 @@
         "workspace_timezone": "Zona waktu ruang kerja",
         "update_workspace": "Perbarui ruang kerja",
         "delete_workspace": "Hapus ruang kerja ini",
-        "delete_workspace_description": "Ketika menghapus ruang kerja, semua data dan sumber daya di dalam ruang kerja tersebut akan dihapus secara permanen dan tidak dapat dipulihkan.",
+        "delete_workspace_description": "Menghapus ruang kerja akan langsung menghilangkannya untuk semua anggota. Super Admin dapat memulihkannya dari pengaturan profilnya sampai ruang kerja dihapus permanen.",
         "delete_btn": "Hapus ruang kerja ini",
         "delete_modal": {
           "title": "Apakah Anda yakin ingin menghapus ruang kerja ini?",
@@ -26,7 +26,23 @@
           "success_title": "Ruang kerja dihapus.",
           "success_message": "Anda akan segera diarahkan ke halaman profil Anda.",
           "error_title": "Itu tidak berhasil.",
-          "error_message": "Silakan coba lagi."
+          "error_message": "Silakan coba lagi.",
+          "body": "Tindakan ini langsung menghapus \"{name}\" untuk semua anggota. Anda dapat memulihkannya dari Pengaturan profil → Ruang kerja yang dihapus sampai dihapus permanen.",
+          "name_label": "Ketik nama ruang kerja untuk konfirmasi",
+          "password_label": "Masukkan kata sandi Anda",
+          "code_label": "Masukkan kode yang kami kirim ke email Anda",
+          "send_code": "Kirim kode ke email saya",
+          "resend_code": "Kirim kode baru",
+          "code_sent": "Kode terkirim. Periksa email Anda.",
+          "confirm": "Hapus ruang kerja",
+          "errors": {
+            "name_mismatch": "Nama tidak cocok dengan ruang kerja ini.",
+            "password_incorrect": "Kata sandi tersebut salah.",
+            "code_invalid": "Kode tersebut salah atau sudah kedaluwarsa.",
+            "too_many_attempts": "Terlalu banyak percobaan. Coba lagi dalam beberapa menit.",
+            "too_many_codes": "Terlalu banyak kode terkirim. Coba lagi dalam 10 menit.",
+            "use_code": "Akun Anda tidak memiliki kata sandi. Kirim kode ke email Anda sebagai gantinya."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Ukuran perusahaan diperlukan",
             "select_a_range": "Pilih ukuran organisasi"
           }
-        }
+        },
+        "super_admin_only_note": "Hanya Super Admin yang dapat mengubah nama dan logo ruang kerja, atau menghapus ruang kerja."
       },
       "members": {
         "title": "Anggota",
@@ -63,7 +80,8 @@
             "required": "Kami perlu alamat email untuk mengundang mereka.",
             "invalid": "Email tidak valid"
           }
-        }
+        },
+        "super_admin": "Super Admin"
       },
       "billing_and_plans": {
         "heading": "Penagihan & Rencana",

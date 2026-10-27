@@ -65,6 +65,24 @@
       "title": "Conexiones",
       "heading": "Conexiones",
       "description": "Administra la configuración de conexiones de tu espacio de trabajo."
+    },
+    "deleted_workspaces": {
+      "title": "Espacios de trabajo eliminados",
+      "description": "Espacios de trabajo de los que fue Superadministrador. Restaure uno antes de que se elimine definitivamente.",
+      "dates": "Eliminado el {deleted} · Se eliminará definitivamente el {purge}",
+      "restore": "Restaurar",
+      "new_slug_label": "Su dirección web anterior ya está en uso. Elija una nueva.",
+      "empty": "No hay espacios de trabajo eliminados para restaurar.",
+      "restored_title": "Espacio de trabajo restaurado.",
+      "restored_message": "Lo estamos llevando allí ahora.",
+      "errors": {
+        "delete_in_progress": "Este espacio de trabajo aún se está eliminando. Inténtelo de nuevo en unos minutos.",
+        "slug_invalid": "Esa dirección web no es válida. Use letras, números, - y _.",
+        "slug_taken": "Esa dirección web ya está en uso. Elija una nueva.",
+        "restore_conflict": "Este espacio de trabajo no se puede restaurar porque algunos de sus datos ahora entran en conflicto.",
+        "generic": "No funcionó. Por favor, inténtelo de nuevo.",
+        "load_failed": "No se pudieron cargar los espacios de trabajo eliminados."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Preferencias",
       "notifications": "Notificaciones",
       "api-tokens": "Tokens de acceso personal",
-      "connections": "Conexiones"
+      "connections": "Conexiones",
+      "deleted-workspaces": "Espacios de trabajo eliminados"
     },
     "tabs": {
       "summary": "Resumen",

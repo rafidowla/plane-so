@@ -34,6 +34,7 @@ import {
   type THolidayForm,
 } from "./holidays-utils";
 import { MEMBERS_KEY } from "./members";
+import { useTimeSettingsReadOnly } from "./read-only";
 import type { THoliday, THolidayCalendar } from "./types";
 
 // ---- Holiday lists ----
@@ -51,6 +52,7 @@ function CalendarRow({ workspaceSlug, calendar, calendars, selected, onSelect }:
   const [name, setName] = useState(calendar.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
 
   // member_count and every member's assignment may have changed
   const refresh = async () => {
@@ -108,7 +110,7 @@ function CalendarRow({ workspaceSlug, calendar, calendars, selected, onSelect }:
       data-selected={selected}
     >
       <div className="flex flex-wrap items-center gap-3">
-        {editing ? (
+        {editing && !readOnly ? (
           <form
             className="flex items-center gap-2"
             onSubmit={(e) => {
@@ -170,7 +172,7 @@ function CalendarRow({ workspaceSlug, calendar, calendars, selected, onSelect }:
         <span className="text-xs text-tertiary" data-testid="holiday-calendar-members">
           {calendar.member_count === 1 ? "1 person" : `${calendar.member_count} people`}
         </span>
-        {!editing && (
+        {!editing && !readOnly && (
           <span className="ml-auto flex items-center gap-3">
             <button
               type="button"
@@ -348,6 +350,7 @@ function HolidayRow({ workspaceSlug, calendarId, year, holiday }: THolidayRowPro
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
   const key = HOLIDAYS_KEY(workspaceSlug, calendarId, year);
 
   const save = async (form: THolidayForm) => {
@@ -374,7 +377,7 @@ function HolidayRow({ workspaceSlug, calendarId, year, holiday }: THolidayRowPro
     }
   };
 
-  if (editing) {
+  if (editing && !readOnly) {
     return (
       <tr className="border-t border-subtle" data-testid="holiday-row" data-editing>
         <td colSpan={4} className="px-3 py-2">
@@ -402,17 +405,19 @@ function HolidayRow({ workspaceSlug, calendarId, year, holiday }: THolidayRowPro
         {portionLabel(holiday.portion)}
       </td>
       <td className="px-3 py-2">
-        <span className="flex items-center justify-end gap-3">
-          <button
-            type="button"
-            className="text-xs text-accent-primary hover:underline"
-            data-testid="holiday-edit"
-            onClick={() => setEditing(true)}
-          >
-            Edit
-          </button>
-          <DeleteButton label={`Delete ${holiday.name}`} testId="holiday-delete" onConfirm={remove} />
-        </span>
+        {!readOnly && (
+          <span className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              className="text-xs text-accent-primary hover:underline"
+              data-testid="holiday-edit"
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </button>
+            <DeleteButton label={`Delete ${holiday.name}`} testId="holiday-delete" onConfirm={remove} />
+          </span>
+        )}
       </td>
     </tr>
   );
@@ -424,6 +429,7 @@ function HolidayPanel({ workspaceSlug, calendar }: { workspaceSlug: string; cale
   const [year, setYear] = useState(currentYear);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
   const { data, error: loadError, isLoading } = useHolidays(workspaceSlug, calendar.id, year);
 
   const add = async (form: THolidayForm) => {
@@ -462,15 +468,17 @@ function HolidayPanel({ workspaceSlug, calendar }: { workspaceSlug: string; cale
       </div>
 
       {/* key: a fresh form when the list or year changes, so the date box starts in the year on show */}
-      <HolidayForm
-        key={`${calendar.id}-${year}`}
-        initial={{ date: defaultHolidayDate(year, today), name: "", portion: "full" }}
-        submitLabel="Add holiday"
-        testId="holiday-new"
-        busy={busy}
-        serverError={error}
-        onSubmit={add}
-      />
+      {!readOnly && (
+        <HolidayForm
+          key={`${calendar.id}-${year}`}
+          initial={{ date: defaultHolidayDate(year, today), name: "", portion: "full" }}
+          submitLabel="Add holiday"
+          testId="holiday-new"
+          busy={busy}
+          serverError={error}
+          onSubmit={add}
+        />
+      )}
 
       {loadError && !data ? (
         <ErrorLine message={holidayErrorMessage(loadError, "Couldn't load the holidays.")} />
@@ -509,6 +517,7 @@ function HolidayPanel({ workspaceSlug, calendar }: { workspaceSlug: string; cale
 export function HolidaysSettings({ workspaceSlug }: { workspaceSlug: string }) {
   const { data: calendars, error, isLoading } = useHolidayCalendars(workspaceSlug);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
 
   const selected =
     calendars?.find((c) => c.id === selectedId) ?? calendars?.find((c) => c.is_default) ?? calendars?.[0];
@@ -544,10 +553,18 @@ export function HolidaysSettings({ workspaceSlug }: { workspaceSlug: string }) {
           )}
           {calendars.length === 0 && (
             <p className="text-sm text-tertiary" data-testid="holiday-calendars-empty">
-              No holiday lists yet. The first list you add becomes the default for everyone.
+              {readOnly
+                ? "No holiday lists yet."
+                : "No holiday lists yet. The first list you add becomes the default for everyone."}
             </p>
           )}
-          <NewCalendarForm workspaceSlug={workspaceSlug} calendars={calendars} onCreated={(c) => setSelectedId(c.id)} />
+          {!readOnly && (
+            <NewCalendarForm
+              workspaceSlug={workspaceSlug}
+              calendars={calendars}
+              onCreated={(c) => setSelectedId(c.id)}
+            />
+          )}
           {selected && <HolidayPanel key={selected.id} workspaceSlug={workspaceSlug} calendar={selected} />}
         </>
       )}

@@ -29,6 +29,12 @@
         "url_alphanumeric": "URL 只能包含 ('-') 和字母数字字符。",
         "url_length": "URL 限制在 48 个字符以内。",
         "url_already_taken": "工作区 URL 已被占用！"
+      },
+      "super_admin_only": {
+        "title": "只有超级管理员可以创建工作区",
+        "description": "请让您所在工作区的超级管理员创建工作区或邀请您。如果您删除了工作区，仍可以恢复它。",
+        "restore_button": "恢复已删除的工作区",
+        "onboarding": "您没有任何工作区邀请，而且只有超级管理员可以创建新工作区。请让工作区的超级管理员邀请您，然后回到这里加入。"
       }
     },
     "request_email": {

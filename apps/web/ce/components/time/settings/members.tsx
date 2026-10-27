@@ -15,6 +15,7 @@ import { timeTrackingService } from "@/plane-web/services/time-tracking.service"
 import type { TTrackingMember, TTrackingMembersResponse } from "../reports/types";
 import { HOLIDAY_CALENDARS_KEY, useHolidayCalendars } from "./holiday-data";
 import { calendarSelectValue, defaultOptionLabel, holidayErrorMessage } from "./holidays-utils";
+import { useTimeSettingsReadOnly } from "./read-only";
 import type { THolidayCalendar } from "./types";
 import { capacityToText, parseCapacityHours, settingsErrorMessage, trackingSince } from "./settings-utils";
 
@@ -34,6 +35,7 @@ function MemberRow({ workspaceSlug, member, defaultMinutes, today, calendars }: 
   const [from, setFrom] = useState(today);
   const [capacityText, setCapacityText] = useState(() => capacityToText(member.weekly_capacity_minutes));
   const [busy, setBusy] = useState<"tracking" | "capacity" | "calendar" | null>(null);
+  const readOnly = useTimeSettingsReadOnly(); // FORK: PSR-125
 
   const parsed = parseCapacityHours(capacityText);
   const savedText = capacityToText(member.weekly_capacity_minutes);
@@ -117,23 +119,28 @@ function MemberRow({ workspaceSlug, member, defaultMinutes, today, calendars }: 
             {member.is_tracked ? "Tracked" : "Not tracked"}
           </span>
           {since && <span className="text-xs text-tertiary">since {since}</span>}
-          <input
-            type="date"
-            aria-label={`Effective date for ${member.display_name}`}
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="text-xs rounded border border-subtle bg-transparent px-2 py-1"
-          />
-          <Button
-            variant="secondary"
-            size="sm"
-            stretch="auto"
-            label={member.is_tracked ? "Stop tracking" : "Start tracking"}
-            loading={busy === "tracking"}
-            disabled={busy !== null || !from}
-            onClick={toggleTracking}
-            data-testid="member-tracking-toggle"
-          />
+          {/* FORK: PSR-125 — read-only for a plain Admin: the state badge stays, the controls go */}
+          {!readOnly && (
+            <>
+              <input
+                type="date"
+                aria-label={`Effective date for ${member.display_name}`}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="text-xs rounded border border-subtle bg-transparent px-2 py-1"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                stretch="auto"
+                label={member.is_tracked ? "Stop tracking" : "Start tracking"}
+                loading={busy === "tracking"}
+                disabled={busy !== null || !from}
+                onClick={toggleTracking}
+                data-testid="member-tracking-toggle"
+              />
+            </>
+          )}
         </div>
       </td>
       <td className="px-3 py-2">
@@ -145,6 +152,7 @@ function MemberRow({ workspaceSlug, member, defaultMinutes, today, calendars }: 
             data-testid="member-capacity-input"
             placeholder={`${(defaultMinutes / 60).toFixed(1)} (work week)`}
             value={capacityText}
+            disabled={readOnly}
             onChange={(e) => setCapacityText(e.target.value)}
             className={cn(
               "text-sm w-32 rounded border bg-transparent px-2 py-1",
@@ -152,17 +160,19 @@ function MemberRow({ workspaceSlug, member, defaultMinutes, today, calendars }: 
             )}
           />
           <span className="text-xs text-tertiary">h / week</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            stretch="auto"
-            label="Save"
-            loading={busy === "capacity"}
-            disabled={busy !== null || !capacityDirty || parsed === "invalid"}
-            onClick={() => parsed !== "invalid" && saveCapacity(parsed)}
-            data-testid="member-capacity-save"
-          />
-          {member.weekly_capacity_minutes !== null && (
+          {!readOnly && (
+            <Button
+              variant="secondary"
+              size="sm"
+              stretch="auto"
+              label="Save"
+              loading={busy === "capacity"}
+              disabled={busy !== null || !capacityDirty || parsed === "invalid"}
+              onClick={() => parsed !== "invalid" && saveCapacity(parsed)}
+              data-testid="member-capacity-save"
+            />
+          )}
+          {!readOnly && member.weekly_capacity_minutes !== null && (
             <button
               type="button"
               className="text-xs text-accent-primary hover:underline"
@@ -181,7 +191,7 @@ function MemberRow({ workspaceSlug, member, defaultMinutes, today, calendars }: 
           aria-label={`Holiday list for ${member.display_name}`}
           data-testid="member-holiday-calendar"
           value={calendarSelectValue(member.holiday_calendar_id, calendars)}
-          disabled={busy !== null}
+          disabled={readOnly || busy !== null}
           onChange={(e) => saveCalendar(e.target.value)}
           className="text-sm rounded border border-subtle bg-transparent px-2 py-1"
         >

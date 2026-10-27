@@ -16,7 +16,7 @@
         "workspace_timezone": "工作區時區",
         "update_workspace": "更新工作區",
         "delete_workspace": "刪除此工作區",
-        "delete_workspace_description": "刪除工作區時，該工作區內的所有資料和資源都將被永久移除且無法復原。",
+        "delete_workspace_description": "刪除工作區會立即對所有成員移除該工作區。在永久刪除之前，超級管理員可以在其個人資料設定中還原它。",
         "delete_btn": "刪除此工作區",
         "delete_modal": {
           "title": "您確定要刪除此工作區嗎？",
@@ -26,7 +26,23 @@
           "success_title": "工作區已刪除。",
           "success_message": "您很快就會進入個人資料頁面。",
           "error_title": "操作失敗。",
-          "error_message": "請重試。"
+          "error_message": "請重試。",
+          "body": "這將立即對所有成員移除「{name}」。在永久刪除之前，您可以在個人資料設定 → 已刪除的工作區中還原它。",
+          "name_label": "輸入工作區名稱以確認",
+          "password_label": "輸入您的密碼",
+          "code_label": "輸入我們透過電子郵件寄給您的驗證碼",
+          "send_code": "透過電子郵件寄送驗證碼",
+          "resend_code": "重新寄送驗證碼",
+          "code_sent": "驗證碼已寄出。請查看您的電子郵件。",
+          "confirm": "刪除工作區",
+          "errors": {
+            "name_mismatch": "名稱與此工作區不符。",
+            "password_incorrect": "密碼不正確。",
+            "code_invalid": "驗證碼錯誤或已過期。",
+            "too_many_attempts": "嘗試次數過多。請幾分鐘後再試。",
+            "too_many_codes": "寄出的驗證碼過多。請 10 分鐘後再試。",
+            "use_code": "您的帳號沒有密碼。請改用電子郵件驗證碼。"
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "公司規模為必填",
             "select_a_range": "選擇組織規模"
           }
-        }
+        },
+        "super_admin_only_note": "只有超級管理員可以變更工作區名稱和標誌，或刪除工作區。"
       },
       "members": {
         "title": "成員",
@@ -63,7 +80,8 @@
             "required": "我們需要電子郵件地址才能邀請他們。",
             "invalid": "電子郵件無效"
           }
-        }
+        },
+        "super_admin": "超級管理員"
       },
       "billing_and_plans": {
         "heading": "計費與方案",

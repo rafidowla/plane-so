@@ -65,6 +65,24 @@
       "title": "接続",
       "heading": "接続",
       "description": "ワークスペースの接続設定を管理します。"
+    },
+    "deleted_workspaces": {
+      "title": "削除済みワークスペース",
+      "description": "あなたがスーパー管理者だったワークスペースです。完全に削除される前に復元してください。",
+      "dates": "削除日: {deleted} · 完全削除日: {purge}",
+      "restore": "復元",
+      "new_slug_label": "以前のWebアドレスは使用されています。新しいアドレスを選んでください。",
+      "empty": "復元できる削除済みワークスペースはありません。",
+      "restored_title": "ワークスペースを復元しました。",
+      "restored_message": "これから移動します。",
+      "errors": {
+        "delete_in_progress": "このワークスペースはまだ削除処理中です。数分後にもう一度お試しください。",
+        "slug_invalid": "このWebアドレスは無効です。英数字、- および _ を使用してください。",
+        "slug_taken": "このWebアドレスは使用されています。新しいアドレスを選んでください。",
+        "restore_conflict": "一部のデータが競合しているため、このワークスペースは復元できません。",
+        "generic": "操作に失敗しました。もう一度お試しください。",
+        "load_failed": "削除済みワークスペースを読み込めませんでした。"
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "環境設定",
       "notifications": "通知",
       "api-tokens": "個人アクセストークン",
-      "connections": "接続"
+      "connections": "接続",
+      "deleted-workspaces": "削除済みワークスペース"
     },
     "tabs": {
       "summary": "サマリー",

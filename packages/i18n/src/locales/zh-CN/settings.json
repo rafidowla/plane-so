@@ -65,6 +65,24 @@
       "title": "连接",
       "heading": "连接",
       "description": "管理您的工作区连接设置。"
+    },
+    "deleted_workspaces": {
+      "title": "已删除的工作区",
+      "description": "您曾担任超级管理员的工作区。请在永久删除之前恢复。",
+      "dates": "删除于 {deleted} · 将于 {purge} 永久删除",
+      "restore": "恢复",
+      "new_slug_label": "其原有的网址已被占用。请选择新的网址。",
+      "empty": "没有可恢复的已删除工作区。",
+      "restored_title": "工作区已恢复。",
+      "restored_message": "正在带您前往。",
+      "errors": {
+        "delete_in_progress": "此工作区仍在删除中。请几分钟后重试。",
+        "slug_invalid": "该网址无效。请使用字母、数字、- 和 _。",
+        "slug_taken": "该网址已被占用。请选择新的网址。",
+        "restore_conflict": "由于部分数据现在存在冲突，无法恢复此工作区。",
+        "generic": "操作失败。请重试。",
+        "load_failed": "无法加载已删除的工作区。"
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "偏好设置",
       "notifications": "通知",
       "api-tokens": "个人访问令牌",
-      "connections": "连接"
+      "connections": "连接",
+      "deleted-workspaces": "已删除的工作区"
     },
     "tabs": {
       "summary": "摘要",

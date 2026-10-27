@@ -29,6 +29,12 @@
         "url_alphanumeric": "網址只能包含 ('-') 和英數字元。",
         "url_length": "網址請限制在 48 個字元以內。",
         "url_already_taken": "工作區網址已被使用！"
+      },
+      "super_admin_only": {
+        "title": "只有超級管理員可以建立工作區",
+        "description": "請讓您所在工作區的超級管理員建立工作區或邀請您。如果您刪除了工作區，仍可以還原它。",
+        "restore_button": "還原已刪除的工作區",
+        "onboarding": "您沒有任何工作區邀請，而且只有超級管理員可以建立新的工作區。請讓工作區的超級管理員邀請您，然後回到這裡加入。"
       }
     },
     "request_email": {

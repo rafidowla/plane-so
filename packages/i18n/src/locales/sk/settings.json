@@ -65,6 +65,24 @@
       "title": "Prepojenia",
       "heading": "Prepojenia",
       "description": "Spravujte nastavenia prepojení svojho pracovného priestoru."
+    },
+    "deleted_workspaces": {
+      "title": "Zmazané priestory",
+      "description": "Priestory, v ktorých ste boli hlavným správcom. Obnovte ich skôr, než budú natrvalo odstránené.",
+      "dates": "Zmazané {deleted} · Natrvalo odstránené {purge}",
+      "restore": "Obnoviť",
+      "new_slug_label": "Jeho pôvodná webová adresa je obsadená. Zvoľte novú.",
+      "empty": "Žiadne zmazané priestory na obnovenie.",
+      "restored_title": "Priestor bol obnovený.",
+      "restored_message": "Práve vás do neho presmerovávame.",
+      "errors": {
+        "delete_in_progress": "Tento priestor sa stále maže. Skúste to znova o niekoľko minút.",
+        "slug_invalid": "Táto webová adresa nie je platná. Použite písmená, čísla, - a _.",
+        "slug_taken": "Táto webová adresa je obsadená. Zvoľte novú.",
+        "restore_conflict": "Tento priestor nie je možné obnoviť, pretože niektoré jeho údaje sú teraz v konflikte.",
+        "generic": "Nepodarilo sa. Skúste to prosím znova.",
+        "load_failed": "Zmazané priestory sa nepodarilo načítať."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Predvoľby",
       "notifications": "Oznámenia",
       "api-tokens": "Osobné prístupové tokeny",
-      "connections": "Pripojenia"
+      "connections": "Pripojenia",
+      "deleted-workspaces": "Zmazané priestory"
     },
     "tabs": {
       "summary": "Zhrnutie",

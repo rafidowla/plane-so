@@ -29,6 +29,12 @@
         "url_alphanumeric": "URL-urile pot conține doar ('-') și caractere alfanumerice.",
         "url_length": "Limitează URL-ul la 48 de caractere.",
         "url_already_taken": "URL-ul spațiului de lucru este deja folosit!"
+      },
+      "super_admin_only": {
+        "title": "Doar Super administratorii pot crea spații de lucru",
+        "description": "Roagă un Super administrator al spațiului tău de lucru să creeze unul sau să te invite. Dacă ai șters un spațiu de lucru, îl poți restaura în continuare.",
+        "restore_button": "Restaurează un spațiu de lucru șters",
+        "onboarding": "Nu ai invitații la spații de lucru, iar doar Super administratorii pot crea spații de lucru noi. Roagă un Super administrator al spațiului de lucru să te invite, apoi revino aici pentru a te alătura."
       }
     },
     "request_email": {

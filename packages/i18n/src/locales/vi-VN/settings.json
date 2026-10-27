@@ -65,6 +65,24 @@
       "title": "Kết nối",
       "heading": "Kết nối",
       "description": "Quản lý cài đặt kết nối không gian làm việc của bạn."
+    },
+    "deleted_workspaces": {
+      "title": "Không gian làm việc đã xóa",
+      "description": "Các không gian làm việc mà bạn từng là Siêu quản trị viên. Hãy khôi phục trước khi chúng bị xóa vĩnh viễn.",
+      "dates": "Đã xóa {deleted} · Xóa vĩnh viễn vào {purge}",
+      "restore": "Khôi phục",
+      "new_slug_label": "Địa chỉ web cũ của nó đã được sử dụng. Vui lòng chọn địa chỉ mới.",
+      "empty": "Không có không gian làm việc đã xóa nào để khôi phục.",
+      "restored_title": "Đã khôi phục không gian làm việc.",
+      "restored_message": "Đang chuyển bạn đến đó.",
+      "errors": {
+        "delete_in_progress": "Không gian làm việc này vẫn đang được xóa. Vui lòng thử lại sau vài phút.",
+        "slug_invalid": "Địa chỉ web này không hợp lệ. Hãy dùng chữ cái, chữ số, - và _.",
+        "slug_taken": "Địa chỉ web này đã được sử dụng. Vui lòng chọn địa chỉ mới.",
+        "restore_conflict": "Không thể khôi phục không gian làm việc này vì một số dữ liệu của nó hiện đang xung đột.",
+        "generic": "Không thành công. Vui lòng thử lại.",
+        "load_failed": "Không thể tải các không gian làm việc đã xóa."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Tùy chọn",
       "notifications": "Thông báo",
       "api-tokens": "Mã truy cập cá nhân",
-      "connections": "Kết nối"
+      "connections": "Kết nối",
+      "deleted-workspaces": "Không gian làm việc đã xóa"
     },
     "tabs": {
       "summary": "Tóm tắt",

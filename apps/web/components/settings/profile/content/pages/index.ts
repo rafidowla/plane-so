@@ -14,4 +14,8 @@ export const PROFILE_SETTINGS_PAGES_MAP: Record<TProfileSettingsTabs, React.Lazy
   notifications: lazy(() => import("./notifications").then((m) => ({ default: m.NotificationsProfileSettings }))),
   security: lazy(() => import("./security").then((m) => ({ default: m.SecurityProfileSettings }))),
   "api-tokens": lazy(() => import("./api-tokens").then((m) => ({ default: m.APITokensProfileSettings }))),
+  // FORK: PSR-125
+  "deleted-workspaces": lazy(() =>
+    import("./deleted-workspaces").then((m) => ({ default: m.DeletedWorkspacesProfileSettings }))
+  ),
 };

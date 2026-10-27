@@ -65,6 +65,24 @@
       "title": "Conexiuni",
       "heading": "Conexiuni",
       "description": "Gestionează setările conexiunilor spațiului tău de lucru."
+    },
+    "deleted_workspaces": {
+      "title": "Spații de lucru șterse",
+      "description": "Spații de lucru în care ai fost Super administrator. Restaurează unul înainte de a fi eliminat definitiv.",
+      "dates": "Șters pe {deleted} · Eliminat definitiv pe {purge}",
+      "restore": "Restaurează",
+      "new_slug_label": "Vechea adresă web este deja folosită. Alege una nouă.",
+      "empty": "Nu există spații de lucru șterse de restaurat.",
+      "restored_title": "Spațiul de lucru a fost restaurat.",
+      "restored_message": "Te ducem acolo acum.",
+      "errors": {
+        "delete_in_progress": "Acest spațiu de lucru este încă în curs de ștergere. Încearcă din nou peste câteva minute.",
+        "slug_invalid": "Această adresă web nu este validă. Folosește litere, cifre, - și _.",
+        "slug_taken": "Această adresă web este deja folosită. Alege una nouă.",
+        "restore_conflict": "Acest spațiu de lucru nu poate fi restaurat deoarece unele dintre datele sale sunt acum în conflict.",
+        "generic": "Nu a funcționat. Încearcă din nou, te rog.",
+        "load_failed": "Nu s-au putut încărca spațiile de lucru șterse."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Preferințe",
       "notifications": "Notificări",
       "api-tokens": "Tokenuri de acces personale",
-      "connections": "Conexiuni"
+      "connections": "Conexiuni",
+      "deleted-workspaces": "Spații de lucru șterse"
     },
     "tabs": {
       "summary": "Sumar",

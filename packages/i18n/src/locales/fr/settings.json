@@ -65,6 +65,24 @@
       "title": "Connexions",
       "heading": "Connexions",
       "description": "Gérez les paramètres de connexion de votre espace de travail."
+    },
+    "deleted_workspaces": {
+      "title": "Espaces de travail supprimés",
+      "description": "Espaces de travail dont vous étiez Super administrateur. Restaurez-en un avant sa suppression définitive.",
+      "dates": "Supprimé le {deleted} · Suppression définitive le {purge}",
+      "restore": "Restaurer",
+      "new_slug_label": "Son ancienne adresse web est déjà prise. Choisissez-en une nouvelle.",
+      "empty": "Aucun espace de travail supprimé à restaurer.",
+      "restored_title": "Espace de travail restauré.",
+      "restored_message": "Nous vous y redirigeons.",
+      "errors": {
+        "delete_in_progress": "Cet espace de travail est encore en cours de suppression. Veuillez réessayer dans quelques minutes.",
+        "slug_invalid": "Cette adresse web n'est pas valide. Utilisez des lettres, des chiffres, - et _.",
+        "slug_taken": "Cette adresse web est déjà prise. Choisissez-en une nouvelle.",
+        "restore_conflict": "Cet espace de travail ne peut pas être restauré, car certaines de ses données sont désormais en conflit.",
+        "generic": "Cela n'a pas fonctionné. Veuillez réessayer.",
+        "load_failed": "Impossible de charger les espaces de travail supprimés."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Préférences",
       "notifications": "Notifications",
       "api-tokens": "Jetons d’accès personnel",
-      "connections": "Connexions"
+      "connections": "Connexions",
+      "deleted-workspaces": "Espaces de travail supprimés"
     },
     "tabs": {
       "summary": "Résumé",

@@ -29,6 +29,12 @@
         "url_alphanumeric": "URL mohou obsahovat pouze ('-') a alfanumerické znaky.",
         "url_length": "URL omezena na 48 znaků.",
         "url_already_taken": "URL pracovního prostoru je již obsazena!"
+      },
+      "super_admin_only": {
+        "title": "Prostory mohou vytvářet pouze hlavní správci",
+        "description": "Požádejte hlavního správce svého prostoru, aby prostor vytvořil nebo vás pozval. Pokud jste prostor smazali, stále ho můžete obnovit.",
+        "restore_button": "Obnovit smazaný prostor",
+        "onboarding": "Nemáte žádné pozvánky do prostoru a nové prostory mohou vytvářet pouze hlavní správci. Požádejte hlavního správce prostoru, aby vás pozval, a poté se sem vraťte a připojte se."
       }
     },
     "request_email": {

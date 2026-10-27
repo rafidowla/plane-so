@@ -55,6 +55,9 @@ ws, _ = Workspace.objects.get_or_create(
     defaults={"name": "E2E", "owner": admin},
 )
 WorkspaceMember.objects.get_or_create(workspace=ws, member=admin, defaults={"role": 20, "is_active": True})
+# FORK: PSR-125 -- the e2e admin owns the workspace, so it is its Super Admin (Time settings are
+# Super-Admin-only); the 0136 backfill ran before this seed on a fresh DB.
+WorkspaceMember.objects.filter(workspace=ws, member=admin).update(is_super_admin=True)
 WorkspaceMember.objects.get_or_create(workspace=ws, member=outsider, defaults={"role": 15, "is_active": True})
 WorkspaceMember.objects.get_or_create(workspace=ws, member=member, defaults={"role": 15, "is_active": True})
 WorkspaceMember.objects.get_or_create(workspace=ws, member=other, defaults={"role": 15, "is_active": True})

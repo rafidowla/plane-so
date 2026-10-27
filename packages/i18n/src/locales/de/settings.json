@@ -65,6 +65,24 @@
       "title": "Verbindungen",
       "heading": "Verbindungen",
       "description": "Verwalten Sie Ihre Arbeitsbereich-Verbindungseinstellungen."
+    },
+    "deleted_workspaces": {
+      "title": "Gelöschte Arbeitsbereiche",
+      "description": "Arbeitsbereiche, in denen Sie Super-Administrator waren. Stellen Sie einen wieder her, bevor er endgültig entfernt wird.",
+      "dates": "Gelöscht am {deleted} · Endgültig entfernt am {purge}",
+      "restore": "Wiederherstellen",
+      "new_slug_label": "Die alte Webadresse ist bereits vergeben. Wählen Sie eine neue.",
+      "empty": "Keine gelöschten Arbeitsbereiche zum Wiederherstellen.",
+      "restored_title": "Arbeitsbereich wiederhergestellt.",
+      "restored_message": "Sie werden jetzt dorthin weitergeleitet.",
+      "errors": {
+        "delete_in_progress": "Dieser Arbeitsbereich wird noch gelöscht. Bitte versuchen Sie es in einigen Minuten erneut.",
+        "slug_invalid": "Diese Webadresse ist ungültig. Verwenden Sie Buchstaben, Zahlen, - und _.",
+        "slug_taken": "Diese Webadresse ist bereits vergeben. Wählen Sie eine neue.",
+        "restore_conflict": "Dieser Arbeitsbereich kann nicht wiederhergestellt werden, da einige seiner Daten jetzt in Konflikt stehen.",
+        "generic": "Das hat nicht funktioniert. Bitte versuchen Sie es erneut.",
+        "load_failed": "Gelöschte Arbeitsbereiche konnten nicht geladen werden."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Einstellungen",
       "notifications": "Benachrichtigungen",
       "api-tokens": "Persönliche Zugriffstoken",
-      "connections": "Verbindungen"
+      "connections": "Verbindungen",
+      "deleted-workspaces": "Gelöschte Arbeitsbereiche"
     },
     "tabs": {
       "summary": "Zusammenfassung",

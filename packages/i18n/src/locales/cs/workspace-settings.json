@@ -16,7 +16,7 @@
         "workspace_timezone": "Časové pásmo pracovního prostoru",
         "update_workspace": "Aktualizovat prostor",
         "delete_workspace": "Smazat tento prostor",
-        "delete_workspace_description": "Smazáním prostoru odstraníte všechna data a zdroje. Akce je nevratná.",
+        "delete_workspace_description": "Smazáním prostoru ho okamžitě odeberete všem členům. Hlavní správce ho může obnovit ve svém nastavení profilu, dokud nebude trvale odstraněn.",
         "delete_btn": "Smazat prostor",
         "delete_modal": {
           "title": "Opravdu chcete smazat tento prostor?",
@@ -26,7 +26,23 @@
           "success_title": "Prostor smazán.",
           "success_message": "Budete přesměrováni na profil.",
           "error_title": "Nepodařilo se.",
-          "error_message": "Zkuste to prosím znovu."
+          "error_message": "Zkuste to prosím znovu.",
+          "body": "Tím se prostor „{name}“ okamžitě odebere všem členům. Můžete ho obnovit v Nastavení profilu → Smazané prostory, dokud nebude trvale odstraněn.",
+          "name_label": "Pro potvrzení zadejte název prostoru",
+          "password_label": "Zadejte své heslo",
+          "code_label": "Zadejte kód, který jsme vám poslali e-mailem",
+          "send_code": "Poslat kód e-mailem",
+          "resend_code": "Poslat nový kód",
+          "code_sent": "Kód odeslán. Zkontrolujte svůj e-mail.",
+          "confirm": "Smazat prostor",
+          "errors": {
+            "name_mismatch": "Název neodpovídá tomuto prostoru.",
+            "password_incorrect": "Heslo není správné.",
+            "code_invalid": "Kód je nesprávný nebo vypršela jeho platnost.",
+            "too_many_attempts": "Příliš mnoho pokusů. Zkuste to znovu za několik minut.",
+            "too_many_codes": "Bylo odesláno příliš mnoho kódů. Zkuste to znovu za 10 minut.",
+            "use_code": "Váš účet nemá heslo. Pošlete si místo toho kód e-mailem."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Velikost společnosti je povinná",
             "select_a_range": "Vyberte velikost organizace"
           }
-        }
+        },
+        "super_admin_only_note": "Název a logo prostoru může měnit nebo prostor smazat pouze hlavní správce."
       },
       "members": {
         "title": "Členové",
@@ -63,7 +80,8 @@
             "required": "Vyžaduje se e-mailová adresa.",
             "invalid": "E-mail je neplatný"
           }
-        }
+        },
+        "super_admin": "Hlavní správce"
       },
       "billing_and_plans": {
         "heading": "Fakturace a plány",

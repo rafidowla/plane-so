@@ -23,7 +23,7 @@ export const useMemberColumns = () => {
   const { workspaceSlug } = useParams();
 
   const { data: currentUser } = useUser();
-  const { allowPermissions } = useUserPermissions();
+  const { allowPermissions, workspaceUserInfo } = useUserPermissions();
   const {
     workspace: {
       filtersStore: { filters, updateFilters },
@@ -33,6 +33,7 @@ export const useMemberColumns = () => {
 
   // derived values
   const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  const isSuperAdmin = !!workspaceUserInfo[workspaceSlug?.toString() ?? ""]?.is_super_admin; // FORK: PSR-125
 
   // oxlint-disable-next-line unicorn/consistent-function-scoping
   const isSuspended = (rowData: RowData) => rowData.is_active === false;
@@ -59,6 +60,7 @@ export const useMemberColumns = () => {
           rowData={rowData}
           workspaceSlug={workspaceSlug}
           isAdmin={isAdmin}
+          isSuperAdmin={isSuperAdmin}
           currentUser={currentUser}
           setRemoveMemberModal={setRemoveMemberModal}
         />

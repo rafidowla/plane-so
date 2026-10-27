@@ -65,6 +65,24 @@
       "title": "Spojení",
       "heading": "Spojení",
       "description": "Spravujte nastavení spojení vašeho pracovního prostoru."
+    },
+    "deleted_workspaces": {
+      "title": "Smazané prostory",
+      "description": "Prostory, ve kterých jste byli hlavním správcem. Obnovte je dříve, než budou trvale odstraněny.",
+      "dates": "Smazáno {deleted} · Trvale odstraněno {purge}",
+      "restore": "Obnovit",
+      "new_slug_label": "Jeho původní webová adresa je obsazená. Zvolte novou.",
+      "empty": "Žádné smazané prostory k obnovení.",
+      "restored_title": "Prostor byl obnoven.",
+      "restored_message": "Právě vás do něj přesměrováváme.",
+      "errors": {
+        "delete_in_progress": "Tento prostor se stále maže. Zkuste to znovu za několik minut.",
+        "slug_invalid": "Tato webová adresa není platná. Použijte písmena, čísla, - a _.",
+        "slug_taken": "Tato webová adresa je obsazená. Zvolte novou.",
+        "restore_conflict": "Tento prostor nelze obnovit, protože některá jeho data jsou nyní v konfliktu.",
+        "generic": "Nepodařilo se. Zkuste to prosím znovu.",
+        "load_failed": "Smazané prostory se nepodařilo načíst."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Předvolby",
       "notifications": "Oznámení",
       "api-tokens": "Osobní přístupové tokeny",
-      "connections": "Spojení"
+      "connections": "Spojení",
+      "deleted-workspaces": "Smazané prostory"
     },
     "tabs": {
       "summary": "Shrnutí",

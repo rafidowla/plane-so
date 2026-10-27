@@ -65,6 +65,24 @@
       "title": "Bağlantılar",
       "heading": "Bağlantılar",
       "description": "Çalışma alanı bağlantı ayarlarınızı yönetin."
+    },
+    "deleted_workspaces": {
+      "title": "Silinen çalışma alanları",
+      "description": "Süper Yöneticisi olduğunuz çalışma alanları. Kalıcı olarak kaldırılmadan önce birini geri yükleyin.",
+      "dates": "Silinme: {deleted} · Kalıcı olarak kaldırılma: {purge}",
+      "restore": "Geri Yükle",
+      "new_slug_label": "Eski web adresi kullanımda. Yeni bir adres seçin.",
+      "empty": "Geri yüklenecek silinmiş çalışma alanı yok.",
+      "restored_title": "Çalışma alanı geri yüklendi.",
+      "restored_message": "Şimdi sizi oraya yönlendiriyoruz.",
+      "errors": {
+        "delete_in_progress": "Bu çalışma alanı hâlâ siliniyor. Lütfen birkaç dakika sonra tekrar deneyin.",
+        "slug_invalid": "Bu web adresi geçerli değil. Harf, rakam, - ve _ kullanın.",
+        "slug_taken": "Bu web adresi kullanımda. Yeni bir adres seçin.",
+        "restore_conflict": "Bazı verileri artık çakıştığı için bu çalışma alanı geri yüklenemiyor.",
+        "generic": "İşlem başarısız oldu. Lütfen tekrar deneyin.",
+        "load_failed": "Silinen çalışma alanları yüklenemedi."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Tercihler",
       "notifications": "Bildirimler",
       "api-tokens": "Kişisel Erişim Tokenları",
-      "connections": "Bağlantılar"
+      "connections": "Bağlantılar",
+      "deleted-workspaces": "Silinen çalışma alanları"
     },
     "tabs": {
       "summary": "Özet",

@@ -23,7 +23,7 @@ import { AppSidebarItem } from "@/components/sidebar/sidebar-item";
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserProfile } from "@/hooks/store/user";
-import { useInstance } from "@/hooks/store/use-instance";
+import { useWorkspaceCreation } from "@/hooks/use-workspace-creation";
 // components
 import { WorkspaceLogo } from "../logo";
 import SidebarDropdownItem from "./dropdown-item";
@@ -36,13 +36,13 @@ export const WorkspaceMenuRoot = observer(function WorkspaceMenuRoot(props: Work
   const { variant } = props;
   // store hooks
   const { toggleSidebar, toggleAnySidebarDropdown } = useAppTheme();
-  const { config } = useInstance();
+  const { canCreate: canCreateWorkspace } = useWorkspaceCreation(); // FORK: PSR-125
   const { data: currentUser } = useUser();
   const { signOut } = useUser();
   const { updateUserProfile } = useUserProfile();
   const { currentWorkspace: activeWorkspace, workspaces } = useWorkspace();
   // derived values
-  const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
+  const isWorkspaceCreationDisabled = !canCreateWorkspace;
   // translation
   const { t } = useTranslation();
   // local state

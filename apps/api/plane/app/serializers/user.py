@@ -8,6 +8,7 @@ from rest_framework import serializers
 # Module import
 from plane.db.models import Account, FileAsset, Profile, User, Workspace, WorkspaceMemberInvite
 from plane.utils.url import contains_url
+from plane.utils.workspace_lifecycle import can_create_workspace  # FORK: PSR-125
 
 from .base import BaseSerializer
 
@@ -103,11 +104,16 @@ class UserMeSerializer(BaseSerializer):
 
 class UserMeSettingsSerializer(BaseSerializer):
     workspace = serializers.SerializerMethodField()
+    # FORK: PSR-125 -- lets the web app hide "Create workspace" for users the API would refuse.
+    can_create_workspace = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "email", "workspace"]
+        fields = ["id", "email", "workspace", "can_create_workspace"]
         read_only_fields = fields
+
+    def get_can_create_workspace(self, obj):
+        return can_create_workspace(obj)
 
     def get_workspace(self, obj):
         workspace_invites = WorkspaceMemberInvite.objects.filter(email=obj.email).count()

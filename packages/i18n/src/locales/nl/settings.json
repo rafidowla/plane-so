@@ -65,6 +65,24 @@
       "title": "Verbindingen",
       "heading": "Verbindingen",
       "description": "Beheer de verbindingsinstellingen van je werkruimte."
+    },
+    "deleted_workspaces": {
+      "title": "Verwijderde werkruimtes",
+      "description": "Werkruimtes waarvan je Superbeheerder was. Herstel er een voordat die definitief wordt verwijderd.",
+      "dates": "Verwijderd op {deleted} · Definitief verwijderd op {purge}",
+      "restore": "Herstellen",
+      "new_slug_label": "Het oude webadres is al in gebruik. Kies een nieuw adres.",
+      "empty": "Geen verwijderde werkruimtes om te herstellen.",
+      "restored_title": "Werkruimte hersteld.",
+      "restored_message": "We brengen je er nu naartoe.",
+      "errors": {
+        "delete_in_progress": "Deze werkruimte wordt nog verwijderd. Probeer het over een paar minuten opnieuw.",
+        "slug_invalid": "Dat webadres is ongeldig. Gebruik letters, cijfers, - en _.",
+        "slug_taken": "Dat webadres is al in gebruik. Kies een nieuw adres.",
+        "restore_conflict": "Deze werkruimte kan niet worden hersteld omdat een deel van de gegevens nu conflicteert.",
+        "generic": "Dat is niet gelukt. Probeer het opnieuw.",
+        "load_failed": "Kan verwijderde werkruimtes niet laden."
+      }
     }
   },
   "profile": {
@@ -103,7 +121,8 @@
       "preferences": "Voorkeuren",
       "notifications": "Meldingen",
       "api-tokens": "Persoonlijke toegangstokens",
-      "connections": "Verbindingen"
+      "connections": "Verbindingen",
+      "deleted-workspaces": "Verwijderde werkruimtes"
     },
     "tabs": {
       "summary": "Samenvatting",

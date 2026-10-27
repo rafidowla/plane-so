@@ -29,6 +29,12 @@
         "url_alphanumeric": "Os URLs podem conter apenas ('-') e caracteres alfanuméricos.",
         "url_length": "Limite seu URL a 48 caracteres.",
         "url_already_taken": "O URL do espaço de trabalho já está em uso!"
+      },
+      "super_admin_only": {
+        "title": "Somente Superadministradores podem criar espaços de trabalho",
+        "description": "Peça a um Superadministrador do seu espaço de trabalho para criar um ou convidar você. Se você excluiu um espaço de trabalho, ainda pode restaurá-lo.",
+        "restore_button": "Restaurar um espaço de trabalho excluído",
+        "onboarding": "Você não tem convites para espaços de trabalho, e somente Superadministradores podem criar novos espaços de trabalho. Peça a um Superadministrador do espaço de trabalho para convidar você e depois volte aqui para participar."
       }
     },
     "request_email": {

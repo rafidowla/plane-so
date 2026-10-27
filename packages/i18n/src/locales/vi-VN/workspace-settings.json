@@ -16,7 +16,7 @@
         "workspace_timezone": "Múi giờ không gian làm việc",
         "update_workspace": "Cập nhật không gian làm việc",
         "delete_workspace": "Xóa không gian làm việc này",
-        "delete_workspace_description": "Khi xóa không gian làm việc, tất cả dữ liệu và tài nguyên trong không gian làm việc đó sẽ bị xóa vĩnh viễn và không thể khôi phục.",
+        "delete_workspace_description": "Khi xóa một không gian làm việc, nó sẽ bị gỡ ngay lập tức đối với mọi thành viên. Siêu quản trị viên có thể khôi phục nó từ phần cài đặt hồ sơ của mình cho đến khi nó bị xóa vĩnh viễn.",
         "delete_btn": "Xóa không gian làm việc này",
         "delete_modal": {
           "title": "Bạn có chắc chắn muốn xóa không gian làm việc này không?",
@@ -26,7 +26,23 @@
           "success_title": "Đã xóa không gian làm việc.",
           "success_message": "Sắp chuyển hướng đến trang hồ sơ của bạn.",
           "error_title": "Thao tác thất bại.",
-          "error_message": "Vui lòng thử lại."
+          "error_message": "Vui lòng thử lại.",
+          "body": "Thao tác này gỡ \"{name}\" ngay lập tức đối với mọi thành viên. Bạn có thể khôi phục từ Cài đặt hồ sơ → Không gian làm việc đã xóa cho đến khi nó bị xóa vĩnh viễn.",
+          "name_label": "Nhập tên không gian làm việc để xác nhận",
+          "password_label": "Nhập mật khẩu của bạn",
+          "code_label": "Nhập mã chúng tôi đã gửi qua email cho bạn",
+          "send_code": "Gửi mã qua email cho tôi",
+          "resend_code": "Gửi mã mới",
+          "code_sent": "Đã gửi mã. Vui lòng kiểm tra email của bạn.",
+          "confirm": "Xóa không gian làm việc",
+          "errors": {
+            "name_mismatch": "Tên không khớp với không gian làm việc này.",
+            "password_incorrect": "Mật khẩu không đúng.",
+            "code_invalid": "Mã không đúng hoặc đã hết hạn.",
+            "too_many_attempts": "Quá nhiều lần thử. Vui lòng thử lại sau vài phút.",
+            "too_many_codes": "Đã gửi quá nhiều mã. Vui lòng thử lại sau 10 phút.",
+            "use_code": "Tài khoản của bạn không có mật khẩu. Hãy gửi mã qua email cho chính bạn."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Quy mô công ty là bắt buộc",
             "select_a_range": "Chọn quy mô tổ chức"
           }
-        }
+        },
+        "super_admin_only_note": "Chỉ Siêu quản trị viên mới có thể thay đổi tên và logo của không gian làm việc, hoặc xóa không gian làm việc."
       },
       "members": {
         "title": "Thành viên",
@@ -63,7 +80,8 @@
             "required": "Chúng tôi cần một địa chỉ email để mời họ.",
             "invalid": "Email không hợp lệ"
           }
-        }
+        },
+        "super_admin": "Siêu quản trị viên"
       },
       "billing_and_plans": {
         "heading": "Thanh toán và Kế hoạch",

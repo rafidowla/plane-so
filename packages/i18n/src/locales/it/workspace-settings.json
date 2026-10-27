@@ -16,7 +16,7 @@
         "workspace_timezone": "Fuso orario dello spazio di lavoro",
         "update_workspace": "Aggiorna spazio di lavoro",
         "delete_workspace": "Elimina questo spazio di lavoro",
-        "delete_workspace_description": "Eliminando uno spazio di lavoro, tutti i dati e le risorse all'interno di esso verranno rimossi definitivamente e non potranno essere recuperati.",
+        "delete_workspace_description": "Eliminando uno spazio di lavoro lo rimuovi subito per tutti i membri. Un Super amministratore può ripristinarlo dalle impostazioni del suo profilo finché non viene rimosso definitivamente.",
         "delete_btn": "Elimina questo spazio di lavoro",
         "delete_modal": {
           "title": "Sei sicuro di voler eliminare questo spazio di lavoro?",
@@ -26,7 +26,23 @@
           "success_title": "Spazio di lavoro eliminato.",
           "success_message": "Presto verrai reindirizzato alla tua pagina del profilo.",
           "error_title": "Qualcosa non ha funzionato.",
-          "error_message": "Riprova, per favore."
+          "error_message": "Riprova, per favore.",
+          "body": "Questa azione rimuove «{name}» subito per tutti i membri. Puoi ripristinarlo da Impostazioni profilo → Spazi di lavoro eliminati finché non viene rimosso definitivamente.",
+          "name_label": "Digita il nome dello spazio di lavoro per confermare",
+          "password_label": "Inserisci la tua password",
+          "code_label": "Inserisci il codice che ti abbiamo inviato via email",
+          "send_code": "Inviami un codice via email",
+          "resend_code": "Invia un nuovo codice",
+          "code_sent": "Codice inviato. Controlla la tua email.",
+          "confirm": "Elimina spazio di lavoro",
+          "errors": {
+            "name_mismatch": "Il nome non corrisponde a questo spazio di lavoro.",
+            "password_incorrect": "Password errata.",
+            "code_invalid": "Il codice è errato o scaduto.",
+            "too_many_attempts": "Troppi tentativi. Riprova tra qualche minuto.",
+            "too_many_codes": "Troppi codici inviati. Riprova tra 10 minuti.",
+            "use_code": "Il tuo account non ha una password. Invia invece un codice alla tua email."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "La dimensione aziendale è obbligatoria",
             "select_a_range": "Seleziona la dimensione dell'organizzazione"
           }
-        }
+        },
+        "super_admin_only_note": "Solo un Super amministratore può modificare il nome e il logo dello spazio di lavoro o eliminarlo."
       },
       "members": {
         "title": "Membri",
@@ -63,7 +80,8 @@
             "required": "Abbiamo bisogno di un indirizzo email per invitarli.",
             "invalid": "L'email non è valida"
           }
-        }
+        },
+        "super_admin": "Super amministratore"
       },
       "billing_and_plans": {
         "heading": "Fatturazione e piani",

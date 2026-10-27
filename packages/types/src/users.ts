@@ -100,6 +100,8 @@ export interface IUserSettings {
     fallback_workspace_slug: string | undefined;
     invites: number | undefined;
   };
+  // FORK: PSR-125 -- server-computed: Super Admin of some workspace or instance admin.
+  can_create_workspace?: boolean;
 }
 
 export interface IUserTheme {

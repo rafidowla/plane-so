@@ -29,6 +29,12 @@
         "url_alphanumeric": "URLs can contain only ('-') and alphanumeric characters.",
         "url_length": "Limit your URL to 48 characters.",
         "url_already_taken": "Workspace URL is already taken!"
+      },
+      "super_admin_only": {
+        "title": "Only Super Admins can create workspaces",
+        "description": "Ask a Super Admin of your workspace to create one or to invite you. If you deleted a workspace, you can still restore it.",
+        "restore_button": "Restore a deleted workspace",
+        "onboarding": "You don't have any workspace invites, and only Super Admins can create new workspaces. Ask a workspace Super Admin to invite you, then come back here to join."
       }
     },
     "request_email": {

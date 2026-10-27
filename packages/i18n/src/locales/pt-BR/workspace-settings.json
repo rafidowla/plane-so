@@ -16,7 +16,7 @@
         "workspace_timezone": "Fuso horário do espaço de trabalho",
         "update_workspace": "Atualizar espaço de trabalho",
         "delete_workspace": "Excluir este espaço de trabalho",
-        "delete_workspace_description": "Ao excluir um espaço de trabalho, todos os dados e recursos dentro desse espaço de trabalho serão permanentemente removidos e não poderão ser recuperados.",
+        "delete_workspace_description": "Excluir um espaço de trabalho o remove imediatamente para todos os membros. Um Superadministrador pode restaurá-lo nas configurações do perfil até que seja removido definitivamente.",
         "delete_btn": "Excluir este espaço de trabalho",
         "delete_modal": {
           "title": "Tem certeza de que deseja excluir este espaço de trabalho?",
@@ -26,7 +26,23 @@
           "success_title": "Espaço de trabalho excluído.",
           "success_message": "Em breve, você irá para a página do seu perfil.",
           "error_title": "Isso não funcionou.",
-          "error_message": "Tente novamente, por favor."
+          "error_message": "Tente novamente, por favor.",
+          "body": "Isso remove \"{name}\" imediatamente para todos os membros. Você pode restaurá-lo em Configurações do perfil → Espaços de trabalho excluídos até que seja removido definitivamente.",
+          "name_label": "Digite o nome do espaço de trabalho para confirmar",
+          "password_label": "Informe sua senha",
+          "code_label": "Informe o código que enviamos para o seu e-mail",
+          "send_code": "Enviar um código por e-mail",
+          "resend_code": "Enviar um novo código",
+          "code_sent": "Código enviado. Verifique seu e-mail.",
+          "confirm": "Excluir espaço de trabalho",
+          "errors": {
+            "name_mismatch": "O nome não corresponde a este espaço de trabalho.",
+            "password_incorrect": "Essa senha está incorreta.",
+            "code_invalid": "Esse código está errado ou expirou.",
+            "too_many_attempts": "Muitas tentativas. Tente novamente em alguns minutos.",
+            "too_many_codes": "Muitos códigos enviados. Tente novamente em 10 minutos.",
+            "use_code": "Sua conta não tem senha. Envie um código para o seu e-mail."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "O tamanho da empresa é obrigatório",
             "select_a_range": "Selecione o tamanho da organização"
           }
-        }
+        },
+        "super_admin_only_note": "Somente um Superadministrador pode alterar o nome e o logotipo do espaço de trabalho ou excluí-lo."
       },
       "members": {
         "title": "Membros",
@@ -63,7 +80,8 @@
             "required": "Precisamos de um endereço de e-mail para convidá-los.",
             "invalid": "E-mail inválido"
           }
-        }
+        },
+        "super_admin": "Superadministrador"
       },
       "billing_and_plans": {
         "heading": "Faturamento e planos",

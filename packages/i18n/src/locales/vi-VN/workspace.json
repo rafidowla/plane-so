@@ -29,6 +29,12 @@
         "url_alphanumeric": "URL chỉ có thể chứa ('-') và các ký tự chữ số.",
         "url_length": "URL giới hạn trong 48 ký tự.",
         "url_already_taken": "URL không gian làm việc đã được sử dụng!"
+      },
+      "super_admin_only": {
+        "title": "Chỉ Siêu quản trị viên mới có thể tạo không gian làm việc",
+        "description": "Hãy nhờ một Siêu quản trị viên của không gian làm việc tạo một không gian hoặc mời bạn. Nếu bạn đã xóa một không gian làm việc, bạn vẫn có thể khôi phục nó.",
+        "restore_button": "Khôi phục không gian làm việc đã xóa",
+        "onboarding": "Bạn không có lời mời nào vào không gian làm việc, và chỉ Siêu quản trị viên mới có thể tạo không gian làm việc mới. Hãy nhờ một Siêu quản trị viên của không gian làm việc mời bạn, sau đó quay lại đây để tham gia."
       }
     },
     "request_email": {

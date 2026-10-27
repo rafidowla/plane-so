@@ -16,7 +16,7 @@
         "workspace_timezone": "Tijdzone van werkruimte",
         "update_workspace": "Werkruimte bijwerken",
         "delete_workspace": "Deze werkruimte verwijderen",
-        "delete_workspace_description": "Als je een werkruimte verwijdert, worden alle gegevens en bronnen binnen die werkruimte permanent verwijderd en kunnen ze niet worden hersteld.",
+        "delete_workspace_description": "Als je een werkruimte verwijdert, wordt die direct voor alle leden verwijderd. Een Superbeheerder kan de werkruimte herstellen via zijn profielinstellingen totdat die definitief is verwijderd.",
         "delete_btn": "Deze werkruimte verwijderen",
         "delete_modal": {
           "title": "Weet je zeker dat je deze werkruimte wilt verwijderen?",
@@ -26,7 +26,23 @@
           "success_title": "Werkruimte verwijderd.",
           "success_message": "Je gaat zo naar je profielpagina.",
           "error_title": "Dat werkte niet.",
-          "error_message": "Probeer het opnieuw."
+          "error_message": "Probeer het opnieuw.",
+          "body": "Hiermee wordt \"{name}\" direct voor alle leden verwijderd. Je kunt de werkruimte herstellen via Profielinstellingen → Verwijderde werkruimtes totdat die definitief is verwijderd.",
+          "name_label": "Typ de naam van de werkruimte ter bevestiging",
+          "password_label": "Voer je wachtwoord in",
+          "code_label": "Voer de code in die we je per e-mail hebben gestuurd",
+          "send_code": "Stuur me een code per e-mail",
+          "resend_code": "Stuur een nieuwe code",
+          "code_sent": "Code verzonden. Controleer je e-mail.",
+          "confirm": "Werkruimte verwijderen",
+          "errors": {
+            "name_mismatch": "De naam komt niet overeen met deze werkruimte.",
+            "password_incorrect": "Dat wachtwoord is onjuist.",
+            "code_invalid": "Die code is onjuist of verlopen.",
+            "too_many_attempts": "Te veel pogingen. Probeer het over een paar minuten opnieuw.",
+            "too_many_codes": "Te veel codes verzonden. Probeer het over 10 minuten opnieuw.",
+            "use_code": "Je account heeft geen wachtwoord. Stuur jezelf in plaats daarvan een code per e-mail."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "Bedrijfsgrootte is verplicht",
             "select_a_range": "Selecteer de organisatiegrootte"
           }
-        }
+        },
+        "super_admin_only_note": "Alleen een Superbeheerder kan de naam en het logo van de werkruimte wijzigen of de werkruimte verwijderen."
       },
       "members": {
         "title": "Leden",
@@ -63,7 +80,8 @@
             "required": "We hebben een e-mailadres nodig om ze uit te nodigen.",
             "invalid": "E-mailadres is ongeldig"
           }
-        }
+        },
+        "super_admin": "Superbeheerder"
       },
       "billing_and_plans": {
         "heading": "Facturering & plannen",

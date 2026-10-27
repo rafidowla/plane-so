@@ -16,7 +16,7 @@
         "workspace_timezone": "Fuseau horaire de l’espace de travail",
         "update_workspace": "Mettre à jour l’espace de travail",
         "delete_workspace": "Supprimer cet espace de travail",
-        "delete_workspace_description": "Lors de la suppression d’un espace de travail, toutes les données et ressources au sein de cet espace seront définitivement supprimées et ne pourront pas être récupérées.",
+        "delete_workspace_description": "La suppression d'un espace de travail le retire immédiatement pour tous les membres. Un Super administrateur peut le restaurer depuis les paramètres de son profil jusqu'à sa suppression définitive.",
         "delete_btn": "Supprimer cet espace de travail",
         "delete_modal": {
           "title": "Êtes-vous sûr de vouloir supprimer cet espace de travail ?",
@@ -26,7 +26,23 @@
           "success_title": "Espace de travail supprimé.",
           "success_message": "Vous serez bientôt redirigé vers votre page de profil.",
           "error_title": "Cela n’a pas fonctionné.",
-          "error_message": "Veuillez réessayer."
+          "error_message": "Veuillez réessayer.",
+          "body": "Cela supprime « {name} » immédiatement pour tous les membres. Vous pouvez le restaurer depuis Paramètres du profil → Espaces de travail supprimés jusqu'à sa suppression définitive.",
+          "name_label": "Saisissez le nom de l'espace de travail pour confirmer",
+          "password_label": "Saisissez votre mot de passe",
+          "code_label": "Saisissez le code que nous vous avons envoyé par e-mail",
+          "send_code": "M'envoyer un code par e-mail",
+          "resend_code": "Envoyer un nouveau code",
+          "code_sent": "Code envoyé. Vérifiez votre e-mail.",
+          "confirm": "Supprimer l'espace de travail",
+          "errors": {
+            "name_mismatch": "Le nom ne correspond pas à cet espace de travail.",
+            "password_incorrect": "Ce mot de passe est incorrect.",
+            "code_invalid": "Ce code est erroné ou a expiré.",
+            "too_many_attempts": "Trop de tentatives. Veuillez réessayer dans quelques minutes.",
+            "too_many_codes": "Trop de codes envoyés. Veuillez réessayer dans 10 minutes.",
+            "use_code": "Votre compte n'a pas de mot de passe. Envoyez-vous plutôt un code par e-mail."
+          }
         },
         "errors": {
           "name": {
@@ -37,7 +53,8 @@
             "required": "La taille de l’entreprise est requise",
             "select_a_range": "Sélectionner la taille de l’organisation"
           }
-        }
+        },
+        "super_admin_only_note": "Seul un Super administrateur peut modifier le nom et le logo de l'espace de travail, ou le supprimer."
       },
       "members": {
         "title": "Membres",
@@ -63,7 +80,8 @@
             "required": "Nous avons besoin d’une adresse e-mail pour les inviter.",
             "invalid": "L’e-mail est invalide"
           }
-        }
+        },
+        "super_admin": "Super administrateur"
       },
       "billing_and_plans": {
         "heading": "Facturation & Plans",

@@ -29,6 +29,12 @@
         "url_alphanumeric": "Adres URL może zawierać tylko ('-') i znaki alfanumeryczne.",
         "url_length": "Adres URL ograniczony do 48 znaków.",
         "url_already_taken": "Adres URL przestrzeni roboczej jest już zajęty!"
+      },
+      "super_admin_only": {
+        "title": "Tylko superadministratorzy mogą tworzyć przestrzenie",
+        "description": "Poproś superadministratora swojej przestrzeni o utworzenie przestrzeni lub o zaproszenie Cię. Jeśli przestrzeń została usunięta, nadal możesz ją przywrócić.",
+        "restore_button": "Przywróć usuniętą przestrzeń",
+        "onboarding": "Nie masz zaproszeń do przestrzeni, a nowe przestrzenie mogą tworzyć tylko superadministratorzy. Poproś superadministratora przestrzeni o zaproszenie, a następnie wróć tutaj, aby dołączyć."
       }
     },
     "request_email": {

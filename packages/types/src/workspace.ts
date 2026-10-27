@@ -92,6 +92,7 @@ export interface IWorkspaceMember {
   display_name?: string;
   last_login_medium?: TLoginMediums;
   is_active?: boolean;
+  is_super_admin?: boolean; // FORK: PSR-125
 }
 
 export interface IWorkspaceMemberMe {
