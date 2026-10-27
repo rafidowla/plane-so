@@ -35,12 +35,18 @@ const PRESET_OPTIONS: TPresetOption[] = [
   { value: "custom", label: "Custom range" },
 ];
 
-/** date-fns weekStartsOn: 0=Sunday..6=Saturday — matches EStartOfTheWeek. */
+/**
+ * Time-tracking weeks always run Monday to Sunday (spec v1.1), the same as the timesheet and the
+ * server's weekly buckets. Deliberately NOT the user's profile "start of week" (PSR-127): that
+ * defaults to Sunday and made Dashboard/Reports disagree with My timesheet.
+ */
+export const TIME_WEEK_STARTS_ON = 1 as const;
+
 export function getPresetRange(
   preset: Exclude<TDateRangePreset, "custom">,
-  weekStartsOn: 0 | 1 | 2 | 3 | 4 | 5 | 6 = 1
+  now: Date = new Date()
 ): { startDate: string; endDate: string } {
-  const now = new Date();
+  const weekStartsOn = TIME_WEEK_STARTS_ON;
   const fmt = (d: Date) => renderFormattedPayloadDate(d) ?? "";
 
   switch (preset) {

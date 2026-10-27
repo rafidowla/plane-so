@@ -11,9 +11,7 @@ import { observer } from "mobx-react";
 import useSWR from "swr";
 import { Download } from "lucide-react";
 import { Loader } from "@plane/blocks/skeleton";
-import { EStartOfTheWeek } from "@plane/types";
 import { useWorkspace } from "@/hooks/store/use-workspace";
-import { useUserProfile } from "@/hooks/store/user";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { DateRangeFilter, getPresetRange, type TDateRangePreset } from "../../analytics/time/date-range-filter";
 import { useCanReviewTime } from "../approvals/access";
@@ -26,14 +24,12 @@ import type { TTimeReportV2 } from "./types";
 export const ReportsTab = observer(function ReportsTab() {
   const { currentWorkspace } = useWorkspace();
   const workspaceSlug = currentWorkspace?.slug ?? "";
-  const { data: userProfile } = useUserProfile();
-  const weekStartsOn = userProfile?.start_of_the_week ?? EStartOfTheWeek.MONDAY;
   // Admins land on the team view; everyone else on their own. A 403 `forbidden_scope` falls back to "me".
   const canReview = useCanReviewTime(workspaceSlug);
 
   const [preset, setPreset] = useState<TDateRangePreset>("this_week");
   const [customRange, setCustomRange] = useState(() => getPresetRange("this_week"));
-  const { startDate, endDate } = preset === "custom" ? customRange : getPresetRange(preset, weekStartsOn);
+  const { startDate, endDate } = preset === "custom" ? customRange : getPresetRange(preset);
   const [picked, setPicked] = useState<string | null>(null);
   const target = picked ?? (canReview ? "team" : "me");
   const rangeError = validateRange(startDate, endDate);

@@ -17,6 +17,7 @@ import { useRunningTimer, useTimerElapsed } from "@/plane-web/hooks/use-running-
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { formatElapsed } from "../../issues/worklog/timer-utils";
 import { isOverReminder } from "./idle-check";
+import { TimerProjectTag } from "./project-tag";
 import { TaskPicker } from "./task-picker";
 import { stopRunningTimer } from "./timer-actions";
 
@@ -66,6 +67,7 @@ export const TimerBar = observer(function TimerBar({ workspaceSlug }: { workspac
         ) : (
           <div className="text-sm flex min-w-0 flex-1 items-center gap-2">{title}</div>
         )}
+        {detail && <TimerProjectTag projectId={detail.project_id} fallbackLabel={detail.project_identifier} />}
         <span
           data-testid="time-timer-bar-elapsed"
           className={cn("font-mono text-14 tabular-nums", amber ? "text-amber-600" : "text-primary")}

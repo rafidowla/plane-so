@@ -10,8 +10,6 @@ import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
 import { Loader } from "@plane/blocks/skeleton";
-import { EStartOfTheWeek } from "@plane/types";
-import { useUserProfile } from "@/hooks/store/user";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { DateRangeFilter, getPresetRange, type TDateRangePreset } from "../../analytics/time/date-range-filter";
@@ -26,12 +24,10 @@ export const LIVE_REFRESH_MS = 5_000;
 export const TimeDashboard = observer(function TimeDashboard() {
   const { currentWorkspace } = useWorkspace();
   const workspaceSlug = currentWorkspace?.slug ?? "";
-  const { data: userProfile } = useUserProfile();
-  const weekStartsOn = userProfile?.start_of_the_week ?? EStartOfTheWeek.MONDAY;
 
   const [preset, setPreset] = useState<TDateRangePreset>("this_week");
   const [customRange, setCustomRange] = useState(() => getPresetRange("this_week"));
-  const { startDate, endDate } = preset === "custom" ? customRange : getPresetRange(preset, weekStartsOn);
+  const { startDate, endDate } = preset === "custom" ? customRange : getPresetRange(preset);
 
   const { data, isLoading } = useSWR(
     workspaceSlug ? `${liveKeyPrefix(workspaceSlug)}_${startDate}_${endDate}` : null,

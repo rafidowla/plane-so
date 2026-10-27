@@ -45,6 +45,8 @@ import {
   getSubGroupIssueKeyActions,
 } from "./base-issues-utils";
 import type { IBaseIssueFilterStore } from "./issue-filter-helper.store";
+// FORK: PSR-126 — drop an edited item that no longer matches the active filter
+import { hasLeftRichFilter } from "@/plane-web/store/issue/rich-filter-match";
 
 export type TIssueDisplayFilterOptions = Exclude<TIssueGroupByOptions, null> | "target_date";
 
@@ -561,10 +563,25 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
   ) {
     // Store Before state of the issue
     const issueBeforeUpdate = clone(this.rootIssueStore.issues.getIssueById(issueId));
+    // FORK: PSR-126 — set when the edit took the item out of the list's filter and we removed it
+    let removedByFilter = false;
     try {
       // Update the Respective Stores
       this.rootIssueStore.issues.updateIssue(issueId, data);
       this.updateIssueList({ ...issueBeforeUpdate, ...data } as TIssue, issueBeforeUpdate);
+      // FORK: PSR-126 — upstream leaves the item (and the count) as-is until the next fetch
+      const issueAfterUpdate = { ...issueBeforeUpdate, ...data } as TIssue;
+      if (
+        hasLeftRichFilter(
+          this.issueFilterStore?.issueFilters?.richFilters,
+          issueAfterUpdate,
+          data,
+          (stateId) => this.rootIssueStore.stateMap?.[stateId]?.group
+        )
+      ) {
+        this.updateIssueList(undefined, issueAfterUpdate, EIssueGroupedAction.DELETE);
+        removedByFilter = true;
+      }
 
       // Check if should Sync
       if (!shouldSync) return;
@@ -583,7 +600,9 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     } catch (error) {
       // If errored out update store again to revert the change
       this.rootIssueStore.issues.updateIssue(issueId, issueBeforeUpdate ?? {});
-      this.updateIssueList(issueBeforeUpdate, { ...issueBeforeUpdate, ...data } as TIssue);
+      // FORK: PSR-126 — an item we dropped goes back where it was, instead of being "moved"
+      if (removedByFilter) this.updateIssueList(issueBeforeUpdate, undefined, EIssueGroupedAction.ADD);
+      else this.updateIssueList(issueBeforeUpdate, { ...issueBeforeUpdate, ...data } as TIssue);
       throw error;
     }
   }

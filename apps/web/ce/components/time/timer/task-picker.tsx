@@ -11,6 +11,7 @@ import useSWR from "swr";
 import { cn } from "@plane/utils";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import type { TMyTask } from "../../issues/worklog/types";
+import { TimerProjectTag } from "./project-tag";
 import { startTimerOnItem } from "./timer-actions";
 
 const DEBOUNCE_MS = 200;
@@ -138,6 +139,7 @@ export function TaskPicker({ workspaceSlug }: TProps) {
               >
                 <span className="shrink-0 font-medium text-secondary">{task.ref}</span>
                 <span className="min-w-0 flex-1 truncate text-primary">{task.name}</span>
+                <TimerProjectTag projectId={task.project_id} fallbackLabel={task.project_identifier} />
                 {task.state_name && <span className="text-xs shrink-0 text-tertiary">{task.state_name}</span>}
                 {index === highlight && <Play className="size-3 shrink-0 text-tertiary" aria-hidden />}
               </li>
