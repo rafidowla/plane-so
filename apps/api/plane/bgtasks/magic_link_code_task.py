@@ -17,9 +17,10 @@ from django.template.loader import render_to_string
 from plane.license.utils.instance_value import get_email_configuration
 from plane.utils.email import generate_plain_text_from_html
 from plane.utils.exception_logger import log_exception
+from plane.bgtasks.secret_args_task import SecretArgsTask  # FORK: mask token in celery logs
 
 
-@shared_task
+@shared_task(base=SecretArgsTask, secret_args=("token",))  # FORK: mask token in celery logs
 def magic_link(email, key, token):
     try:
         (
