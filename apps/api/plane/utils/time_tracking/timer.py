@@ -374,6 +374,10 @@ def start_timer(slug, project_id, issue_id, user, description=""):
             started_at=timezone.now(),
             description=description or "",
         )
+        # FORK: time-tracking-v2 — PSR-136: starting again answers any "timer stopped" notice.
+        from plane.utils.time_tracking.stop_notice import mark_stop_notices_read
+
+        mark_stop_notices_read(timer.workspace_id, user.id)
         issue = Issue.objects.select_for_update(of=("self",)).select_related("state").get(pk=issue.pk)
         state_change = _move_to_started(issue, user)
     return timer, stopped, state_change
@@ -475,4 +479,14 @@ def system_stop_timer(timer_id, ended_at, reason, actor=None):
             return None
         now = timezone.now()
         ended_at = min(max(ended_at or now, timer.started_at), now)
-        return stop_timer(timer, timer.user, ended_at=ended_at, actor=actor, reason=reason)
+        stopped = stop_timer(timer, timer.user, ended_at=ended_at, actor=actor, reason=reason)
+        # FORK: time-tracking-v2 — PSR-136: tell the owner when a LIMIT (idle check / 14 h
+        # auto-stop) ended the run. Inside the transaction, so exactly one per real stop and
+        # none if the stop rolls back; the lost-race path above returns before this.
+        # ``reason == "limit"`` only: issue_deleted / tracking_disabled / member_removed get no
+        # notice (the item may be gone or the user may have lost access to it).
+        if reason == "limit":
+            from plane.utils.time_tracking.stop_notice import notify_limit_stop
+
+            notify_limit_stop(timer, stopped)
+        return stopped

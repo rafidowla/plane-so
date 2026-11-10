@@ -116,7 +116,9 @@ class TestGuests:
         r = client_for(guest).get(ws_url(s2, "time/timer/"))
         # Readable (the indicator polls it) but a guest never has a timer to show.
         assert r.status_code == status.HTTP_200_OK
-        assert set(r.json()) == {"server_now"}
+        # FORK: PSR-136 — ``stop_notice`` is present (null) whenever no timer runs.
+        assert set(r.json()) == {"server_now", "stop_notice"}
+        assert r.json()["stop_notice"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +281,9 @@ class TestTimerEndpoints:
     def test_get_with_nothing_running(self, s2):
         r = client_for(s2["user"]).get(ws_url(s2, "time/timer/"))
         assert r.status_code == 200
-        assert set(r.json()) == {"server_now"}
+        # FORK: PSR-136 — ``stop_notice`` is present (null) whenever no timer runs.
+        assert set(r.json()) == {"server_now", "stop_notice"}
+        assert r.json()["stop_notice"] is None
 
     def test_stop_endpoint(self, s2):
         set_settings(s2["workspace"], **IDLE_OFF)

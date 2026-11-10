@@ -36,6 +36,9 @@ export type TWorklog = {
   currency: string;
   approval_status: TWorklogApprovalStatus;
   is_locked: boolean;
+  // FORK: time-tracking-v2 — PSR-136: set by the server when a limit (not the user) stopped the timer
+  auto_stopped?: boolean;
+  idle_stopped?: boolean;
   created_by: string;
   created_at: string;
 };
@@ -83,6 +86,19 @@ export type TWorklogTimer = {
   stopped?: TStoppedTimer;
 };
 
+// FORK: time-tracking-v2 — PSR-136: the system stopped the timer while the user was away. Sent on the
+// running-timer payload only when no timer runs and the matching notification is still unread.
+export type TStopNotice = {
+  notification_id: string;
+  reason: "idle_check" | "auto_stop" | null;
+  /** null when the work item can no longer be resolved */
+  issue: TTimerIssueRef | null;
+  started_at: string | null;
+  stopped_at: string | null;
+  /** minutes kept as a time entry */
+  minutes: number | null;
+};
+
 // FORK: PSR-105 — the user's running timer in a workspace (empty object fields when none runs).
 export type TRunningTimer = TWorklogTimer & {
   project?: string;
@@ -103,6 +119,8 @@ export type TRunningTimer = TWorklogTimer & {
   remind_at?: string;
   auto_stop_at?: string;
   reminded?: boolean;
+  /** FORK: PSR-136 — see TStopNotice; null/absent when there is nothing to tell */
+  stop_notice?: TStopNotice | null;
 };
 
 // FORK: time-tracking-v2 — what `time/timer/start/` returns on top of the running timer.

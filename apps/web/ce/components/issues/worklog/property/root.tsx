@@ -39,6 +39,13 @@ import { handleEstimateRequired } from "../estimate/estimate-required";
 // FORK: time-tracking-v2 S6 — an open work item re-reads its time every 10 s (DESIGN §5)
 const ITEM_REFRESH_MS = 10_000;
 
+// FORK: time-tracking-v2 — PSR-136: the "Idle" / "Auto-stopped" tag, same look as My timesheet's.
+const StopTag = ({ children }: { children: string }) => (
+  <span className="text-xs shrink-0 rounded border border-subtle bg-layer-1 px-1.5 py-0.5 leading-none text-tertiary">
+    {children}
+  </span>
+);
+
 type TIssueWorklogProperty = {
   workspaceSlug: string;
   projectId: string;
@@ -317,6 +324,9 @@ export const IssueWorklogProperty = observer(function IssueWorklogProperty(props
                       {w.is_billable ? "" : " · non-billable"}
                       {w.is_locked ? " · 🔒" : ""}
                     </span>
+                    {/* FORK: time-tracking-v2 — PSR-136: same tags as My timesheet */}
+                    {w.auto_stopped && <StopTag>Auto-stopped</StopTag>}
+                    {w.idle_stopped && <StopTag>Idle</StopTag>}
                     {pending && (
                       <span
                         className="text-xs shrink-0 rounded bg-warning-subtle px-1.5 py-0.5 text-warning-primary"

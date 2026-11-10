@@ -227,5 +227,12 @@ class WorklogRunningTimerEndpoint(BaseAPIView):
         now = timezone.now()
         timer = WorklogTimer.objects.filter(workspace__slug=slug, user=request.user).first()
         if not timer:
-            return Response({"server_now": now}, status=status.HTTP_200_OK)
+            # FORK: time-tracking-v2 — PSR-136: ``stop_notice`` = the system stopped the timer
+            # while the user was away (unread notification, last 24 h), else null.
+            from plane.utils.time_tracking.stop_notice import latest_stop_notice
+
+            return Response(
+                {"server_now": now, "stop_notice": latest_stop_notice(slug, request.user, now)},
+                status=status.HTTP_200_OK,
+            )
         return Response(timer_data(timer, now), status=status.HTTP_200_OK)

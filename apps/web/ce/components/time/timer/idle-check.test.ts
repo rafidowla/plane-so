@@ -4,8 +4,9 @@
  * See the LICENSE file for details.
  */
 import { describe, expect, it } from "vitest";
-import type { TRunningTimer } from "../../issues/worklog/types";
+import type { TRunningTimer, TStopNotice } from "../../issues/worklog/types";
 import {
+  describeStop,
   getIdlePhase,
   getPromptRemainingMs,
   getTimerPollInterval,
@@ -167,5 +168,81 @@ describe("getPromptRemainingMs", () => {
     expect(getPromptRemainingMs(s, T0 + 31 * MIN)).toBe(4 * MIN);
     expect(getPromptRemainingMs(s, T0 + 40 * MIN)).toBe(0);
     expect(getPromptRemainingMs(initialIdleState, T0)).toBe(0);
+  });
+});
+
+// FORK: PSR-136 — the system stopped the timer while this tab was away (stop_notice on the payload).
+const notice = (over: Partial<TStopNotice> = {}): TStopNotice => ({
+  notification_id: "n1",
+  reason: "idle_check",
+  issue: { id: "i1", name: "Fix", sequence_id: 1, project_id: "p1", project_identifier: "E2E", ref: "E2E-1" },
+  started_at: iso(T0),
+  stopped_at: iso(T0 + 43 * MIN),
+  minutes: 43,
+  ...over,
+});
+
+describe("reduceIdle with a stop notice", () => {
+  const tick = (
+    state: ReturnType<typeof reduceIdle>,
+    stopNotice: TStopNotice | null | undefined,
+    timer?: TRunningTimer
+  ) => reduceIdle(state, { type: "tick", timer, serverNowMs: T0 + 60 * MIN, stopNotice });
+
+  it("shows the stopped card when no prompt was ever seen", () => {
+    const next = tick(initialIdleState, notice());
+    expect(next).toMatchObject({
+      kind: "stopped",
+      item: { issueId: "i1", projectId: "p1" },
+      info: { notificationId: "n1", reason: "idle_check", minutes: 43 },
+    });
+  });
+  it("does nothing without a notice, or when the work item is gone", () => {
+    expect(tick(initialIdleState, null)).toBe(initialIdleState);
+    expect(tick(initialIdleState, undefined)).toBe(initialIdleState);
+    expect(tick(initialIdleState, notice({ issue: null }))).toBe(initialIdleState);
+  });
+  it("keeps the answered check id", () => {
+    const next = tick({ kind: "none", answered: "x" }, notice());
+    expect(next.answered).toBe("x");
+  });
+  it("lets an open in-tab stopped card learn the notice, once", () => {
+    const item = { issueId: "i1", projectId: "p1", ref: null };
+    const stopped = { kind: "stopped" as const, item, answered: null };
+    const withInfo = tick(stopped, notice({ reason: "auto_stop", minutes: 840 }));
+    expect(withInfo).toMatchObject({ kind: "stopped", item, info: { notificationId: "n1", reason: "auto_stop" } });
+    expect(tick(withInfo, notice({ reason: "auto_stop", minutes: 840 }))).toBe(withInfo);
+  });
+  it("never replaces an open prompt", () => {
+    const prompt = reduceIdle(initialIdleState, { type: "tick", timer: dueTimer(), serverNowMs: T0 + 31 * MIN });
+    expect(prompt.kind).toBe("prompt");
+    // Even if a notice arrived alongside a still-due check, the open prompt wins.
+    expect(
+      reduceIdle(prompt, { type: "tick", timer: dueTimer(), serverNowMs: T0 + 31 * MIN, stopNotice: notice() })
+    ).toBe(prompt);
+  });
+  it("is superseded by a running timer", () => {
+    const stopped = tick(initialIdleState, notice());
+    expect(tick(stopped, null, makeTimer())).toMatchObject({ kind: "none" });
+  });
+  it("dismissing clears it", () => {
+    const stopped = tick(initialIdleState, notice());
+    expect(reduceIdle(stopped, { type: "cleared" })).toEqual({ kind: "none", answered: null });
+  });
+});
+
+describe("describeStop", () => {
+  it("covers the in-tab idle stop with no details", () => {
+    expect(describeStop(undefined)).toBe("Timer stopped — you didn't confirm you were still working.");
+  });
+  it("says how much was kept for an idle stop", () => {
+    expect(describeStop({ notificationId: "n", reason: "idle_check", minutes: 43 })).toBe(
+      "Timer stopped — you didn't confirm you were still working. 43m was logged."
+    );
+  });
+  it("names the daily limit for an auto-stop", () => {
+    expect(describeStop({ notificationId: "n", reason: "auto_stop", minutes: 840 })).toBe(
+      "Timer stopped after reaching the daily limit. 14h was logged."
+    );
   });
 });

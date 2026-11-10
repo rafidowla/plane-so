@@ -24,11 +24,12 @@ import {
 } from "@makeplane/propel/components/dialog";
 import { setToast } from "@plane/blocks/toast";
 import { useRunningTimer } from "@/plane-web/hooks/use-running-timer";
+import workspaceNotificationService from "@/services/workspace-notification.service";
 import { timeTrackingService } from "@/plane-web/services/time-tracking.service";
 import { formatElapsed } from "../../issues/worklog/timer-utils";
 import { createChimeScheduler, playChime, primeAudioOnFirstGesture } from "./chime";
 import { describeTimerError, isStoppedByServer } from "./errors";
-import { getPromptRemainingMs, initialIdleState, reduceIdle } from "./idle-check";
+import { describeStop, getPromptRemainingMs, initialIdleState, reduceIdle } from "./idle-check";
 import { closeIdleNotification, showIdleNotification } from "./notify";
 import { refreshTimeData, startTimerOnItem, stopRunningTimer } from "./timer-actions";
 import { startTitleFlash } from "./title-flash";
@@ -38,15 +39,17 @@ type TChannelMessage = { type: "answered"; checkAt: string } | { type: "stopped"
 export function IdleCheckHost() {
   const { workspaceSlug } = useParams();
   const slug = workspaceSlug?.toString();
-  const { timer, serverOffsetMs, mutate } = useRunningTimer(slug);
+  const { timer, stopNotice, serverOffsetMs, mutate } = useRunningTimer(slug);
   const [state, dispatch] = useReducer(reduceIdle, initialIdleState);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   // Latest values for the 1 s ticker without restarting it on every poll.
-  const latest = useRef({ timer, serverOffsetMs });
-  latest.current = { timer, serverOffsetMs };
+  const latest = useRef({ timer, serverOffsetMs, stopNotice });
+  latest.current = { timer, serverOffsetMs, stopNotice };
+  // FORK: PSR-136 — notices the user already dismissed here, so a poll that was in flight cannot reopen the card.
+  const handledNotices = useRef(new Set<string>());
 
   useEffect(() => primeAudioOnFirstGesture(), []);
 
@@ -78,16 +81,17 @@ export function IdleCheckHost() {
   // Drive the state machine from the server clock, once a second while a timer or prompt exists.
   useEffect(() => {
     const tick = () => {
-      const { timer: t, serverOffsetMs: off } = latest.current;
+      const { timer: t, serverOffsetMs: off, stopNotice: notice } = latest.current;
       const now = Date.now();
       if (state.kind === "prompt") setNowMs(now);
-      dispatch({ type: "tick", timer: t, serverNowMs: now + off });
+      const pending = notice && !handledNotices.current.has(notice.notification_id) ? notice : null;
+      dispatch({ type: "tick", timer: t, serverNowMs: now + off, stopNotice: pending });
     };
     tick();
     if (!timer?.id && state.kind === "none") return;
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [timer, serverOffsetMs, state.kind]);
+  }, [timer, stopNotice, serverOffsetMs, state.kind]);
 
   const promptCheckAt = state.kind === "prompt" ? state.checkAt : null;
   const promptRef = state.kind === "prompt" ? state.item.ref?.ref : undefined;
@@ -154,6 +158,28 @@ export function IdleCheckHost() {
     setBusy(false);
   }, [slug, state, busy]);
 
+  // FORK: PSR-136 — settle the server-side notice behind the stopped card (the existing inbox "read" call)
+  // so it is not shown again; never blocks the card's own action.
+  const settleNotice = useCallback(
+    async (info: { notificationId: string } | undefined) => {
+      if (!slug || !info) return;
+      handledNotices.current.add(info.notificationId);
+      try {
+        await workspaceNotificationService.markNotificationAsRead(slug, info.notificationId);
+      } catch {
+        // the notice reappears on a later visit; harmless
+      }
+      void mutate();
+    },
+    [slug, mutate]
+  );
+
+  const handleDismiss = useCallback(async () => {
+    if (state.kind !== "stopped") return;
+    dispatch({ type: "cleared" });
+    await settleNotice(state.info);
+  }, [state, settleNotice]);
+
   const handleResume = useCallback(async () => {
     if (!slug || state.kind !== "stopped" || busy) return;
     const { issueId } = state.item;
@@ -169,9 +195,10 @@ export function IdleCheckHost() {
     if (started) {
       dispatch({ type: "cleared" });
       post({ type: "stopped" });
+      await settleNotice(state.info);
     }
     setBusy(false);
-  }, [slug, state, busy]);
+  }, [slug, state, busy, settleNotice]);
 
   if (!slug) return null;
 
@@ -225,7 +252,7 @@ export function IdleCheckHost() {
         className="shadow-lg fixed right-4 bottom-4 z-50 flex max-w-sm flex-col gap-3 rounded-lg border border-subtle bg-surface-1 p-4"
       >
         <div className="text-14">
-          <p className="font-medium text-primary">Timer stopped — you didn't confirm.</p>
+          <p className="font-medium text-primary">{describeStop(state.info)}</p>
           {state.item.ref && (
             <p className="mt-1 text-13 text-tertiary">
               {state.item.ref.ref} {state.item.ref.name}
@@ -238,7 +265,7 @@ export function IdleCheckHost() {
             size="sm"
             stretch="auto"
             label="Dismiss"
-            onClick={() => dispatch({ type: "cleared" })}
+            onClick={handleDismiss}
             disabled={busy}
           />
           <Button

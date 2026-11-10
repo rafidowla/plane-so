@@ -41,7 +41,10 @@ export function useRunningTimer(workspaceSlug: string | undefined) {
     [data]
   );
 
-  return { timer, serverOffsetMs, isLoading, mutate };
+  // FORK: time-tracking-v2 — PSR-136: set when the system stopped the timer while the user was away.
+  const stopNotice = timer ? null : (data?.stop_notice ?? null);
+
+  return { timer, stopNotice, serverOffsetMs, isLoading, mutate };
 }
 
 /** Elapsed whole seconds for a running timer, ticking once a second while it runs. */

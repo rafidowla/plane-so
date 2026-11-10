@@ -6,7 +6,7 @@
 // FORK: time-tracking-v2 — the "Still working?" state machine, kept free of React/DOM so the
 // due -> chiming -> confirmed | expired -> resume flow is unit-testable. All times are compared on
 // the SERVER clock (browser clock + offset), never the raw browser clock.
-import type { TRunningTimer, TTimerIssueRef } from "../../issues/worklog/types";
+import type { TRunningTimer, TStopNotice, TTimerIssueRef } from "../../issues/worklog/types";
 
 /**
  * Poll cadence for the running timer. The server picks a random check time and never announces it
@@ -59,16 +59,19 @@ export function getTimerPollInterval(timer: TRunningTimer | undefined): number {
 /** The work item to resume after an expired check. */
 export type TIdleItem = { issueId: string; projectId: string | null; ref: TTimerIssueRef | null };
 
+/** FORK: PSR-136 — what the stopped card says beyond the work item; absent for a stop seen in this tab. */
+export type TStopInfo = { notificationId: string; reason: TStopNotice["reason"]; minutes: number | null };
+
 export type TIdleState =
   | { kind: "none"; answered: string | null }
   | { kind: "prompt"; checkAt: string; deadlineAt: string; item: TIdleItem; answered: string | null }
-  | { kind: "stopped"; item: TIdleItem; answered: string | null };
+  | { kind: "stopped"; item: TIdleItem; answered: string | null; info?: TStopInfo };
 
 export const initialIdleState: TIdleState = { kind: "none", answered: null };
 
 export type TIdleEvent =
   /** A fresh timer reading (or its absence) plus the current server-clock time. */
-  | { type: "tick"; timer: TRunningTimer | undefined; serverNowMs: number }
+  | { type: "tick"; timer: TRunningTimer | undefined; serverNowMs: number; stopNotice?: TStopNotice | null }
   /** "I'm still here" succeeded here or in another tab for this check. */
   | { type: "answered"; checkAt: string }
   /** The user stopped the timer (here or in another tab), or started a different one. */
@@ -79,6 +82,40 @@ export type TIdleEvent =
 function itemOf(timer: TRunningTimer): TIdleItem | null {
   if (!timer.issue) return null;
   return { issueId: timer.issue, projectId: timer.project ?? null, ref: timer.issue_detail ?? null };
+}
+
+/**
+ * FORK: PSR-136 — the server says the system stopped the timer (`stop_notice`) while there is no timer.
+ * Covers a closed tab, a sleeping laptop or a reload, where this tab never saw the prompt: show the
+ * stopped card. A card already open from the in-tab flow just learns the notification id/reason/minutes
+ * so Dismiss can mark it read. Returns null when the notice changes nothing (e.g. a prompt is still
+ * open, or the work item is gone so "Start again" would have no target).
+ */
+function stopStateFromNotice(state: TIdleState, notice: TStopNotice | null | undefined): TIdleState | null {
+  if (!notice?.notification_id) return null;
+  const info: TStopInfo = { notificationId: notice.notification_id, reason: notice.reason, minutes: notice.minutes };
+  if (state.kind === "stopped") {
+    return state.info?.notificationId === info.notificationId ? state : { ...state, info };
+  }
+  if (state.kind === "none" && notice.issue) {
+    const { id, project_id: projectId } = notice.issue;
+    return { kind: "stopped", item: { issueId: id, projectId, ref: notice.issue }, answered: state.answered, info };
+  }
+  return null;
+}
+
+/** Card headline for a stopped timer (the in-tab flow has no `info` and is always the idle check). */
+export function describeStop(info: TStopInfo | undefined): string {
+  const kept = info?.minutes ? ` ${formatKept(info.minutes)} was logged.` : "";
+  if (info?.reason === "auto_stop") return `Timer stopped after reaching the daily limit.${kept}`;
+  return `Timer stopped — you didn't confirm you were still working.${kept}`;
+}
+
+function formatKept(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
 export function reduceIdle(state: TIdleState, event: TIdleEvent): TIdleState {
@@ -118,6 +155,8 @@ export function reduceIdle(state: TIdleState, event: TIdleEvent): TIdleState {
         return state;
       }
       // No timer.
+      const fromNotice = stopStateFromNotice(state, event.stopNotice);
+      if (fromNotice) return fromNotice;
       if (state.kind === "prompt") {
         const deadline = toMs(state.deadlineAt);
         const swept = deadline !== null && serverNowMs >= deadline - EXPIRY_SLACK_MS;
