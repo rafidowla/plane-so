@@ -177,6 +177,8 @@ export function IdleCheckHost() {
   const handleDismiss = useCallback(async () => {
     if (state.kind !== "stopped") return;
     dispatch({ type: "cleared" });
+    // Close the same card in the other open tabs.
+    post({ type: "stopped" });
     await settleNotice(state.info);
   }, [state, settleNotice]);
 
