@@ -24,6 +24,14 @@ export const ADDITIONAL_NOTIFICATION_CONTENT_MAP: TNotificationContentMap = {
     value: "time request",
     showConnector: false,
   }),
+  // FORK: time-tracking-v2 — system timer notices (no actor). `verb` is "reminder" (S2 sweep) or
+  // "stopped" (PSR-136 idle-check / auto-stop). Without this entry the fallback renders
+  // "<verb> worklog timer to ." with an empty value.
+  worklog_timer: ({ verb }) => ({
+    action: verb === "reminder" ? "Your timer is still" : "Your timer was",
+    value: verb === "reminder" ? "running" : "stopped",
+    showConnector: false,
+  }),
   // FORK: move-work-item (PSR-91) — "project" activity: old_value / new_value are the old / new identifiers
   project: ({ newValue }) => ({
     action: "moved this work item to",
