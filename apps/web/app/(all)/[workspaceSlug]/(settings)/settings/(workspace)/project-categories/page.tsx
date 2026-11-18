@@ -191,7 +191,9 @@ function ProjectCategoriesPage({ params }: Route.ComponentProps) {
     useProjectCategory();
   // state
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Kept after close so the dialog text doesn't blank out during its exit transition.
   const [categoryToDelete, setCategoryToDelete] = useState<TProjectCategory | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   // derived values
   const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
@@ -229,7 +231,7 @@ function ProjectCategoriesPage({ params }: Route.ComponentProps) {
   };
 
   const handleConfirmDelete = async () => {
-    if (!categoryToDelete) return;
+    if (!categoryToDelete || !isDeleteOpen) return;
     setIsDeleting(true);
     try {
       await deleteCategory(workspaceSlug, categoryToDelete.id);
@@ -238,7 +240,7 @@ function ProjectCategoriesPage({ params }: Route.ComponentProps) {
         title: t("toast.success"),
         message: t("workspace_settings.settings.project_categories.toast.deleted"),
       });
-      setCategoryToDelete(null);
+      setIsDeleteOpen(false);
     } catch (err) {
       setToast({
         type: "error",
@@ -298,7 +300,10 @@ function ProjectCategoriesPage({ params }: Route.ComponentProps) {
                   onEdit={() => setEditingId(category.id)}
                   onCancelEdit={() => setEditingId(null)}
                   onRename={(name) => handleRename(category.id, name)}
-                  onDelete={() => setCategoryToDelete(category)}
+                  onDelete={() => {
+                    setCategoryToDelete(category);
+                    setIsDeleteOpen(true);
+                  }}
                 />
               ))}
             </ul>
@@ -306,17 +311,19 @@ function ProjectCategoriesPage({ params }: Route.ComponentProps) {
         </div>
       </div>
       <ConfirmDialog
-        isOpen={!!categoryToDelete}
-        handleClose={() => setCategoryToDelete(null)}
+        isOpen={isDeleteOpen}
+        handleClose={() => setIsDeleteOpen(false)}
         handleSubmit={handleConfirmDelete}
         isSubmitting={isDeleting}
         title={t("workspace_settings.settings.project_categories.delete_title")}
         content={
           <>
-            {t("workspace_settings.settings.project_categories.delete_message", { name: categoryToDelete?.name ?? "" })}{" "}
-            {t("workspace_settings.settings.project_categories.delete_impact", {
-              count: categoryToDelete?.project_count ?? 0,
-            })}
+            {t("workspace_settings.settings.project_categories.delete_message", { name: categoryToDelete?.name ?? "" })}
+            {/* project_count is admin-only and may be absent; skip the impact line when nothing is affected. */}
+            {!!categoryToDelete?.project_count &&
+              ` ${t("workspace_settings.settings.project_categories.delete_impact", {
+                count: categoryToDelete.project_count,
+              })}`}
           </>
         }
       />
