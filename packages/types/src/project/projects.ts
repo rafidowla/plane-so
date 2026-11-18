@@ -146,6 +146,8 @@ export type TProjectPendingMember = {
   email: string;
   role: number;
   workspace_role: number;
+  /** The project role the person will actually get on accepting (capped by workspace role). Falls back to `role`. */
+  effective_role?: number;
   created_at: string;
   invited_by: { id: string; display_name: string } | null;
   /** Only present when the requester is a workspace admin. */

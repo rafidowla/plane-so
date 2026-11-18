@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { observer } from "mobx-react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 // plane imports
@@ -27,7 +27,8 @@ import {
 } from "@makeplane/propel/components/dialog";
 // components
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
-import { InviteByEmailSection } from "./invite-by-email-section";
+// FORK: PSR-124
+import { InviteByEmailSection, useInviteByEmailForm } from "./invite-by-email-section";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -63,6 +64,13 @@ const defaultValues: FormValues = {
   ],
 };
 
+const errorText = (error: unknown): string | null => {
+  const detail = (error as { error?: unknown; detail?: unknown } | undefined) ?? {};
+  if (typeof detail.error === "string") return detail.error;
+  if (typeof detail.detail === "string") return detail.detail;
+  return null;
+};
+
 export const SendProjectInvitationModal = observer(function SendProjectInvitationModal(props: Props) {
   const { isOpen, onClose, onSuccess, projectId, workspaceSlug } = props;
   // plane hooks
@@ -73,6 +81,9 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     project: { getProjectMemberDetails, bulkAddMembersToProject },
     workspace: { workspaceMemberIds, getWorkspaceMemberDetails },
   } = useMember();
+  // FORK: PSR-124 -- state of the "invite by email" section; one submit sends both it and the member rows
+  const emailForm = useInviteByEmailForm(workspaceSlug, projectId);
+  const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // form info
   const {
     formState: { errors, isSubmitting },
@@ -96,36 +107,100 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
       return !isInvited;
     }) ?? [];
 
+  // FORK: PSR-124 -- the Dialog unmounts its content on close, but THIS component (and its form state) stays
+  // mounted, so state is reset explicitly: after the close animation, and cancelled if the modal reopens.
+  const resetAll = () => {
+    reset(defaultValues);
+    emailForm.reset();
+  };
+
+  const clearPendingReset = () => {
+    if (resetTimeoutRef.current) {
+      clearTimeout(resetTimeoutRef.current);
+      resetTimeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) clearPendingReset();
+    return clearPendingReset;
+  }, [isOpen]);
+
+  // FORK: PSR-124 -- ONE submit: picked member rows go through bulk add, typed emails through invite-by-email.
+  // Close only if everything succeeded; otherwise keep failed emails / unsent rows in place.
+  // FORK: PSR-124 -- submit is enabled only when there is something to send
+  const hasPickedRows = (watch("members") ?? []).some((row) => row?.member_id);
+  const submitLabel = (() => {
+    const ellipsis = isSubmitting ? "..." : "";
+    if (emailForm.hasInput) {
+      const by = "project_settings.members.invite_members.by_email";
+      return hasPickedRows ? `${t(`${by}.submit_both`)}${ellipsis}` : `${t(`${by}.submit`)}${ellipsis}`;
+    }
+    return `${fields && fields.length > 1 ? t("add_members") : t("add_member")}${ellipsis}`;
+  })();
+
   const onSubmit = async (formData: FormValues) => {
     if (!workspaceSlug || !projectId || isSubmitting) return;
 
-    const payload = { ...formData };
+    const rows = formData.members.filter((row) => row.member_id);
+    const emails = emailForm.collect();
+    // invalid typed text (or too many emails): shown in place, nothing is sent
+    if (emails === null) return;
+    if (rows.length === 0 && emails.length === 0) {
+      emailForm.setFormError(t("project_settings.members.invite_members.by_email.nothing_to_send"));
+      return;
+    }
+    emailForm.setFormError(null);
+    emailForm.setSummary(null);
 
-    await bulkAddMembersToProject(workspaceSlug.toString(), projectId.toString(), payload)
-      // oxlint-disable-next-line promise/always-return
-      .then(() => {
-        if (onSuccess) onSuccess();
-        onClose();
-        setToast({
-          title: "Success!",
-          type: "success",
-          message: "Members added successfully.",
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-      })
-      .finally(() => {
-        reset(defaultValues);
-      });
+    const [rowsResult, emailsResult] = await Promise.allSettled([
+      rows.length > 0
+        ? bulkAddMembersToProject(workspaceSlug.toString(), projectId.toString(), { members: rows })
+        : Promise.resolve(null),
+      emails.length > 0 ? emailForm.send(emails) : Promise.resolve(null),
+    ]);
+
+    const rowsOk = rows.length > 0 && rowsResult.status === "fulfilled";
+    const rowsFailed = rows.length > 0 && rowsResult.status === "rejected";
+    const emailSummary = emailsResult.status === "fulfilled" ? emailsResult.value : null;
+    // `send` returns null (and sets its own error) when the request itself failed
+    const emailsFailed = emails.length > 0 && !emailSummary;
+
+    if (rowsOk) {
+      // these people are members now: drop them from the form so they are never re-sent
+      reset(defaultValues);
+      onSuccess?.();
+    }
+    if (rowsFailed) {
+      console.error(rowsResult.reason);
+      emailForm.setFormError(
+        errorText(rowsResult.reason) ?? t("project_settings.members.invite_members.by_email.members_failed")
+      );
+    }
+
+    if (rowsFailed || emailsFailed || emailSummary?.hasProblems) return;
+
+    // everything succeeded
+    const by = "project_settings.members.invite_members.by_email";
+    const addedCount = (rowsOk ? rows.length : 0) + (emailSummary?.added.length ?? 0);
+    const messageParts = [
+      addedCount ? t(`${by}.summary_added`, { count: addedCount }) : null,
+      emailSummary?.invited.length ? t(`${by}.summary_invited`, { count: emailSummary.invited.length }) : null,
+      emailSummary?.inviteUpdated.length
+        ? t(`${by}.summary_invite_updated`, { emails: emailSummary.inviteUpdated.join(", ") })
+        : null,
+      emailSummary?.inviteUpdated.length && emailForm.message.trim() ? t(`${by}.note_not_sent`) : null,
+    ].filter(Boolean);
+    setToast({ title: t(`${by}.success_title`), type: "success", message: messageParts.join(". ") });
+    handleClose();
   };
 
   const handleClose = () => {
     onClose();
-
-    const timeout = setTimeout(() => {
-      reset(defaultValues);
-      clearTimeout(timeout);
+    clearPendingReset();
+    resetTimeoutRef.current = setTimeout(() => {
+      resetAll();
+      resetTimeoutRef.current = null;
     }, 500);
   };
 
@@ -198,7 +273,6 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
                       <Controller
                         control={control}
                         name={`members.${index}.member_id`}
-                        rules={{ required: "Please select a member" }}
                         render={({ field: { value, onChange } }) => (
                           <MemberSelect
                             value={value || null}
@@ -275,12 +349,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
               </div>
               {/* FORK: PSR-124 -- invite people who aren't in the workspace yet, by email */}
               <div className="mt-4">
-                <InviteByEmailSection
-                  workspaceSlug={workspaceSlug}
-                  projectId={projectId}
-                  onSuccess={onSuccess}
-                  onDone={handleClose}
-                />
+                <InviteByEmailSection form={emailForm} />
               </div>
             </DialogBody>
           </DialogMain>
@@ -301,11 +370,8 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
                   size="md"
                   stretch="auto"
                   type="submit"
-                  label={
-                    isSubmitting
-                      ? `${fields && fields.length > 1 ? `${t("add_members")}...` : `${t("add_member")}...`}`
-                      : `${fields && fields.length > 1 ? t("add_members") : t("add_member")}`
-                  }
+                  disabled={!hasPickedRows && !emailForm.hasInput}
+                  label={submitLabel}
                   loading={isSubmitting}
                 />
               </div>

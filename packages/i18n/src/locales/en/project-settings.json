@@ -58,7 +58,11 @@
           "summary_not_allowed": "Only workspace admins can invite people who aren't in the workspace yet: {emails}",
           "summary_invalid": "Invalid: {emails}",
           "success_title": "Done",
-          "success_message": "Invitations processed."
+          "success_message": "Invitations processed.",
+          "submit_both": "Add members and send invitations",
+          "summary_invite_updated": "Already invited, added to this project too (no new email sent): {emails}",
+          "note_not_sent": "Your note wasn't sent because they already had an invitation.",
+          "members_failed": "Couldn't add the selected members. Please try again."
         }
       },
       "pending": {

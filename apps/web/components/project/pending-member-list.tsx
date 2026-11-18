@@ -111,7 +111,8 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
                 <span className="rounded-full bg-layer-1 px-2 py-0.5 text-11 text-secondary">{t(`${base}.tag`)}</span>
               </div>
               <div className="text-12 text-secondary">
-                <span className="capitalize">{ROLE[spot.role as keyof typeof ROLE]}</span>
+                {/* effective_role = project role they will actually get; older servers only send `role` */}
+                <span className="capitalize">{ROLE[(spot.effective_role ?? spot.role) as keyof typeof ROLE]}</span>
                 {spot.invited_by?.display_name &&
                   ` · ${t(`${base}.invited_by`, { name: spot.invited_by.display_name })}`}
               </div>

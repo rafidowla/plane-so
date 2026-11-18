@@ -14,6 +14,8 @@ export const MAX_INVITE_EMAILS = 50;
 // Deliberately simple (the server is the authority): something@something.tld, no spaces.
 const EMAIL_REGEX = /^[^\s@,;<>()[\]]+@[^\s@,;<>()[\]]+\.[^\s@,;<>()[\]]{2,}$/;
 
+const ANGLE_ADDRESS_REGEX = /(?<![^\s,;])(?:"[^"]*"\s*|(?:[^\s,;<>@"]+\s+)*)<([^<>\s]+)>/g;
+
 export const isValidEmail = (value: string): boolean => EMAIL_REGEX.test(value);
 
 export type TParsedEmails = {
@@ -28,12 +30,12 @@ export const parseEmails = (raw: string, existing: string[] = []): TParsedEmails
   const valid: string[] = [];
   const invalid: string[] = [];
   const invalidSeen = new Set<string>();
-  for (const part of raw.split(/[\s,;]+/)) {
+  // "Name <a@b.c>" / "\"Name\" <a@b.c>" / "<a@b.c>" from copied address-book entries: keep only the address.
+  // The name part may not contain "@", so plain "a@x.com b@x.com <c@x.com>" lists are left intact.
+  const unwrapped = raw.replace(ANGLE_ADDRESS_REGEX, " $1 ");
+  for (const part of unwrapped.split(/[\s,;]+/)) {
     let token = part.trim();
     if (!token) continue;
-    // "<a@b.c>" from copied address-book entries
-    const angled = token.match(/^<(.+)>$/);
-    if (angled) token = angled[1];
     token = token.toLowerCase();
     if (isValidEmail(token)) {
       if (seen.has(token)) continue;
@@ -49,7 +51,9 @@ export const parseEmails = (raw: string, existing: string[] = []): TParsedEmails
 
 export type TInviteSummary = {
   added: string[];
-  invited: string[]; // new + updated invites
+  invited: string[]; // new invitations (email sent)
+  /** Already had a pending workspace invitation: added to this project too, no new email, note not sent. */
+  inviteUpdated: string[];
   alreadyMember: string[];
   notAllowed: string[];
   invalid: string[];
@@ -61,7 +65,7 @@ export type TInviteSummary = {
 const bucketFor: Record<TProjectInviteByEmailStatus, keyof Omit<TInviteSummary, "problemEmails" | "hasProblems">> = {
   added: "added",
   invited: "invited",
-  invite_updated: "invited",
+  invite_updated: "inviteUpdated",
   already_member: "alreadyMember",
   not_allowed: "notAllowed",
   invalid: "invalid",
@@ -72,6 +76,7 @@ export const summariseInviteResults = (results: TProjectInviteByEmailResult[]): 
   const summary: TInviteSummary = {
     added: [],
     invited: [],
+    inviteUpdated: [],
     alreadyMember: [],
     notAllowed: [],
     invalid: [],

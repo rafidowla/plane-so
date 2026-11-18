@@ -35,7 +35,26 @@ describe("parseEmails", () => {
   });
   it("unwraps <address> tokens and handles empty input", () => {
     expect(parseEmails("<a@x.com>").valid).toEqual(["a@x.com"]);
+    expect(parseEmails("<a@x.com>").invalid).toEqual([]);
     expect(parseEmails("  ,; \n").valid).toEqual([]);
+  });
+});
+
+describe("parseEmails with display names", () => {
+  it("extracts the address from 'Name <email>' and quoted-name forms", () => {
+    const r = parseEmails('John Doe <John@X.com>, "Doe, Jane" <jane@x.com>; Bob <bob@x.com>');
+    expect(r.valid).toEqual(["john@x.com", "jane@x.com", "bob@x.com"]);
+    expect(r.invalid).toEqual([]);
+  });
+  it("keeps plain addresses that precede a 'Name <email>' entry", () => {
+    const r = parseEmails("a@x.com b@x.com Carl <c@x.com>");
+    expect(r.valid).toEqual(["a@x.com", "b@x.com", "c@x.com"]);
+    expect(r.invalid).toEqual([]);
+  });
+  it("still reports invalid text so the caller can keep it visible", () => {
+    const r = parseEmails("Name <not-an-email> ok@x.com");
+    expect(r.valid).toEqual(["ok@x.com"]);
+    expect(r.invalid).toEqual(["not-an-email"]);
   });
 });
 
@@ -50,7 +69,8 @@ describe("summariseInviteResults", () => {
       { email: "f@x.com", status: "invalid" },
     ]);
     expect(s.added).toEqual(["a@x.com"]);
-    expect(s.invited).toEqual(["b@x.com", "c@x.com"]);
+    expect(s.invited).toEqual(["b@x.com"]);
+    expect(s.inviteUpdated).toEqual(["c@x.com"]);
     expect(s.problemEmails).toEqual(["d@x.com", "e@x.com", "f@x.com"]);
     expect(s.hasProblems).toBe(true);
   });
