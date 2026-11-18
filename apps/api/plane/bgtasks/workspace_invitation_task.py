@@ -20,7 +20,7 @@ from plane.utils.exception_logger import log_exception
 
 
 @shared_task
-def workspace_invitation(email, workspace_id, token, current_site, inviter):
+def workspace_invitation(email, workspace_id, token, current_site, inviter, personal_message=None):  # FORK: PSR-124
     try:
         user = User.objects.get(email=inviter)
 
@@ -53,6 +53,8 @@ def workspace_invitation(email, workspace_id, token, current_site, inviter):
             "first_name": user.first_name or user.display_name or user.email,
             "workspace_name": workspace.name,
             "abs_url": abs_url,
+            # FORK: PSR-124 -- optional note from the inviter; escaped by the template, never marked safe
+            "personal_message": personal_message,
         }
 
         html_content = render_to_string("emails/invitations/workspace_invitation.html", context)

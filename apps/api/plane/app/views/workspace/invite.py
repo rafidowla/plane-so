@@ -11,6 +11,7 @@ import jwt
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.db import transaction  # FORK: PSR-124
 from django.utils import timezone
 
 # Third party modules
@@ -32,6 +33,10 @@ from plane.bgtasks.workspace_invitation_task import workspace_invitation
 from plane.db.models import User, Workspace, WorkspaceMember, WorkspaceMemberInvite
 from plane.utils.cache import invalidate_cache, invalidate_cache_directly
 from plane.utils.host import base_host
+from plane.utils.project_invite_spots import (  # FORK: PSR-124
+    accept_project_spots,
+    remove_project_spots,
+)
 from .. import BaseViewSet
 
 
@@ -172,7 +177,10 @@ class WorkspaceInvitationsViewset(BaseViewSet):
 
     def destroy(self, request, slug, pk):
         workspace_member_invite = WorkspaceMemberInvite.objects.get(pk=pk, workspace__slug=slug)
-        workspace_member_invite.delete()
+        with transaction.atomic():
+            # FORK: PSR-124 -- cancelling the invitation drops its pending project spots too.
+            remove_project_spots(workspace_member_invite)
+            workspace_member_invite.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -226,35 +234,44 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                 # Check if the user created account after invitation
                 user = User.objects.filter(email=workspace_invite.email).first()
 
+                # FORK: PSR-124 -- the first project the user was added to, for the web redirect.
+                project_id = None
+
                 # If the user is present then create the workspace member
                 if user is not None:
-                    # Check if the user was already a member of workspace then activate the user
-                    workspace_member = WorkspaceMember.objects.filter(
-                        workspace=workspace_invite.workspace, member=user
-                    ).first()
-                    if workspace_member is not None:
-                        workspace_member.is_active = True
-                        # FORK: PSR-125 -- a stale invite must not demote a current Super Admin.
-                        if not workspace_member.is_super_admin:
-                            workspace_member.role = workspace_invite.role
-                        workspace_member.save()
-                    else:
-                        # Create a Workspace
-                        _ = WorkspaceMember.objects.create(
-                            workspace=workspace_invite.workspace,
-                            member=user,
-                            role=workspace_invite.role,
-                        )
+                    # FORK: PSR-124 -- workspace join + project spots + invite removal are one unit.
+                    with transaction.atomic():
+                        # Check if the user was already a member of workspace then activate the user
+                        workspace_member = WorkspaceMember.objects.filter(
+                            workspace=workspace_invite.workspace, member=user
+                        ).first()
+                        if workspace_member is not None:
+                            workspace_member.is_active = True
+                            # FORK: PSR-125 -- a stale invite must not demote a current Super Admin.
+                            if not workspace_member.is_super_admin:
+                                workspace_member.role = workspace_invite.role
+                            workspace_member.save()
+                        else:
+                            # Create a Workspace
+                            workspace_member = WorkspaceMember.objects.create(
+                                workspace=workspace_invite.workspace,
+                                member=user,
+                                role=workspace_invite.role,
+                            )
 
-                    # Set the user last_workspace_id to the accepted workspace
-                    user.last_workspace_id = workspace_invite.workspace.id
-                    user.save()
+                        # Set the user last_workspace_id to the accepted workspace
+                        user.last_workspace_id = workspace_invite.workspace.id
+                        user.save()
 
-                    # Delete the invitation
-                    workspace_invite.delete()
+                        # FORK: PSR-124 -- turn the pending project spots into project memberships
+                        project_ids = accept_project_spots(workspace_invite, user, workspace_member.role)
+                        project_id = str(project_ids[0]) if project_ids else None
+
+                        # Delete the invitation
+                        workspace_invite.delete()
 
                 return Response(
-                    {"message": "Workspace Invitation Accepted"},
+                    {"message": "Workspace Invitation Accepted", "project_id": project_id},  # FORK: PSR-124
                     status=status.HTTP_200_OK,
                 )
 
@@ -296,11 +313,15 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
 
     @invalidate_cache(path="/api/workspaces/", user=False)
     @invalidate_cache(path="/api/users/me/workspaces/", multiple=True)
+    @transaction.atomic  # FORK: PSR-124 -- workspace join + project spots land together
     def create(self, request):
         invitations = request.data.get("invitations", [])
         workspace_invitations = WorkspaceMemberInvite.objects.filter(
             pk__in=invitations, email=request.user.email
         ).order_by("-created_at")
+
+        # FORK: PSR-124 -- materialise once so the spots can be processed before the invites are deleted
+        workspace_invitations = list(workspace_invitations)
 
         # If the user is already a member of workspace and was deactivated then activate the user
         for invitation in workspace_invitations:
@@ -330,7 +351,17 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
             ignore_conflicts=True,
         )
 
+        # FORK: PSR-124 -- turn pending project spots into project memberships
+        for invitation in workspace_invitations:
+            workspace_role = (
+                WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user)
+                .values_list("role", flat=True)
+                .first()
+            )
+            if workspace_role is not None:
+                accept_project_spots(invitation, request.user, workspace_role)
+
         # Delete joined workspace invites
-        workspace_invitations.delete()
+        WorkspaceMemberInvite.objects.filter(pk__in=[i.pk for i in workspace_invitations]).delete()
 
         return Response(status=status.HTTP_204_NO_CONTENT)

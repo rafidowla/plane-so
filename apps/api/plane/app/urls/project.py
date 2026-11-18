@@ -10,6 +10,10 @@ from plane.app.views import (
     DeployBoardViewSet,
     ProjectInvitationsViewset,
     ProjectMemberViewSet,
+    ProjectInviteByEmailEndpoint,  # FORK: PSR-124
+    ProjectPendingMembersEndpoint,
+    ProjectPendingMemberDetailEndpoint,
+    ProjectPendingMemberResendEndpoint,
     ProjectMemberUserEndpoint,
     ProjectJoinEndpoint,
     ProjectUserViewsEndpoint,
@@ -90,6 +94,27 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/members/",
         ProjectMemberViewSet.as_view({"get": "list", "post": "create"}),
         name="project-member",
+    ),
+    # FORK: PSR-124 -- add people to a project by email
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/members/invite-by-email/",
+        ProjectInviteByEmailEndpoint.as_view(),
+        name="project-member-invite-by-email",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/pending-members/",
+        ProjectPendingMembersEndpoint.as_view(),
+        name="project-pending-members",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/pending-members/<uuid:pk>/",
+        ProjectPendingMemberDetailEndpoint.as_view(),
+        name="project-pending-member",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/pending-members/<uuid:pk>/resend/",
+        ProjectPendingMemberResendEndpoint.as_view(),
+        name="project-pending-member-resend",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/members/<uuid:pk>/",

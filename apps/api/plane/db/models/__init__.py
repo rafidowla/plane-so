@@ -74,6 +74,7 @@ from .workspace import (
     WorkspaceBaseModel,
     WorkspaceMember,
     WorkspaceMemberInvite,
+    WorkspaceMemberInviteProject,  # FORK: PSR-124
     WorkspaceTheme,
     WorkspaceUserProperties,
     WorkspaceUserLink,

@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Django imports
+from django.db import transaction  # FORK: PSR-124
+
 # Module imports
 from plane.db.models import (
     ProjectMember,
@@ -10,8 +13,10 @@ from plane.db.models import (
     WorkspaceMemberInvite,
 )
 from plane.utils.cache import invalidate_cache_directly
+from plane.utils.project_invite_spots import accept_project_spots, remove_project_spots  # FORK: PSR-124
 
 
+@transaction.atomic  # FORK: PSR-124 -- workspace join + project spots + invite removal are one unit
 def process_workspace_project_invitations(user):
     """This function takes in User and adds him to all workspace and projects that the user has accepted invited of"""
 
@@ -37,6 +42,18 @@ def process_workspace_project_invitations(user):
             user=False,
             multiple=True,
         )
+
+    # FORK: PSR-124 -- turn the pending project spots of accepted workspace invites into project memberships
+    for workspace_member_invite in workspace_member_invites:
+        workspace_role = (
+            WorkspaceMember.objects.filter(workspace_id=workspace_member_invite.workspace_id, member=user)
+            .values_list("role", flat=True)
+            .first()
+        )
+        if workspace_role is not None:
+            accept_project_spots(workspace_member_invite, user, workspace_role)
+        else:
+            remove_project_spots(workspace_member_invite)
 
     # Check if user has any project invites
     project_member_invites = ProjectMemberInvite.objects.filter(email=user.email, accepted=True)

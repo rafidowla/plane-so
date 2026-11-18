@@ -254,6 +254,9 @@ class WorkspaceMemberInvite(BaseModel):
     message = models.TextField(null=True)
     responded_at = models.DateTimeField(null=True)
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=5)
+    # FORK: PSR-124 -- True only when this invite was created by the "add to project by email" flow;
+    # such an invite is cancelled with its last pending project spot.
+    created_from_project = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ["email", "workspace", "deleted_at"]
@@ -271,6 +274,33 @@ class WorkspaceMemberInvite(BaseModel):
 
     def __str__(self):
         return f"{self.workspace.name} {self.email} {self.accepted}"
+
+
+# FORK: PSR-124 -- a pending "add to this project" slot hanging off a workspace invitation.
+# Turned into a ProjectMember when the invitation is accepted.
+class WorkspaceMemberInviteProject(BaseModel):
+    invite = models.ForeignKey("db.WorkspaceMemberInvite", on_delete=models.CASCADE, related_name="project_spots")
+    project = models.ForeignKey("db.Project", on_delete=models.CASCADE, related_name="pending_invite_spots")
+    workspace = models.ForeignKey(
+        "db.Workspace", on_delete=models.CASCADE, related_name="workspace_member_invite_project_spots"
+    )
+    role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=15)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["invite", "project"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="wsinvite_project_unique_invite_project_when_deleted_at_null",
+            )
+        ]
+        verbose_name = "Workspace Member Invite Project"
+        verbose_name_plural = "Workspace Member Invite Projects"
+        db_table = "workspace_member_invite_projects"
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.invite_id} {self.project_id} {self.role}"
 
 
 class Team(BaseModel):

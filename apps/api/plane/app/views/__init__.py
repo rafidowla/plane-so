@@ -19,6 +19,14 @@ from .project.invite import (
     ProjectJoinEndpoint,
 )
 
+# FORK: PSR-124
+from .project.invite_by_email import (
+    ProjectInviteByEmailEndpoint,
+    ProjectPendingMembersEndpoint,
+    ProjectPendingMemberDetailEndpoint,
+    ProjectPendingMemberResendEndpoint,
+)
+
 from .project.member import (
     ProjectMemberViewSet,
     ProjectMemberUserEndpoint,

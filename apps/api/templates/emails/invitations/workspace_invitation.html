@@ -160,6 +160,19 @@
                     {{first_name}} has invited you to collaborate with them in
                     <strong>{{workspace_name}}</strong> workspace on Plane.
                   </p>
+                  {% if personal_message %}
+                  <!-- FORK: PSR-124 personal note (autoescaped) -->
+                  <p
+                    style="
+                      margin: 0 0 12px;
+                      padding: 8px 12px;
+                      border-left: 3px solid #d4d4d4;
+                      color: #444444;
+                    "
+                  >
+                    {{ personal_message|linebreaksbr }}
+                  </p>
+                  {% endif %}
 
                   <!-- Primary button -->
                   <table
