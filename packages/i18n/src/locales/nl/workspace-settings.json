@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Wekelijkse goedkeuring",
           "billing_enabled": "Facturering"
         }
+      },
+      "project_categories": {
+        "title": "Projectcategorieën",
+        "description": "Groepeer je projecten in categorieën. Alleen beheerders van de werkruimte kunnen ze toevoegen, hernoemen of verwijderen.",
+        "add": "Categorie toevoegen",
+        "name_placeholder": "Categorienaam",
+        "rename": "Hernoemen",
+        "delete": "Verwijderen",
+        "save": "Opslaan",
+        "cancel": "Annuleren",
+        "empty": "Nog geen categorieën. Voeg er een toe om je projecten te groeperen.",
+        "load_failed": "De categorieën konden niet worden geladen. Probeer het opnieuw.",
+        "retry": "Opnieuw proberen",
+        "name_required": "Voer een categorienaam in.",
+        "save_failed": "De categorie kon niet worden opgeslagen. Probeer het opnieuw.",
+        "delete_failed": "De categorie kon niet worden verwijderd. Probeer het opnieuw.",
+        "delete_title": "Categorie verwijderen",
+        "delete_message": "De categorie “{name}” verwijderen?",
+        "delete_impact": "{count, plural, one{# project heeft geen categorie meer.} other{# projecten hebben geen categorie meer.}}",
+        "projects_count": "{count, plural, one{# project} other{# projecten}}",
+        "toast": {
+          "created": "Categorie toegevoegd.",
+          "updated": "Categorie bijgewerkt.",
+          "deleted": "Categorie verwijderd."
+        },
+        "picker": {
+          "label": "Categorie",
+          "none": "Geen categorie",
+          "placeholder": "Categorie selecteren",
+          "empty_hint": "Deze werkruimte heeft nog geen projectcategorieën.",
+          "manage_link": "Categorieën beheren"
+        }
       }
     },
     "empty_state": {

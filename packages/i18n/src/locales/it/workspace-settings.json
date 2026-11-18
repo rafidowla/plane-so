@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Approvazione settimanale",
           "billing_enabled": "Fatturazione"
         }
+      },
+      "project_categories": {
+        "title": "Categorie dei progetti",
+        "description": "Raggruppa i tuoi progetti in categorie. Solo gli admin del workspace possono aggiungerle, rinominarle o eliminarle.",
+        "add": "Aggiungi categoria",
+        "name_placeholder": "Nome della categoria",
+        "rename": "Rinomina",
+        "delete": "Elimina",
+        "save": "Salva",
+        "cancel": "Annulla",
+        "empty": "Ancora nessuna categoria. Aggiungine una per raggruppare i tuoi progetti.",
+        "load_failed": "Impossibile caricare le categorie. Riprova.",
+        "retry": "Riprova",
+        "name_required": "Inserisci il nome della categoria.",
+        "save_failed": "Impossibile salvare la categoria. Riprova.",
+        "delete_failed": "Impossibile eliminare la categoria. Riprova.",
+        "delete_title": "Elimina categoria",
+        "delete_message": "Eliminare la categoria «{name}»?",
+        "delete_impact": "{count, plural, one{# progetto resterà senza categoria.} other{# progetti resteranno senza categoria.}}",
+        "projects_count": "{count, plural, one{# progetto} other{# progetti}}",
+        "toast": {
+          "created": "Categoria aggiunta.",
+          "updated": "Categoria aggiornata.",
+          "deleted": "Categoria eliminata."
+        },
+        "picker": {
+          "label": "Categoria",
+          "none": "Nessuna categoria",
+          "placeholder": "Seleziona categoria",
+          "empty_hint": "Questo workspace non ha ancora categorie di progetti.",
+          "manage_link": "Gestisci categorie"
+        }
       }
     },
     "empty_state": {

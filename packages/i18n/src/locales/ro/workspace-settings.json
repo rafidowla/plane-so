@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Aprobare săptămânală",
           "billing_enabled": "Facturare"
         }
+      },
+      "project_categories": {
+        "title": "Categorii de proiecte",
+        "description": "Grupează-ți proiectele în categorii. Doar administratorii spațiului de lucru le pot adăuga, redenumi sau șterge.",
+        "add": "Adaugă categorie",
+        "name_placeholder": "Numele categoriei",
+        "rename": "Redenumește",
+        "delete": "Șterge",
+        "save": "Salvează",
+        "cancel": "Anulează",
+        "empty": "Nicio categorie încă. Adaugă una pentru a-ți grupa proiectele.",
+        "load_failed": "Categoriile nu au putut fi încărcate. Încearcă din nou.",
+        "retry": "Încearcă din nou",
+        "name_required": "Introdu un nume de categorie.",
+        "save_failed": "Categoria nu a putut fi salvată. Încearcă din nou.",
+        "delete_failed": "Categoria nu a putut fi ștearsă. Încearcă din nou.",
+        "delete_title": "Șterge categoria",
+        "delete_message": "Ștergi categoria „{name}”?",
+        "delete_impact": "{count, plural, one{# proiect va rămâne fără categorie.} few{# proiecte vor rămâne fără categorie.} other{# de proiecte vor rămâne fără categorie.}}",
+        "projects_count": "{count, plural, one{# proiect} few{# proiecte} other{# de proiecte}}",
+        "toast": {
+          "created": "Categorie adăugată.",
+          "updated": "Categorie actualizată.",
+          "deleted": "Categorie ștearsă."
+        },
+        "picker": {
+          "label": "Categorie",
+          "none": "Fără categorie",
+          "placeholder": "Selectează categoria",
+          "empty_hint": "Acest spațiu de lucru nu are încă categorii de proiecte.",
+          "manage_link": "Gestionează categoriile"
+        }
       }
     },
     "empty_state": {

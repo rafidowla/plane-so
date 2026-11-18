@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "每周审批",
           "billing_enabled": "计费"
         }
+      },
+      "project_categories": {
+        "title": "项目分类",
+        "description": "将项目按分类归组。只有工作区管理员可以添加、重命名或删除分类。",
+        "add": "添加分类",
+        "name_placeholder": "分类名称",
+        "rename": "重命名",
+        "delete": "删除",
+        "save": "保存",
+        "cancel": "取消",
+        "empty": "还没有分类。添加一个来为项目归组。",
+        "load_failed": "无法加载分类，请重试。",
+        "retry": "重试",
+        "name_required": "请输入分类名称。",
+        "save_failed": "无法保存分类，请重试。",
+        "delete_failed": "无法删除分类，请重试。",
+        "delete_title": "删除分类",
+        "delete_message": "要删除分类“{name}”吗?",
+        "delete_impact": "{count, plural, other{# 个项目将不再有分类。}}",
+        "projects_count": "{count, plural, other{# 个项目}}",
+        "toast": {
+          "created": "已添加分类。",
+          "updated": "已更新分类。",
+          "deleted": "已删除分类。"
+        },
+        "picker": {
+          "label": "分类",
+          "none": "无分类",
+          "placeholder": "选择分类",
+          "empty_hint": "此工作区还没有项目分类。",
+          "manage_link": "管理分类"
+        }
       }
     },
     "empty_state": {

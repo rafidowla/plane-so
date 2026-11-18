@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Phê duyệt hằng tuần",
           "billing_enabled": "Thanh toán"
         }
+      },
+      "project_categories": {
+        "title": "Danh mục dự án",
+        "description": "Nhóm các dự án của bạn theo danh mục. Chỉ quản trị viên không gian làm việc mới có thể thêm, đổi tên hoặc xóa danh mục.",
+        "add": "Thêm danh mục",
+        "name_placeholder": "Tên danh mục",
+        "rename": "Đổi tên",
+        "delete": "Xóa",
+        "save": "Lưu",
+        "cancel": "Hủy",
+        "empty": "Chưa có danh mục nào. Hãy thêm một danh mục để nhóm các dự án.",
+        "load_failed": "Không thể tải danh mục. Hãy thử lại.",
+        "retry": "Thử lại",
+        "name_required": "Nhập tên danh mục.",
+        "save_failed": "Không thể lưu danh mục. Hãy thử lại.",
+        "delete_failed": "Không thể xóa danh mục. Hãy thử lại.",
+        "delete_title": "Xóa danh mục",
+        "delete_message": "Xóa danh mục \"{name}\"?",
+        "delete_impact": "{count, plural, other{# dự án sẽ không còn danh mục.}}",
+        "projects_count": "{count, plural, other{# dự án}}",
+        "toast": {
+          "created": "Đã thêm danh mục.",
+          "updated": "Đã cập nhật danh mục.",
+          "deleted": "Đã xóa danh mục."
+        },
+        "picker": {
+          "label": "Danh mục",
+          "none": "Không có danh mục",
+          "placeholder": "Chọn danh mục",
+          "empty_hint": "Không gian làm việc này chưa có danh mục dự án nào.",
+          "manage_link": "Quản lý danh mục"
+        }
       }
     },
     "empty_state": {

@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Cotygodniowe zatwierdzanie",
           "billing_enabled": "Rozliczenia"
         }
+      },
+      "project_categories": {
+        "title": "Kategorie projektów",
+        "description": "Grupuj projekty w kategorie. Tylko administratorzy obszaru roboczego mogą je dodawać, zmieniać ich nazwy lub usuwać.",
+        "add": "Dodaj kategorię",
+        "name_placeholder": "Nazwa kategorii",
+        "rename": "Zmień nazwę",
+        "delete": "Usuń",
+        "save": "Zapisz",
+        "cancel": "Anuluj",
+        "empty": "Brak kategorii. Dodaj pierwszą, aby grupować projekty.",
+        "load_failed": "Nie udało się wczytać kategorii. Spróbuj ponownie.",
+        "retry": "Spróbuj ponownie",
+        "name_required": "Wpisz nazwę kategorii.",
+        "save_failed": "Nie udało się zapisać kategorii. Spróbuj ponownie.",
+        "delete_failed": "Nie udało się usunąć kategorii. Spróbuj ponownie.",
+        "delete_title": "Usuń kategorię",
+        "delete_message": "Usunąć kategorię „{name}”?",
+        "delete_impact": "{count, plural, one{# projekt zostanie bez kategorii.} few{# projekty zostaną bez kategorii.} many{# projektów zostanie bez kategorii.} other{# projektu zostanie bez kategorii.}}",
+        "projects_count": "{count, plural, one{# projekt} few{# projekty} many{# projektów} other{# projektu}}",
+        "toast": {
+          "created": "Dodano kategorię.",
+          "updated": "Zaktualizowano kategorię.",
+          "deleted": "Usunięto kategorię."
+        },
+        "picker": {
+          "label": "Kategoria",
+          "none": "Brak kategorii",
+          "placeholder": "Wybierz kategorię",
+          "empty_hint": "Ten obszar roboczy nie ma jeszcze kategorii projektów.",
+          "manage_link": "Zarządzaj kategoriami"
+        }
       }
     },
     "empty_state": {

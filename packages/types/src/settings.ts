@@ -16,7 +16,14 @@ export type TProfileSettingsTabs =
   | "api-tokens"
   | "deleted-workspaces"; // FORK: PSR-125
 
-export type TWorkspaceSettingsTabs = "general" | "members" | "billing-and-plans" | "export" | "webhooks" | "audit-log"; // FORK: PSR-125
+export type TWorkspaceSettingsTabs =
+  | "general"
+  | "members"
+  | "billing-and-plans"
+  | "export"
+  | "webhooks"
+  | "audit-log" // FORK: PSR-125
+  | "project-categories"; // FORK: PSR-123
 export type TWorkspaceSettingsItem = {
   key: TWorkspaceSettingsTabs;
   i18n_label: string;

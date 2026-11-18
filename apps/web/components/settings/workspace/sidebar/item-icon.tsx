@@ -5,6 +5,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
+import { Tags } from "lucide-react"; // FORK: PSR-123
 import {
   AuditLogsOutline,
   BillingsOutline,
@@ -24,4 +25,5 @@ export const WORKSPACE_SETTINGS_ICONS: Record<TWorkspaceSettingsTabs, LucideIcon
   "billing-and-plans": BillingsOutline,
   webhooks: WebhooksOutline,
   "audit-log": AuditLogsOutline, // FORK: PSR-125
+  "project-categories": Tags, // FORK: PSR-123
 };

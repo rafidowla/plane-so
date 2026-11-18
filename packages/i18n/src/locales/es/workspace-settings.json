@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Aprobación semanal",
           "billing_enabled": "Facturación"
         }
+      },
+      "project_categories": {
+        "title": "Categorías de proyectos",
+        "description": "Agrupa tus proyectos en categorías. Solo los administradores del espacio de trabajo pueden añadirlas, renombrarlas o eliminarlas.",
+        "add": "Añadir categoría",
+        "name_placeholder": "Nombre de la categoría",
+        "rename": "Renombrar",
+        "delete": "Eliminar",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "empty": "Aún no hay categorías. Añade una para agrupar tus proyectos.",
+        "load_failed": "No se pudieron cargar las categorías. Inténtalo de nuevo.",
+        "retry": "Reintentar",
+        "name_required": "Introduce un nombre de categoría.",
+        "save_failed": "No se pudo guardar la categoría. Inténtalo de nuevo.",
+        "delete_failed": "No se pudo eliminar la categoría. Inténtalo de nuevo.",
+        "delete_title": "Eliminar categoría",
+        "delete_message": "¿Eliminar la categoría «{name}»?",
+        "delete_impact": "{count, plural, one{# proyecto se quedará sin categoría.} other{# proyectos se quedarán sin categoría.}}",
+        "projects_count": "{count, plural, one{# proyecto} other{# proyectos}}",
+        "toast": {
+          "created": "Categoría añadida.",
+          "updated": "Categoría actualizada.",
+          "deleted": "Categoría eliminada."
+        },
+        "picker": {
+          "label": "Categoría",
+          "none": "Sin categoría",
+          "placeholder": "Seleccionar categoría",
+          "empty_hint": "Este espacio de trabajo aún no tiene categorías de proyectos.",
+          "manage_link": "Gestionar categorías"
+        }
       }
     },
     "empty_state": {

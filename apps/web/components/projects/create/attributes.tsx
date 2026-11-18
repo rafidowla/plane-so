@@ -14,14 +14,16 @@ import type { IProject } from "@plane/types";
 import { getTabIndex } from "@plane/utils";
 // components
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
+import { ProjectCategorySelect } from "@/components/project/category-select"; // FORK: PSR-123
 import { ProjectNetworkIcon } from "@/components/project/project-network-icon";
 
 type Props = {
   isMobile?: boolean;
+  workspaceSlug?: string; // FORK: PSR-123 -- enables the category picker
 };
 
 function ProjectAttributes(props: Props) {
-  const { isMobile = false } = props;
+  const { isMobile = false, workspaceSlug } = props;
   const { t } = useTranslation();
   const { control } = useFormContext<IProject>();
   const { getIndex } = getTabIndex(ETabIndices.PROJECT_CREATE, isMobile);
@@ -83,6 +85,16 @@ function ProjectAttributes(props: Props) {
           else return <></>;
         }}
       />
+      {/* FORK: PSR-123 -- optional category */}
+      {workspaceSlug && (
+        <Controller
+          name="category_id"
+          control={control}
+          render={({ field: { value, onChange } }) => (
+            <ProjectCategorySelect workspaceSlug={workspaceSlug} value={value} onChange={onChange} variant="pill-md" />
+          )}
+        />
+      )}
     </div>
   );
 }

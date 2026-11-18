@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Weekly approval",
           "billing_enabled": "Billing"
         }
+      },
+      "project_categories": {
+        "title": "Project categories",
+        "description": "Group your projects into categories. Only workspace admins can add, rename or delete them.",
+        "add": "Add category",
+        "name_placeholder": "Category name",
+        "rename": "Rename",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel",
+        "empty": "No categories yet. Add one to group your projects.",
+        "load_failed": "Couldn't load categories. Try again.",
+        "retry": "Retry",
+        "name_required": "Enter a category name.",
+        "save_failed": "Couldn't save the category. Try again.",
+        "delete_failed": "Couldn't delete the category. Try again.",
+        "delete_title": "Delete category",
+        "delete_message": "Delete the category \"{name}\"?",
+        "delete_impact": "{count, plural, one{# project will have no category.} other{# projects will have no category.}}",
+        "projects_count": "{count, plural, one{# project} other{# projects}}",
+        "toast": {
+          "created": "Category added.",
+          "updated": "Category updated.",
+          "deleted": "Category deleted."
+        },
+        "picker": {
+          "label": "Category",
+          "none": "No category",
+          "placeholder": "Select category",
+          "empty_hint": "This workspace has no project categories yet.",
+          "manage_link": "Manage categories"
+        }
       }
     },
     "empty_state": {

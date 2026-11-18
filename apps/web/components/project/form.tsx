@@ -33,6 +33,7 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 // services
 import { ProjectService } from "@/services/project";
 // local imports
+import { ProjectCategorySelect } from "./category-select"; // FORK: PSR-123
 import { ProjectNetworkIcon } from "./project-network-icon";
 
 export interface IProjectDetailsForm {
@@ -100,6 +101,7 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
           title: t("toast.success"),
           message: t("project_settings.general.toast.success"),
         });
+        return null;
       })
       .catch((err) => {
         try {
@@ -164,6 +166,7 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
 
       logo_props: formData.logo_props,
       timezone: formData.timezone,
+      category_id: formData.category_id ?? null, // FORK: PSR-123
     };
 
     // Handle cover image changes
@@ -195,6 +198,7 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
         .then(async (res) => {
           if (res.exists) setError("identifier", { message: t("common.identifier_already_exists") });
           else await handleUpdateChange(payload);
+          return null;
         });
     else await handleUpdateChange(payload);
     setTimeout(() => {
@@ -428,6 +432,23 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
               }}
             />
           </div>
+          {/* FORK: PSR-123 -- optional category */}
+          <div className="flex flex-col gap-1">
+            <h4 className="text-13">{t("workspace_settings.settings.project_categories.picker.label")}</h4>
+            <Controller
+              name="category_id"
+              control={control}
+              render={({ field: { value, onChange } }) => (
+                <ProjectCategorySelect
+                  workspaceSlug={workspaceSlug}
+                  value={value}
+                  onChange={onChange}
+                  variant="select-lg"
+                  disabled={!isAdmin}
+                />
+              )}
+            />
+          </div>
           <div className="col-span-1 flex flex-col gap-1 sm:col-span-2 xl:col-span-1">
             <h4 className="text-13">{t("common.project_timezone")}</h4>
             <Controller
@@ -438,8 +459,8 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
                 <>
                   <TimezoneSelect
                     value={value}
-                    onChange={(value: string) => {
-                      onChange(value);
+                    onChange={(timezone: string) => {
+                      onChange(timezone);
                     }}
                     error={Boolean(errors.timezone)}
                     buttonClassName="!border-subtle !shadow-none font-medium rounded-md"

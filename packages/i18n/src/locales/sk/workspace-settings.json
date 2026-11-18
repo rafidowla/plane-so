@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Týždenné schvaľovanie",
           "billing_enabled": "Fakturácia"
         }
+      },
+      "project_categories": {
+        "title": "Kategórie projektov",
+        "description": "Zoskupte svoje projekty do kategórií. Pridávať, premenovávať a odstraňovať ich môžu iba správcovia pracovného priestoru.",
+        "add": "Pridať kategóriu",
+        "name_placeholder": "Názov kategórie",
+        "rename": "Premenovať",
+        "delete": "Odstrániť",
+        "save": "Uložiť",
+        "cancel": "Zrušiť",
+        "empty": "Zatiaľ žiadne kategórie. Pridajte prvú a zoskupte svoje projekty.",
+        "load_failed": "Kategórie sa nepodarilo načítať. Skúste to znova.",
+        "retry": "Skúsiť znova",
+        "name_required": "Zadajte názov kategórie.",
+        "save_failed": "Kategóriu sa nepodarilo uložiť. Skúste to znova.",
+        "delete_failed": "Kategóriu sa nepodarilo odstrániť. Skúste to znova.",
+        "delete_title": "Odstrániť kategóriu",
+        "delete_message": "Odstrániť kategóriu „{name}“?",
+        "delete_impact": "{count, plural, one{# projekt zostane bez kategórie.} few{# projekty zostanú bez kategórie.} other{# projektov zostane bez kategórie.}}",
+        "projects_count": "{count, plural, one{# projekt} few{# projekty} other{# projektov}}",
+        "toast": {
+          "created": "Kategória bola pridaná.",
+          "updated": "Kategória bola aktualizovaná.",
+          "deleted": "Kategória bola odstránená."
+        },
+        "picker": {
+          "label": "Kategória",
+          "none": "Bez kategórie",
+          "placeholder": "Vyberte kategóriu",
+          "empty_hint": "Tento pracovný priestor zatiaľ nemá žiadne kategórie projektov.",
+          "manage_link": "Spravovať kategórie"
+        }
       }
     },
     "empty_state": {

@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Persetujuan mingguan",
           "billing_enabled": "Penagihan"
         }
+      },
+      "project_categories": {
+        "title": "Kategori proyek",
+        "description": "Kelompokkan proyek Anda ke dalam kategori. Hanya admin ruang kerja yang dapat menambah, mengganti nama, atau menghapusnya.",
+        "add": "Tambah kategori",
+        "name_placeholder": "Nama kategori",
+        "rename": "Ganti nama",
+        "delete": "Hapus",
+        "save": "Simpan",
+        "cancel": "Batal",
+        "empty": "Belum ada kategori. Tambahkan satu untuk mengelompokkan proyek Anda.",
+        "load_failed": "Gagal memuat kategori. Coba lagi.",
+        "retry": "Coba lagi",
+        "name_required": "Masukkan nama kategori.",
+        "save_failed": "Gagal menyimpan kategori. Coba lagi.",
+        "delete_failed": "Gagal menghapus kategori. Coba lagi.",
+        "delete_title": "Hapus kategori",
+        "delete_message": "Hapus kategori \"{name}\"?",
+        "delete_impact": "{count, plural, other{# proyek tidak akan memiliki kategori.}}",
+        "projects_count": "{count, plural, other{# proyek}}",
+        "toast": {
+          "created": "Kategori ditambahkan.",
+          "updated": "Kategori diperbarui.",
+          "deleted": "Kategori dihapus."
+        },
+        "picker": {
+          "label": "Kategori",
+          "none": "Tanpa kategori",
+          "placeholder": "Pilih kategori",
+          "empty_hint": "Ruang kerja ini belum memiliki kategori proyek.",
+          "manage_link": "Kelola kategori"
+        }
       }
     },
     "empty_state": {

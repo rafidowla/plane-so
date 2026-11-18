@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Haftalık onay",
           "billing_enabled": "Faturalandırma"
         }
+      },
+      "project_categories": {
+        "title": "Proje kategorileri",
+        "description": "Projelerinizi kategorilere ayırın. Kategorileri yalnızca çalışma alanı yöneticileri ekleyebilir, yeniden adlandırabilir veya silebilir.",
+        "add": "Kategori ekle",
+        "name_placeholder": "Kategori adı",
+        "rename": "Yeniden adlandır",
+        "delete": "Sil",
+        "save": "Kaydet",
+        "cancel": "İptal",
+        "empty": "Henüz kategori yok. Projelerinizi gruplamak için bir tane ekleyin.",
+        "load_failed": "Kategoriler yüklenemedi. Tekrar deneyin.",
+        "retry": "Tekrar dene",
+        "name_required": "Bir kategori adı girin.",
+        "save_failed": "Kategori kaydedilemedi. Tekrar deneyin.",
+        "delete_failed": "Kategori silinemedi. Tekrar deneyin.",
+        "delete_title": "Kategoriyi sil",
+        "delete_message": "“{name}” kategorisi silinsin mi?",
+        "delete_impact": "{count, plural, one{# proje kategorisiz kalacak.} other{# proje kategorisiz kalacak.}}",
+        "projects_count": "{count, plural, one{# proje} other{# proje}}",
+        "toast": {
+          "created": "Kategori eklendi.",
+          "updated": "Kategori güncellendi.",
+          "deleted": "Kategori silindi."
+        },
+        "picker": {
+          "label": "Kategori",
+          "none": "Kategori yok",
+          "placeholder": "Kategori seç",
+          "empty_hint": "Bu çalışma alanında henüz proje kategorisi yok.",
+          "manage_link": "Kategorileri yönet"
+        }
       }
     },
     "empty_state": {

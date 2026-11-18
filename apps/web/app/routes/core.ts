@@ -290,6 +290,11 @@ export const coreRoutes: RouteConfigEntry[] = [
             ":workspaceSlug/settings/webhooks/:webhookId",
             "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/webhooks/[webhookId]/page.tsx"
           ),
+          // FORK: PSR-123
+          route(
+            ":workspaceSlug/settings/project-categories",
+            "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/project-categories/page.tsx"
+          ),
           // FORK: PSR-125
           route(
             ":workspaceSlug/settings/audit-log",

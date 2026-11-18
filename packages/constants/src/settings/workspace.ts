@@ -71,6 +71,14 @@ export const WORKSPACE_SETTINGS: Record<TWorkspaceSettingsTabs, TWorkspaceSettin
     superAdminOnly: true,
     highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/settings/audit-log/`,
   },
+  // FORK: PSR-123 -- workspace admins manage the categories projects can be filed under.
+  "project-categories": {
+    key: "project-categories",
+    i18n_label: "workspace_settings.settings.project_categories.title",
+    href: `/settings/project-categories`,
+    access: [EUserWorkspaceRoles.ADMIN],
+    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/settings/project-categories/`,
+  },
 };
 
 export const WORKSPACE_SETTINGS_ACCESS = Object.fromEntries(
@@ -83,6 +91,7 @@ export const GROUPED_WORKSPACE_SETTINGS: Record<WORKSPACE_SETTINGS_CATEGORY, TWo
     WORKSPACE_SETTINGS["members"],
     WORKSPACE_SETTINGS["billing-and-plans"],
     WORKSPACE_SETTINGS["export"],
+    WORKSPACE_SETTINGS["project-categories"], // FORK: PSR-123
     WORKSPACE_SETTINGS["audit-log"], // FORK: PSR-125
   ],
   [WORKSPACE_SETTINGS_CATEGORY.FEATURES]: [],

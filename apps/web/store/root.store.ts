@@ -27,6 +27,9 @@ import { CustomPropertiesStore, PropertyValuesStore } from "@/plane-web/store/cu
 // FORK: custom-dashboards
 import type { ICustomDashboardsStore } from "@/plane-web/store/custom-dashboards";
 import { CustomDashboardsStore } from "@/plane-web/store/custom-dashboards";
+// FORK: PSR-123
+import type { IProjectCategoryStore } from "@/plane-web/store/project-category";
+import { ProjectCategoryStore } from "@/plane-web/store/project-category";
 // stores
 import type { ICycleStore } from "./cycle.store";
 import { CycleStore } from "./cycle.store";
@@ -112,6 +115,7 @@ export class CoreRootStore {
   customProperties: ICustomPropertiesStore; // FORK: custom-properties
   propertyValues: IPropertyValuesStore; // FORK: custom-properties
   customDashboards: ICustomDashboardsStore; // FORK: custom-dashboards
+  projectCategory: IProjectCategoryStore; // FORK: PSR-123
 
   constructor() {
     this.router = new RouterStore();
@@ -147,6 +151,7 @@ export class CoreRootStore {
     this.customProperties = new CustomPropertiesStore(this); // FORK: custom-properties
     this.propertyValues = new PropertyValuesStore(this); // FORK: custom-properties
     this.customDashboards = new CustomDashboardsStore(this); // FORK: custom-dashboards
+    this.projectCategory = new ProjectCategoryStore(this); // FORK: PSR-123
   }
 
   resetOnSignOut() {
@@ -184,6 +189,7 @@ export class CoreRootStore {
     this.customProperties = new CustomPropertiesStore(this); // FORK: custom-properties
     this.propertyValues = new PropertyValuesStore(this); // FORK: custom-properties
     this.customDashboards = new CustomDashboardsStore(this); // FORK: custom-dashboards
+    this.projectCategory = new ProjectCategoryStore(this); // FORK: PSR-123
   }
 }
 

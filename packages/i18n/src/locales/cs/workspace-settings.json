@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "Týdenní schvalování",
           "billing_enabled": "Fakturace"
         }
+      },
+      "project_categories": {
+        "title": "Kategorie projektů",
+        "description": "Seskupte své projekty do kategorií. Přidávat, přejmenovávat a mazat je mohou jen správci pracovního prostoru.",
+        "add": "Přidat kategorii",
+        "name_placeholder": "Název kategorie",
+        "rename": "Přejmenovat",
+        "delete": "Smazat",
+        "save": "Uložit",
+        "cancel": "Zrušit",
+        "empty": "Zatím žádné kategorie. Přidejte první a seskupte své projekty.",
+        "load_failed": "Kategorie se nepodařilo načíst. Zkuste to znovu.",
+        "retry": "Zkusit znovu",
+        "name_required": "Zadejte název kategorie.",
+        "save_failed": "Kategorii se nepodařilo uložit. Zkuste to znovu.",
+        "delete_failed": "Kategorii se nepodařilo smazat. Zkuste to znovu.",
+        "delete_title": "Smazat kategorii",
+        "delete_message": "Smazat kategorii „{name}“?",
+        "delete_impact": "{count, plural, one{# projekt zůstane bez kategorie.} few{# projekty zůstanou bez kategorie.} other{# projektů zůstane bez kategorie.}}",
+        "projects_count": "{count, plural, one{# projekt} few{# projekty} other{# projektů}}",
+        "toast": {
+          "created": "Kategorie byla přidána.",
+          "updated": "Kategorie byla aktualizována.",
+          "deleted": "Kategorie byla smazána."
+        },
+        "picker": {
+          "label": "Kategorie",
+          "none": "Bez kategorie",
+          "placeholder": "Vyberte kategorii",
+          "empty_hint": "Tento pracovní prostor zatím nemá žádné kategorie projektů.",
+          "manage_link": "Spravovat kategorie"
+        }
       }
     },
     "empty_state": {

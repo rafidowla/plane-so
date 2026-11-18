@@ -193,7 +193,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
             shouldAutoSyncIdentifier={shouldAutoSyncIdentifier}
             setShouldAutoSyncIdentifier={setShouldAutoSyncIdentifier}
           />
-          <ProjectAttributes isMobile={isMobile} />
+          <ProjectAttributes isMobile={isMobile} workspaceSlug={workspaceSlug.toString()} />
         </div>
         <ProjectCreateButtons handleClose={handleClose} />
       </form>

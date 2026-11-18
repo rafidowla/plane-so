@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "週次承認",
           "billing_enabled": "請求"
         }
+      },
+      "project_categories": {
+        "title": "プロジェクトカテゴリ",
+        "description": "プロジェクトをカテゴリごとにまとめます。カテゴリの追加・名前変更・削除ができるのはワークスペース管理者のみです。",
+        "add": "カテゴリを追加",
+        "name_placeholder": "カテゴリ名",
+        "rename": "名前を変更",
+        "delete": "削除",
+        "save": "保存",
+        "cancel": "キャンセル",
+        "empty": "カテゴリはまだありません。追加してプロジェクトをまとめましょう。",
+        "load_failed": "カテゴリを読み込めませんでした。もう一度お試しください。",
+        "retry": "再試行",
+        "name_required": "カテゴリ名を入力してください。",
+        "save_failed": "カテゴリを保存できませんでした。もう一度お試しください。",
+        "delete_failed": "カテゴリを削除できませんでした。もう一度お試しください。",
+        "delete_title": "カテゴリを削除",
+        "delete_message": "カテゴリ「{name}」を削除しますか?",
+        "delete_impact": "{count, plural, other{#件のプロジェクトはカテゴリなしになります。}}",
+        "projects_count": "{count, plural, other{#件のプロジェクト}}",
+        "toast": {
+          "created": "カテゴリを追加しました。",
+          "updated": "カテゴリを更新しました。",
+          "deleted": "カテゴリを削除しました。"
+        },
+        "picker": {
+          "label": "カテゴリ",
+          "none": "カテゴリなし",
+          "placeholder": "カテゴリを選択",
+          "empty_hint": "このワークスペースにはまだプロジェクトカテゴリがありません。",
+          "manage_link": "カテゴリを管理"
+        }
       }
     },
     "empty_state": {

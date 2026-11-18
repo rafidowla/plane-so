@@ -543,6 +543,38 @@
           "weekly_approval_enabled": "每週審核",
           "billing_enabled": "計費"
         }
+      },
+      "project_categories": {
+        "title": "專案分類",
+        "description": "將專案依分類歸組。只有工作區管理員可以新增、重新命名或刪除分類。",
+        "add": "新增分類",
+        "name_placeholder": "分類名稱",
+        "rename": "重新命名",
+        "delete": "刪除",
+        "save": "儲存",
+        "cancel": "取消",
+        "empty": "尚無分類。新增一個來為專案歸組。",
+        "load_failed": "無法載入分類，請再試一次。",
+        "retry": "重試",
+        "name_required": "請輸入分類名稱。",
+        "save_failed": "無法儲存分類，請再試一次。",
+        "delete_failed": "無法刪除分類，請再試一次。",
+        "delete_title": "刪除分類",
+        "delete_message": "要刪除分類「{name}」嗎?",
+        "delete_impact": "{count, plural, other{# 個專案將不再有分類。}}",
+        "projects_count": "{count, plural, other{# 個專案}}",
+        "toast": {
+          "created": "已新增分類。",
+          "updated": "已更新分類。",
+          "deleted": "已刪除分類。"
+        },
+        "picker": {
+          "label": "分類",
+          "none": "無分類",
+          "placeholder": "選擇分類",
+          "empty_hint": "此工作區尚無專案分類。",
+          "manage_link": "管理分類"
+        }
       }
     },
     "empty_state": {

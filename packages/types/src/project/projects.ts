@@ -40,6 +40,8 @@ export interface IPartialProject {
   created_by?: string;
   updated_by?: string;
   intake_count?: number;
+  // FORK: PSR-123 -- optional workspace-level project category (null = no category)
+  category_id?: string | null;
 }
 
 export interface IProject extends IPartialProject {
@@ -173,6 +175,14 @@ export interface ISearchIssueResponse {
   workspace__slug: string;
   type_id: string;
 }
+
+// FORK: PSR-123 -- workspace-level project category (project_count is the number of projects using it)
+export type TProjectCategory = {
+  id: string;
+  name: string;
+  sort_order: number;
+  project_count: number;
+};
 
 export type TPartialProject = IPartialProject;
 

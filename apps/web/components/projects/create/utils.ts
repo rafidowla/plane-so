@@ -21,4 +21,5 @@ export const getProjectFormValues = (): Partial<IProject> => ({
   name: "",
   network: 2,
   project_lead: null,
+  category_id: null, // FORK: PSR-123
 });
