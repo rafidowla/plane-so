@@ -255,6 +255,7 @@
       "favorite_remove": "რჩეულებიდან ამოშლა",
       "all_categories": "ყველა კატეგორია",
       "no_category": "კატეგორიის გარეშე",
+      "unknown_category": "უცნობი კატეგორია",
       "filter_category": "კატეგორია"
     }
   },

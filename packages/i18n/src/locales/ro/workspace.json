@@ -255,6 +255,7 @@
       "favorite_remove": "Elimină din favorite",
       "all_categories": "Toate categoriile",
       "no_category": "Fără categorie",
+      "unknown_category": "Categorie necunoscută",
       "filter_category": "Categorie"
     }
   },

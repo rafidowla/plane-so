@@ -255,6 +255,7 @@
       "favorite_remove": "Odebrat z oblíbených",
       "all_categories": "Všechny kategorie",
       "no_category": "Bez kategorie",
+      "unknown_category": "Neznámá kategorie",
       "filter_category": "Kategorie"
     }
   },

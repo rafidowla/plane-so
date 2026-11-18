@@ -16,20 +16,26 @@ from rest_framework.response import Response
 # Module imports
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.views.base import BaseAPIView
-from plane.db.models import Project, ProjectCategory, Workspace
+from plane.db.models import Project, ProjectCategory, Workspace, WorkspaceMember
 
 DUPLICATE_MESSAGE = "A category with this name already exists in this workspace."
 
 
-def _serialize(category, project_count=None):
-    if project_count is None:
-        project_count = Project.objects.filter(category=category, archived_at__isnull=True).count()
-    return {
+def _count_affected_projects(category):
+    """Projects a category delete would clear: every live project, archived ones included."""
+    return Project.all_objects.filter(category=category, deleted_at__isnull=True).count()
+
+
+def _serialize(category, project_count=None, include_count=True):
+    data = {
         "id": category.id,
         "name": category.name,
         "sort_order": category.sort_order,
-        "project_count": project_count,
     }
+    # project_count is admin-only: for other roles it would leak how many (possibly private) projects use it.
+    if include_count:
+        data["project_count"] = _count_affected_projects(category) if project_count is None else project_count
+    return data
 
 
 def _clean_payload(data, require_name):
@@ -63,18 +69,20 @@ class ProjectCategoryEndpoint(BaseAPIView):
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def get(self, request, slug):
-        categories = (
-            ProjectCategory.objects.filter(workspace__slug=slug)
-            .annotate(
-                project_count=Count(
-                    "projects",
-                    filter=Q(projects__archived_at__isnull=True, projects__deleted_at__isnull=True),
-                )
+        is_admin = WorkspaceMember.objects.filter(
+            workspace__slug=slug, member=request.user, role=ROLE.ADMIN.value, is_active=True
+        ).exists()
+        categories = ProjectCategory.objects.filter(workspace__slug=slug)
+        if is_admin:
+            categories = categories.annotate(
+                project_count=Count("projects", filter=Q(projects__deleted_at__isnull=True))
             )
-            .order_by("sort_order", "name")
-        )
+        categories = categories.order_by("sort_order", "name")
         return Response(
-            [_serialize(c, c.project_count) for c in categories],
+            [
+                _serialize(c, c.project_count if is_admin else None, include_count=is_admin)
+                for c in categories
+            ],
             status=status.HTTP_200_OK,
         )
 

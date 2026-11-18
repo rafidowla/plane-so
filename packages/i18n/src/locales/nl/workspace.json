@@ -255,6 +255,7 @@
       "favorite_remove": "Verwijderen uit favorieten",
       "all_categories": "Alle categorieën",
       "no_category": "Geen categorie",
+      "unknown_category": "Onbekende categorie",
       "filter_category": "Categorie"
     }
   },

@@ -255,6 +255,7 @@
       "favorite_remove": "Favorilerden kaldır",
       "all_categories": "Tüm kategoriler",
       "no_category": "Kategorisiz",
+      "unknown_category": "Bilinmeyen kategori",
       "filter_category": "Kategori"
     }
   },

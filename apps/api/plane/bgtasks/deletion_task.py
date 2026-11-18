@@ -52,6 +52,11 @@ def soft_delete_related_objects(app_label, model_name, instance_pk, using=None):
             continue
 
         elif on_delete_name == "SET_NULL":
+            # FORK: PSR-123 -- a ProjectCategory's projects stay live; the category delete view clears
+            # Project.category synchronously. Doing it here too would also wipe categories when a workspace
+            # delete cascades into them, and restore_workspace_tree cannot bring the cleared FKs back.
+            if app_label == "db" and model_name == "projectcategory":
+                continue
             # Handle SET_NULL relationships
             if isinstance(relation, OneToOneRel):
                 # For OneToOne relationships

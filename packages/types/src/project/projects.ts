@@ -176,12 +176,12 @@ export interface ISearchIssueResponse {
   type_id: string;
 }
 
-// FORK: PSR-123 -- workspace-level project category (project_count is the number of projects using it)
+// FORK: PSR-123 -- workspace-level project category (project_count is admin-only: the number of live projects a delete would clear)
 export type TProjectCategory = {
   id: string;
   name: string;
   sort_order: number;
-  project_count: number;
+  project_count?: number;
 };
 
 export type TPartialProject = IPartialProject;

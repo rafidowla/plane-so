@@ -255,6 +255,7 @@
       "favorite_remove": "从收藏中移除",
       "all_categories": "所有分类",
       "no_category": "无分类",
+      "unknown_category": "未知分类",
       "filter_category": "分类"
     }
   },

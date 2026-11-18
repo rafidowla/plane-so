@@ -255,6 +255,7 @@
       "favorite_remove": "Премахване от любими",
       "all_categories": "Всички категории",
       "no_category": "Без категория",
+      "unknown_category": "Неизвестна категория",
       "filter_category": "Категория"
     }
   },

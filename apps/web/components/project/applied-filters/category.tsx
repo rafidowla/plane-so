@@ -22,7 +22,7 @@ export const AppliedCategoryFilters = observer(function AppliedCategoryFilters(p
   const { handleRemove, values, editable } = props;
   const { t } = useTranslation();
   const { getCategoryById } = useProjectCategory();
-  // the category list may not be loaded yet; skip chips we cannot name rather than showing an id
+  // an id we cannot name (deleted, or list not loaded) still gets a chip so it can be removed
 
   return (
     <>
@@ -30,8 +30,7 @@ export const AppliedCategoryFilters = observer(function AppliedCategoryFilters(p
         const label =
           value === PROJECT_NO_CATEGORY_FILTER
             ? t("workspace_projects.list_view.no_category")
-            : getCategoryById(value)?.name;
-        if (!label) return null;
+            : (getCategoryById(value)?.name ?? t("workspace_projects.list_view.unknown_category"));
         return (
           <div key={value} className="flex items-center gap-1 rounded-sm bg-layer-1 px-1.5 py-1 text-11">
             <span className="normal-case">{label}</span>

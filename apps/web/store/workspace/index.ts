@@ -18,6 +18,7 @@ import type {
 import { WorkspaceService } from "@/services/workspace.service";
 import type { TWorkspaceDeleteConfirmation } from "@/services/workspace.service"; // FORK: PSR-125
 import { mergeWorkspaceUserProperties } from "@/plane-web/helpers/workspace-user-properties"; // FORK: PSR-123
+import { createLatestRequestTracker } from "@/plane-web/store/workspace/latest-request"; // FORK: PSR-123
 // store
 import type { CoreRootStore } from "@/store/root.store";
 // sub-stores
@@ -78,6 +79,8 @@ export class BaseWorkspaceRootStore implements IWorkspaceRootStore {
   workspaces: Record<string, IWorkspace> = {};
   navigationPreferencesMap: Record<string, IWorkspaceSidebarNavigation> = {};
   projectNavigationPreferencesMap: Record<string, IWorkspaceUserPropertiesResponse> = {};
+  // FORK: PSR-123 -- guards the optimistic rollback in updateProjectNavigationPreferences
+  private projectNavigationPreferencesRequests = createLatestRequestTracker();
   // services
   workspaceService;
   // root store
@@ -357,6 +360,8 @@ export class BaseWorkspaceRootStore implements IWorkspaceRootStore {
     data: Partial<IWorkspaceUserPropertiesResponse>
   ) => {
     const beforeUpdateData = clone(this.projectNavigationPreferencesMap[workspaceSlug]);
+    // FORK: PSR-123 -- only the latest call's failure may roll back, so a fast double toggle cannot restore a stale state
+    const requestId = this.projectNavigationPreferencesRequests.begin(workspaceSlug);
 
     try {
       // Optimistically update store
@@ -371,10 +376,12 @@ export class BaseWorkspaceRootStore implements IWorkspaceRootStore {
       // Call API to persist changes
       await this.workspaceService.patchWorkspaceFilters(workspaceSlug, data);
     } catch (error) {
-      // Rollback on failure
-      runInAction(() => {
-        this.projectNavigationPreferencesMap[workspaceSlug] = beforeUpdateData;
-      });
+      // Rollback on failure (FORK: PSR-123 -- latest call only)
+      if (this.projectNavigationPreferencesRequests.isLatest(workspaceSlug, requestId)) {
+        runInAction(() => {
+          this.projectNavigationPreferencesMap[workspaceSlug] = beforeUpdateData;
+        });
+      }
       console.error("Failed to update project navigation preferences:", error);
       throw error;
     }

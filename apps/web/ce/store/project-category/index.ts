@@ -160,6 +160,13 @@ export class ProjectCategoryStore implements IProjectCategoryStore {
       Object.values(this.rootStore.projectRoot.project.projectMap).forEach((project) => {
         if (project.category_id === categoryId) project.category_id = null;
       });
+      // an applied filter on the deleted category would silently empty the list; drop it (via the root store
+      // to avoid a circular import)
+      const projectFilter = this.rootStore.projectRoot.projectFilter;
+      const applied = projectFilter.getFiltersByWorkspaceSlug(workspaceSlug)?.category;
+      if (applied?.includes(categoryId)) {
+        projectFilter.updateFilters(workspaceSlug, { category: applied.filter((id) => id !== categoryId) });
+      }
     });
   };
 }

@@ -36,12 +36,10 @@ export const ProjectCategorySelect = observer(function ProjectCategorySelect(pro
   const { t } = useTranslation();
   const { fetchCategories, getCategoriesForWorkspace, getCategoryById, isFetched } = useProjectCategory();
   const { allowPermissions } = useUserPermissions();
-  // lazy load: only fetch the first time a form needs the list
-  useSWR(
-    workspaceSlug && !isFetched(workspaceSlug) ? `PROJECT_CATEGORIES_${workspaceSlug}` : null,
-    () => fetchCategories(workspaceSlug),
-    { revalidateOnFocus: false }
-  );
+  // FORK: PSR-123 -- revalidates on mount so category edits made elsewhere show up (SWR dedupes concurrent calls)
+  useSWR(workspaceSlug ? `PROJECT_CATEGORIES_${workspaceSlug}` : null, () => fetchCategories(workspaceSlug), {
+    revalidateOnFocus: false,
+  });
   // derived values
   const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
   const categories = getCategoriesForWorkspace(workspaceSlug);

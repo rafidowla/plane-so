@@ -22,6 +22,7 @@ from plane.db.models import (
     Issue,
     Profile,
     Project,
+    ProjectCategory,
     ProjectIdentifier,
     ProjectMember,
     State,
@@ -330,6 +331,22 @@ def test_restore_brings_back_only_what_the_delete_took(session_client, workspace
     # And the workspace shows up for the user again.
     slugs = [w["slug"] for w in session_client.get("/api/users/me/workspaces/").data]
     assert "test-workspace" in slugs
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_restore_keeps_project_categories(session_client, workspace, populated):
+    # FORK: PSR-123 -- the workspace cascade must not clear Project.category on still-live projects
+    category = ProjectCategory.objects.create(workspace=workspace, name="Cat")
+    Project.objects.filter(pk=populated["project"].pk).update(category=category)
+    _soft_delete_via_api(session_client, workspace)
+    assert ProjectCategory.all_objects.get(pk=category.pk).deleted_at is not None
+    assert Project.all_objects.get(pk=populated["project"].pk).category_id == category.pk
+
+    response = session_client.post(f"/api/users/me/deleted-workspaces/{workspace.id}/restore/", format="json")
+    assert response.status_code == status.HTTP_200_OK, response.data
+    assert ProjectCategory.objects.filter(pk=category.pk).exists()
+    assert Project.objects.get(pk=populated["project"].pk).category_id == category.pk
 
 
 @pytest.mark.contract

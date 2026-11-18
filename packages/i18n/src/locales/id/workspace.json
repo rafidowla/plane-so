@@ -255,6 +255,7 @@
       "favorite_remove": "Hapus dari favorit",
       "all_categories": "Semua kategori",
       "no_category": "Tanpa kategori",
+      "unknown_category": "Kategori tidak dikenal",
       "filter_category": "Kategori"
     }
   },

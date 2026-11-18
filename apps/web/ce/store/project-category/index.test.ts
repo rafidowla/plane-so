@@ -35,9 +35,16 @@ const cat = (id: string, name: string, sort_order = 0, project_count = 0): TProj
 
 const makeStore = (projects: Record<string, { category_id: string | null }> = {}) => {
   const projectMap = observable(projects);
-  const root = { projectRoot: { project: { projectMap } } };
+  const filters = observable<Record<string, { category?: string[] }>>({});
+  const projectFilter = {
+    getFiltersByWorkspaceSlug: (slug: string) => filters[slug],
+    updateFilters: (slug: string, next: { category?: string[] }) => {
+      filters[slug] = { ...filters[slug], ...next };
+    },
+  };
+  const root = { projectRoot: { project: { projectMap }, projectFilter } };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { store: new ProjectCategoryStore(root as any), projectMap };
+  return { store: new ProjectCategoryStore(root as any), projectMap, filters };
 };
 
 beforeEach(() => vi.resetAllMocks());
@@ -138,5 +145,24 @@ describe("ProjectCategoryStore", () => {
     await expect(store.deleteCategory("acme", "a")).rejects.toBeTruthy();
     expect(store.getCategoryById("a")).toBeDefined();
     expect(projectMap.p1.category_id).toBe("a");
+  });
+
+  it("deleting a category removes it from the applied category filter", async () => {
+    service.list.mockResolvedValue([cat("a", "A"), cat("b", "B")]);
+    const { store, filters } = makeStore();
+    filters.acme = { category: ["a", "b"] };
+    await store.fetchCategories("acme");
+    service.remove.mockResolvedValue(undefined);
+    await store.deleteCategory("acme", "a");
+    expect(filters.acme.category).toEqual(["b"]);
+  });
+
+  it("deleting a category leaves filters alone when it was not applied", async () => {
+    service.list.mockResolvedValue([cat("a", "A")]);
+    const { store, filters } = makeStore();
+    await store.fetchCategories("acme");
+    service.remove.mockResolvedValue(undefined);
+    await store.deleteCategory("acme", "a");
+    expect(filters.acme).toBeUndefined();
   });
 });

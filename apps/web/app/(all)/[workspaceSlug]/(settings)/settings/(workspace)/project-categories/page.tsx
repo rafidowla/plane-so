@@ -30,7 +30,7 @@ import { useUserPermissions } from "@/hooks/store/user";
 import type { Route } from "./+types/page";
 import { ProjectCategoriesWorkspaceSettingsHeader } from "./header";
 
-const MAX_NAME_LENGTH = 255;
+const MAX_NAME_LENGTH = 100; // matches the server and model limit
 
 /** The server answers `{ error }` (duplicate name), `{ name: [...] }` (field errors) or `{ detail }`. */
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -153,9 +153,11 @@ function CategoryRow(props: TRowProps) {
         <>
           <div className="flex min-w-0 items-baseline gap-3">
             <span className="truncate text-body-sm-medium text-primary">{category.name}</span>
-            <span className="shrink-0 text-caption-md-regular text-tertiary">
-              {t("workspace_settings.settings.project_categories.projects_count", { count: category.project_count })}
-            </span>
+            {category.project_count !== undefined && (
+              <span className="shrink-0 text-caption-md-regular text-tertiary">
+                {t("workspace_settings.settings.project_categories.projects_count", { count: category.project_count })}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <Button

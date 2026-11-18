@@ -255,6 +255,7 @@
       "favorite_remove": "Xóa khỏi yêu thích",
       "all_categories": "Tất cả danh mục",
       "no_category": "Không có danh mục",
+      "unknown_category": "Danh mục không xác định",
       "filter_category": "Danh mục"
     }
   },

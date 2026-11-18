@@ -255,6 +255,7 @@
       "favorite_remove": "Rimuovi dai preferiti",
       "all_categories": "Tutte le categorie",
       "no_category": "Nessuna categoria",
+      "unknown_category": "Categoria sconosciuta",
       "filter_category": "Categoria"
     }
   },

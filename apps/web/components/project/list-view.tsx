@@ -32,11 +32,12 @@ export const ProjectListView = observer(function ProjectListView(props: Props) {
   const { t } = useTranslation();
   const { workspaceSlug } = useParams();
   const { getProjectById } = useProject();
-  const { fetchCategories, isFetched } = useProjectCategory();
+  const { fetchCategories } = useProjectCategory();
   const { currentWorkspaceDisplayFilters, updateDisplayFilters } = useProjectFilter();
   // the Category column needs the workspace's categories
   const slug = workspaceSlug?.toString();
-  useSWR(slug && !isFetched(slug) ? `PROJECT_CATEGORIES_${slug}` : null, () => fetchCategories(slug!), {
+  // FORK: PSR-123 -- revalidates on mount so category edits made elsewhere show up (SWR dedupes concurrent calls)
+  useSWR(slug ? `PROJECT_CATEGORIES_${slug}` : null, () => fetchCategories(slug!), {
     revalidateOnFocus: false,
   });
 

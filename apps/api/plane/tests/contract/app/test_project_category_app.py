@@ -156,7 +156,7 @@ def test_invalid_create_payload(workspace, admin_client, payload):
 
 @pytest.mark.contract
 @pytest.mark.django_db
-def test_project_count_ignores_archived_and_deleted(workspace, create_user, admin_client):
+def test_project_count_is_admin_only_and_counts_archived_not_deleted(workspace, create_user, admin_client, member_user):
     from django.utils import timezone
 
     cat = ProjectCategory.objects.create(workspace=workspace, name="C")
@@ -164,8 +164,13 @@ def test_project_count_ignores_archived_and_deleted(workspace, create_user, admi
     _project(workspace, "B", "BBB", cat, create_user, archived_at=timezone.now())
     gone = _project(workspace, "D", "DDD", cat, create_user)
     gone.delete()
+    # a delete would clear the archived project too, so the admin count includes it
     r = admin_client.get(_cat_url(workspace))
-    assert r.data[0]["project_count"] == 1
+    assert r.data[0]["project_count"] == 2
+    # non-admins never see the count (it would leak private projects)
+    r = _client(member_user).get(_cat_url(workspace))
+    assert r.status_code == 200
+    assert "project_count" not in r.data[0]
 
 
 @pytest.mark.contract
@@ -283,3 +288,54 @@ def test_projects_layout_default_roundtrip_invalid_and_isolated(workspace, admin
     other.patch(_props_url(workspace), {"display_filters": {"projects_layout": "grid"}}, format="json")
     admin_client.patch(_props_url(workspace), {"display_filters": {"projects_layout": "list"}}, format="json")
     assert other.get(_props_url(workspace)).data["display_filters"]["projects_layout"] == "grid"
+
+
+# --- review round 1 ------------------------------------------------------------------------
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_soft_deleted_category_id_is_rejected_on_project(workspace, admin_client):
+    cat = ProjectCategory.objects.create(workspace=workspace, name="C")
+    cat.delete()
+    r = admin_client.post(
+        _projects_url(workspace), {"name": "Proj1", "identifier": "PRA", "category_id": str(cat.pk)}, format="json"
+    )
+    assert r.status_code == 400
+    assert not Project.objects.filter(identifier="PRA").exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_project_admin_who_is_not_workspace_admin_can_set_category(workspace, member_user):
+    cat = ProjectCategory.objects.create(workspace=workspace, name="C")
+    project = _project(workspace, "P", "PPP")
+    ProjectMember.objects.create(project=project, workspace=workspace, member=member_user, role=20, is_active=True)
+    r = _client(member_user).patch(_projects_url(workspace, project.pk), {"category_id": str(cat.pk)}, format="json")
+    assert r.status_code == 200, r.data
+    project.refresh_from_db()
+    assert project.category_id == cat.pk
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_put_with_foreign_category_is_rejected(workspace, other_workspace, admin_client):
+    foreign = ProjectCategory.objects.create(workspace=other_workspace, name="F")
+    r = admin_client.post(_projects_url(workspace), {"name": "Proj1", "identifier": "PRA"}, format="json")
+    assert r.status_code == 201, r.data
+    pid = r.data["id"]
+    r = admin_client.put(
+        _projects_url(workspace, pid),
+        {"name": "Proj1", "identifier": "PRA", "category_id": str(foreign.pk)},
+        format="json",
+    )
+    assert r.status_code == 400, r.data
+    assert Project.objects.get(pk=pid).category_id is None
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+@pytest.mark.parametrize("value", ["grid", ["a"], 5])
+def test_non_dict_display_filters_is_rejected(workspace, admin_client, value):
+    r = admin_client.patch(_props_url(workspace), {"display_filters": value}, format="json")
+    assert r.status_code == 400

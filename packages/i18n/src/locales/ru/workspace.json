@@ -255,6 +255,7 @@
       "favorite_remove": "Удалить из избранного",
       "all_categories": "Все категории",
       "no_category": "Без категории",
+      "unknown_category": "Неизвестная категория",
       "filter_category": "Категория"
     }
   },

@@ -29,8 +29,9 @@ export const FilterCategory = observer(function FilterCategory(props: Props) {
   const { workspaceSlug } = useParams();
   const slug = workspaceSlug?.toString();
   const [previewEnabled, setPreviewEnabled] = useState(true);
-  const { fetchCategories, getCategoriesForWorkspace, isFetched } = useProjectCategory();
-  useSWR(slug && !isFetched(slug) ? `PROJECT_CATEGORIES_${slug}` : null, () => fetchCategories(slug!), {
+  const { fetchCategories, getCategoriesForWorkspace } = useProjectCategory();
+  // FORK: PSR-123 -- revalidates on mount so category edits made elsewhere show up (SWR dedupes concurrent calls)
+  useSWR(slug ? `PROJECT_CATEGORIES_${slug}` : null, () => fetchCategories(slug!), {
     revalidateOnFocus: false,
   });
 

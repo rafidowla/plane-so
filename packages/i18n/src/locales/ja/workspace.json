@@ -255,6 +255,7 @@
       "favorite_remove": "お気に入りから削除",
       "all_categories": "すべてのカテゴリ",
       "no_category": "カテゴリなし",
+      "unknown_category": "不明なカテゴリ",
       "filter_category": "カテゴリ"
     }
   },
