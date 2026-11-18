@@ -702,3 +702,74 @@ def test_resend_has_a_per_invite_cooldown(admin_client, workspace, project, mock
         mocked_tasks["send"].assert_called_once()
     finally:
         cache.delete(f"psr124:resend-invite:{spot.invite_id}")
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_public_api_project_delete_cancels_project_created_invites(admin_client, api_key_client, workspace, project):
+    _invite(admin_client, workspace, project, [{"email": "solo@example.com", "role": 15}])
+    invite = WorkspaceMemberInvite.objects.get(email="solo@example.com")
+    res = api_key_client.delete(f"/api/v1/workspaces/{workspace.slug}/projects/{project.id}/")
+    assert res.status_code == 204
+    assert not WorkspaceMemberInviteProject.objects.filter(project_id=project.id).exists()
+    assert not WorkspaceMemberInvite.objects.filter(pk=invite.pk).exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_integrity_fallback_never_attaches_spot_to_a_declined_invite(admin_client, workspace, project):
+    from django.utils import timezone
+
+    from plane.app.views.project import invite_by_email as mod
+
+    WorkspaceMemberInvite.objects.create(
+        workspace=workspace,
+        email="a@example.com",
+        token="t",
+        role=15,
+        accepted=False,
+        responded_at=timezone.now(),
+        created_by=None,
+    )
+    with patch.object(mod, "_invite_and_spot", side_effect=mod.IntegrityError("duplicate key")):
+        res = _invite(admin_client, workspace, project, [{"email": "a@example.com", "role": 15}])
+    assert res.status_code == 200
+    assert _status_of(res, "a@example.com")["status"] == "invalid"
+    assert _status_of(res, "a@example.com")["detail"] == "Please try again."
+    assert not WorkspaceMemberInviteProject.objects.filter(project=project).exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_declined_invite_is_replaced_and_resent_with_the_note(admin_client, workspace, project, mocked_tasks):
+    from django.utils import timezone
+
+    old = WorkspaceMemberInvite.objects.create(
+        workspace=workspace,
+        email="a@example.com",
+        token="old",
+        role=15,
+        accepted=False,
+        responded_at=timezone.now(),
+        created_by=None,
+    )
+    res = _invite(admin_client, workspace, project, [{"email": "a@example.com", "role": 15}], message="Hello")
+    assert _status_of(res, "a@example.com")["status"] == "invited"
+    assert not WorkspaceMemberInvite.objects.filter(pk=old.pk).exists()
+    mocked_tasks["send"].assert_called_once()
+    assert mocked_tasks["send"].call_args.args[-1] == "Hello"
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_join_processing_matches_invite_email_case_insensitively(workspace, project):
+    from plane.authentication.utils.workspace_project_join import process_workspace_project_invitations
+
+    user = UserFactory(email="mixed@example.com")
+    invite = WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="Mixed@Example.com", token="t", role=15, accepted=True, created_by=None
+    )
+    WorkspaceMemberInviteProject.objects.create(invite=invite, project=project, workspace=workspace, role=15)
+    process_workspace_project_invitations(user)
+    assert WorkspaceMember.objects.filter(workspace=workspace, member=user).exists()
+    assert ProjectMember.objects.filter(project=project, member=user).exists()

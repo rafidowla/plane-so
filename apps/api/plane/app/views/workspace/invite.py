@@ -237,7 +237,9 @@ class WorkspaceJoinEndpoint(BaseAPIView):
         # and the invite row is locked so a double click cannot run it twice.
         with transaction.atomic():
             workspace_invite = (
-                WorkspaceMemberInvite.objects.select_for_update().filter(pk=pk, workspace__slug=slug).first()
+                WorkspaceMemberInvite.objects.select_for_update(of=("self",))
+                .filter(pk=pk, workspace__slug=slug)
+                .first()
             )
             if workspace_invite is None or workspace_invite.responded_at is not None:
                 return Response(

@@ -198,11 +198,15 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                         invite, created = _invite_and_spot(project, email, role, workspace_role, request.user)
                 except IntegrityError:
                     created = False
+                    # only a still-pending invitation may receive the spot (never a declined/accepted one)
                     invite = WorkspaceMemberInvite.objects.filter(
-                        workspace_id=project.workspace_id, email__iexact=email
+                        workspace_id=project.workspace_id,
+                        email__iexact=email,
+                        accepted=False,
+                        responded_at__isnull=True,
                     ).first()
                     if invite is None:
-                        results.append({"email": email, "status": "invalid", "detail": "Could not create invitation"})
+                        results.append({"email": email, "status": "invalid", "detail": "Please try again."})
                         continue
                     try:
                         with transaction.atomic():

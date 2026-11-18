@@ -43,6 +43,7 @@ from plane.utils.exception_logger import log_exception
 from .base import BaseAPIView
 from .guest_access import project_visibility_q  # FORK: guest-access
 from plane.utils.host import base_host
+from plane.utils.project_invite_spots import remove_project_spots_for_project  # FORK: PSR-124
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.api.serializers import (
     ProjectSerializer,
@@ -619,7 +620,10 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
         project = Project.objects.get(pk=pk, workspace__slug=slug)
         # Delete the user favorite cycle
         UserFavorite.objects.filter(entity_type="project", entity_identifier=pk, project_id=pk).delete()
-        project.delete()
+        # FORK: PSR-124 -- drop pending by-email spots; cancel project-created invites left with none
+        with transaction.atomic():
+            remove_project_spots_for_project(project)
+            project.delete()
         webhook_activity.delay(
             event="project",
             verb="deleted",
