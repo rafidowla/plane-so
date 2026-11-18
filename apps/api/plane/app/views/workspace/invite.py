@@ -123,6 +123,15 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         workspace_invitations = WorkspaceMemberInvite.objects.bulk_create(
             workspace_invitations, batch_size=10, ignore_conflicts=True
         )
+        # FORK: PSR-124 -- an admin re-inviting someone whose pending invite came from a project makes it a
+        # workspace-level invite, so cancelling the last project spot later no longer cancels it.
+        WorkspaceMemberInvite.objects.filter(
+            workspace_id=workspace.id,
+            email__in=[e.get("email").strip().lower() for e in emails],
+            created_from_project=True,
+            accepted=False,
+            responded_at__isnull=True,
+        ).update(created_from_project=False)
         # FORK: PSR-125 -- audit log. bulk_create(ignore_conflicts) can't say which rows landed, so
         # the entry names the email only.
         for invitation in workspace_invitations:
@@ -224,51 +233,59 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # If already responded then return error
-        if workspace_invite.responded_at is None:
+        # FORK: PSR-124 -- the whole response (invite state, workspace join, project spots) is one unit,
+        # and the invite row is locked so a double click cannot run it twice.
+        with transaction.atomic():
+            workspace_invite = (
+                WorkspaceMemberInvite.objects.select_for_update().filter(pk=pk, workspace__slug=slug).first()
+            )
+            if workspace_invite is None or workspace_invite.responded_at is not None:
+                return Response(
+                    {"error": "You have already responded to the invitation request"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             workspace_invite.accepted = request.data.get("accepted", False)
             workspace_invite.responded_at = timezone.now()
             workspace_invite.save()
 
             if workspace_invite.accepted:
                 # Check if the user created account after invitation
-                user = User.objects.filter(email=workspace_invite.email).first()
+                user = User.objects.filter(email__iexact=workspace_invite.email).first()
 
                 # FORK: PSR-124 -- the first project the user was added to, for the web redirect.
                 project_id = None
 
                 # If the user is present then create the workspace member
                 if user is not None:
-                    # FORK: PSR-124 -- workspace join + project spots + invite removal are one unit.
-                    with transaction.atomic():
-                        # Check if the user was already a member of workspace then activate the user
-                        workspace_member = WorkspaceMember.objects.filter(
-                            workspace=workspace_invite.workspace, member=user
-                        ).first()
-                        if workspace_member is not None:
-                            workspace_member.is_active = True
-                            # FORK: PSR-125 -- a stale invite must not demote a current Super Admin.
-                            if not workspace_member.is_super_admin:
-                                workspace_member.role = workspace_invite.role
-                            workspace_member.save()
-                        else:
-                            # Create a Workspace
-                            workspace_member = WorkspaceMember.objects.create(
-                                workspace=workspace_invite.workspace,
-                                member=user,
-                                role=workspace_invite.role,
-                            )
+                    # Check if the user was already a member of workspace then activate the user
+                    workspace_member = WorkspaceMember.objects.filter(
+                        workspace=workspace_invite.workspace, member=user
+                    ).first()
+                    if workspace_member is not None:
+                        workspace_member.is_active = True
+                        # FORK: PSR-125 -- a stale invite must not demote a current Super Admin.
+                        if not workspace_member.is_super_admin:
+                            workspace_member.role = workspace_invite.role
+                        workspace_member.save()
+                    else:
+                        # Create a Workspace
+                        workspace_member = WorkspaceMember.objects.create(
+                            workspace=workspace_invite.workspace,
+                            member=user,
+                            role=workspace_invite.role,
+                        )
 
-                        # Set the user last_workspace_id to the accepted workspace
-                        user.last_workspace_id = workspace_invite.workspace.id
-                        user.save()
+                    # Set the user last_workspace_id to the accepted workspace
+                    user.last_workspace_id = workspace_invite.workspace.id
+                    user.save()
 
-                        # FORK: PSR-124 -- turn the pending project spots into project memberships
-                        project_ids = accept_project_spots(workspace_invite, user, workspace_member.role)
-                        project_id = str(project_ids[0]) if project_ids else None
+                    # FORK: PSR-124 -- turn the pending project spots into project memberships
+                    project_ids = accept_project_spots(workspace_invite, user, workspace_member.role)
+                    project_id = str(project_ids[0]) if project_ids else None
 
-                        # Delete the invitation
-                        workspace_invite.delete()
+                    # Delete the invitation
+                    workspace_invite.delete()
 
                 return Response(
                     {"message": "Workspace Invitation Accepted", "project_id": project_id},  # FORK: PSR-124
@@ -280,11 +297,6 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                 {"message": "Workspace Invitation was not accepted"},
                 status=status.HTTP_200_OK,
             )
-
-        return Response(
-            {"error": "You have already responded to the invitation request"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
 
     def get(self, request, slug, pk):
         workspace_invitation = WorkspaceMemberInvite.objects.get(workspace__slug=slug, pk=pk)
@@ -354,7 +366,9 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
         # FORK: PSR-124 -- turn pending project spots into project memberships
         for invitation in workspace_invitations:
             workspace_role = (
-                WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user)
+                WorkspaceMember.objects.filter(
+                    workspace_id=invitation.workspace_id, member=request.user, is_active=True
+                )
                 .values_list("role", flat=True)
                 .first()
             )

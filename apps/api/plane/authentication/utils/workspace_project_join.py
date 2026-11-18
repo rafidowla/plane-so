@@ -44,9 +44,12 @@ def process_workspace_project_invitations(user):
         )
 
     # FORK: PSR-124 -- turn the pending project spots of accepted workspace invites into project memberships
+    # (only for an ACTIVE workspace member -- a removed member must not regain project access)
     for workspace_member_invite in workspace_member_invites:
         workspace_role = (
-            WorkspaceMember.objects.filter(workspace_id=workspace_member_invite.workspace_id, member=user)
+            WorkspaceMember.objects.filter(
+                workspace_id=workspace_member_invite.workspace_id, member=user, is_active=True
+            )
             .values_list("role", flat=True)
             .first()
         )

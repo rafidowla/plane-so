@@ -18,7 +18,8 @@ import jwt
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.db import transaction
+from django.core.cache import cache
+from django.db import IntegrityError, transaction
 
 # Third Party imports
 from rest_framework import status
@@ -47,6 +48,7 @@ from plane.utils.project_invite_spots import (
 
 MAX_EMAILS_PER_CALL = 50
 MAX_MESSAGE_LENGTH = 1000
+RESEND_COOLDOWN_SECONDS = 60
 PROJECT_ROLES = (5, 15, 20)
 WORKSPACE_ROLES_FOR_NEW_PEOPLE = (5, 15)
 NOT_ALLOWED_DETAIL = "Only workspace admins can invite people who aren't in the workspace yet."
@@ -74,6 +76,44 @@ def _spots_for_project(slug, project_id):
         invite__accepted=False,
         invite__responded_at__isnull=True,
     ).select_related("invite", "created_by")
+
+
+def _upsert_spot(invite, project, role):
+    spot = WorkspaceMemberInviteProject.objects.filter(invite=invite, project=project).first()
+    if spot is None:
+        WorkspaceMemberInviteProject.objects.create(
+            invite=invite, project=project, workspace_id=project.workspace_id, role=role
+        )
+    else:
+        spot.role = role
+        spot.save()
+
+
+def _invite_and_spot(project, email, role, workspace_role, user):
+    """Reuse (or create) the workspace invitation for ``email`` and add this project's spot."""
+    invite = WorkspaceMemberInvite.objects.filter(workspace_id=project.workspace_id, email__iexact=email).first()
+    if invite is not None and invite.responded_at is not None and not invite.accepted:
+        # a declined invitation can never be accepted again: replace it
+        remove_project_spots(invite)
+        invite.delete()
+        invite = None
+
+    created = invite is None
+    if created:
+        invite = WorkspaceMemberInvite.objects.create(
+            workspace_id=project.workspace_id,
+            email=email,
+            token=jwt.encode(
+                {"email": email, "timestamp": datetime.now().timestamp()},
+                settings.SECRET_KEY,
+                algorithm="HS256",
+            ),
+            role=workspace_role,
+            created_by=user,
+            created_from_project=True,
+        )
+    _upsert_spot(invite, project, role)
+    return invite, created
 
 
 class ProjectInviteByEmailEndpoint(BaseAPIView):
@@ -141,8 +181,7 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
 
                 if ws_member is not None:
                     # A workspace Admin is always a project Admin; a workspace Guest is capped to Guest.
-                    final_role = ROLE.ADMIN.value if ws_member.role == ROLE.ADMIN.value else role
-                    final_role = cap_project_role(final_role, ws_member.role)
+                    final_role = cap_project_role(role, ws_member.role)
                     pm = upsert_project_member(project, user, final_role, created_by_id=request.user.id)
                     added_project_member_ids.append(pm.id)
                     results.append({"email": email, "status": "added"})
@@ -152,36 +191,24 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                     results.append({"email": email, "status": "not_allowed", "detail": NOT_ALLOWED_DETAIL})
                     continue
 
-                invite = WorkspaceMemberInvite.objects.filter(workspace_id=project.workspace_id, email=email).first()
-                if invite is not None and invite.responded_at is not None and not invite.accepted:
-                    # a declined invitation can never be accepted again: replace it
-                    remove_project_spots(invite)
-                    invite.delete()
-                    invite = None
-
-                created = invite is None
-                if created:
-                    invite = WorkspaceMemberInvite.objects.create(
-                        workspace_id=project.workspace_id,
-                        email=email,
-                        token=jwt.encode(
-                            {"email": email, "timestamp": datetime.now().timestamp()},
-                            settings.SECRET_KEY,
-                            algorithm="HS256",
-                        ),
-                        role=workspace_role,
-                        created_by=request.user,
-                        created_from_project=True,
-                    )
-
-                spot = WorkspaceMemberInviteProject.objects.filter(invite=invite, project=project).first()
-                if spot is None:
-                    WorkspaceMemberInviteProject.objects.create(
-                        invite=invite, project=project, workspace_id=project.workspace_id, role=role
-                    )
-                else:
-                    spot.role = role
-                    spot.save()
+                # One savepoint per email: a concurrent request creating the same invite/spot must not
+                # fail (or roll back) the rest of the batch.
+                try:
+                    with transaction.atomic():
+                        invite, created = _invite_and_spot(project, email, role, workspace_role, request.user)
+                except IntegrityError:
+                    created = False
+                    invite = WorkspaceMemberInvite.objects.filter(
+                        workspace_id=project.workspace_id, email__iexact=email
+                    ).first()
+                    if invite is None:
+                        results.append({"email": email, "status": "invalid", "detail": "Could not create invitation"})
+                        continue
+                    try:
+                        with transaction.atomic():
+                            _upsert_spot(invite, project, role)
+                    except IntegrityError:
+                        pass  # the concurrent request already created the spot
 
                 if created:
                     invites_to_send.append(invite)
@@ -216,6 +243,8 @@ class ProjectPendingMembersEndpoint(BaseAPIView):
                 "invite_id": spot.invite_id,
                 "email": spot.invite.email,
                 "role": spot.role,
+                # the project role the person will actually get on accept (Guest cap, Admin rule)
+                "effective_role": cap_project_role(spot.role, spot.invite.role),
                 "workspace_role": spot.invite.role,
                 "created_at": spot.created_at,
                 "invited_by": (
@@ -259,6 +288,12 @@ class ProjectPendingMemberResendEndpoint(BaseAPIView):
             )
 
         invite = spot.invite
+        # Per-invite cooldown; cache.add is atomic, so a double click sends only once.
+        if not cache.add(f"psr124:resend-invite:{invite.id}", 1, RESEND_COOLDOWN_SECONDS):
+            return Response(
+                {"error": "Please wait a minute before resending this invitation."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         workspace_invitation.delay(
             invite.email,
             invite.workspace_id,

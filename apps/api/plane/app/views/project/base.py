@@ -8,6 +8,7 @@ import json
 
 # Django imports
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction  # FORK: PSR-124
 from django.db.models import Exists, F, OuterRef, Prefetch, Q, Subquery, Count
 from django.utils import timezone
 
@@ -43,6 +44,7 @@ from plane.db.models import (
 from plane.db.models.intake import IntakeIssueStatus
 from plane.utils.guest_work_item import guest_row_scope_q, restricted_guest_annotation  # FORK: guest-access PSR-119
 from plane.utils.host import base_host
+from plane.utils.project_invite_spots import remove_project_spots_for_project  # FORK: PSR-124
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 
 
@@ -411,7 +413,10 @@ class ProjectViewSet(BaseViewSet):
             ).exists()
         ):
             project = Project.objects.get(pk=pk, workspace__slug=slug)
-            project.delete()
+            # FORK: PSR-124 -- drop pending by-email spots; cancel project-created invites left with none
+            with transaction.atomic():
+                remove_project_spots_for_project(project)
+                project.delete()
             webhook_activity.delay(
                 event="project",
                 verb="deleted",

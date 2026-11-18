@@ -437,6 +437,9 @@ def test_resend_requires_workspace_admin(admin_client, project_admin, workspace,
     assert res.status_code == 200
     mocked_tasks["send"].assert_called_once()
     assert mocked_tasks["send"].call_args.args[0] == "a@example.com"
+    from django.core.cache import cache
+
+    cache.delete(f"psr124:resend-invite:{spot.invite_id}")
 
 
 @pytest.mark.contract
@@ -480,3 +483,222 @@ def test_cross_project_and_cross_workspace_ids_return_404(admin_client, workspac
     # no access at all to another workspace's project
     res = admin_client.get(_pending_url(other_ws, other_project))
     assert res.status_code == 403
+
+
+# --- review round 1 ----------------------------------------------------------------------------
+
+
+def _join(user, workspace, invite, accepted=True):
+    return _client(user).post(
+        f"/api/workspaces/{workspace.slug}/invitations/{invite.id}/join/",
+        {"token": invite.token, "accepted": accepted},
+        format="json",
+    )
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_join_rolls_back_invite_state_when_project_adds_fail(admin_client, workspace, project):
+    _invite(admin_client, workspace, project, [{"email": "new@example.com", "role": 15}])
+    invite = WorkspaceMemberInvite.objects.get(email="new@example.com")
+    user = UserFactory(email="new@example.com")
+    with patch("plane.app.views.workspace.invite.accept_project_spots", side_effect=RuntimeError("boom")):
+        assert _join(user, workspace, invite).status_code == 500
+    invite.refresh_from_db()
+    assert invite.responded_at is None and invite.accepted is False
+    assert not WorkspaceMember.objects.filter(workspace=workspace, member=user).exists()
+    # the invite can still be accepted afterwards
+    assert _join(user, workspace, invite).status_code == 200
+    assert ProjectMember.objects.filter(project=project, member=user).exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_join_lookup_is_case_insensitive_on_user_email(admin_client, workspace, project):
+    _invite(admin_client, workspace, project, [{"email": "case@example.com", "role": 15}])
+    invite = WorkspaceMemberInvite.objects.get(email="case@example.com")
+    user = UserFactory(email="Case@Example.com")
+    assert _join(user, workspace, invite).status_code == 200
+    assert ProjectMember.objects.filter(project=project, member=user).exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_signup_path_skips_spots_for_inactive_workspace_member(admin_client, workspace, project, project2):
+    from plane.authentication.utils.workspace_project_join import process_workspace_project_invitations
+
+    invite = _pending(admin_client, workspace, project, project2)
+    WorkspaceMemberInvite.objects.filter(pk=invite.pk).update(accepted=True)
+    user = UserFactory(email="new@example.com")
+    WorkspaceMember.objects.create(workspace=workspace, member=user, role=15, is_active=False)
+    process_workspace_project_invitations(user)
+    assert not ProjectMember.objects.filter(member=user, project__in=[project, project2]).exists()
+    assert not WorkspaceMember.objects.get(workspace=workspace, member=user).is_active
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_invitations_list_accept_skips_spots_without_active_workspace_role(admin_client, workspace, project, project2):
+    invite = _pending(admin_client, workspace, project, project2)
+    user = UserFactory(email="new@example.com")
+    with patch("plane.app.views.workspace.invite.accept_project_spots") as accept:
+        WorkspaceMember.objects.create(workspace=workspace, member=user, role=15, is_active=False)
+        _client(user).post("/api/users/me/workspaces/invitations/", {"invitations": [str(invite.id)]}, format="json")
+    # the invitation reactivates the member first, so the spots are handed over with an active role
+    accept.assert_called_once()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_admin_becomes_project_admin_on_accept(workspace, project, create_user):
+    from plane.utils.project_invite_spots import cap_project_role
+
+    assert cap_project_role(5, 20) == 20 and cap_project_role(15, 20) == 20
+    assert cap_project_role(20, 5) == 5 and cap_project_role(5, 15) == 5
+    invite = WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="adm@example.com", token="tok", role=20, created_by=create_user
+    )
+    WorkspaceMemberInviteProject.objects.create(invite=invite, project=project, workspace=workspace, role=5)
+    user = UserFactory(email="adm@example.com")
+    assert _join(user, workspace, invite).status_code == 200
+    assert ProjectMember.objects.get(project=project, member=user).role == 20
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_accept_does_not_change_role_of_active_project_member(admin_client, workspace, project, project2):
+    invite = _pending(admin_client, workspace, project, project2)  # spots: project=20, project2=15
+    user = UserFactory(email="new@example.com")
+    _proj_member(project, user, 5)
+    _proj_member(project2, user, 20)
+    assert _join(user, workspace, invite).status_code == 200
+    assert ProjectMember.objects.get(project=project, member=user).role == 5
+    assert ProjectMember.objects.get(project=project2, member=user).role == 20
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_reactivated_member_gets_user_property_row(admin_client, workspace, project, project2):
+    from plane.db.models import ProjectUserProperty
+
+    invite = _pending(admin_client, workspace, project, project2)
+    user = UserFactory(email="new@example.com")
+    pm = _proj_member(project, user, 5)
+    ProjectMember.objects.filter(pk=pm.pk).update(is_active=False)
+    ProjectUserProperty.all_objects.filter(project=project, user=user).delete()
+    assert not ProjectUserProperty.objects.filter(project=project, user=user).exists()
+    _join(user, workspace, invite)
+    assert ProjectUserProperty.objects.filter(project=project, user=user).count() == 1
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_concurrent_invite_collision_does_not_fail_the_batch(admin_client, workspace, project):
+    from plane.app.views.project import invite_by_email as mod
+
+    real = mod._invite_and_spot
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise mod.IntegrityError("duplicate key")
+        return real(*args, **kwargs)
+
+    # another request got there first for a@example.com
+    WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="a@example.com", token="t", role=15, created_by=None, created_from_project=True
+    )
+    with patch.object(mod, "_invite_and_spot", side_effect=flaky):
+        res = _invite(
+            admin_client,
+            workspace,
+            project,
+            [{"email": "a@example.com", "role": 15}, {"email": "b@example.com", "role": 15}],
+        )
+    assert res.status_code == 200
+    assert _status_of(res, "a@example.com")["status"] == "invite_updated"
+    assert _status_of(res, "b@example.com")["status"] == "invited"
+    assert WorkspaceMemberInviteProject.objects.filter(project=project).count() == 2
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_existing_invite_lookup_is_case_insensitive(admin_client, workspace, project, create_user):
+    WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="Mixed@Example.com", token="t", role=15, created_by=create_user
+    )
+    res = _invite(admin_client, workspace, project, [{"email": "mixed@example.com", "role": 15}])
+    assert _status_of(res, "mixed@example.com")["status"] == "invite_updated"
+    assert WorkspaceMemberInvite.objects.filter(workspace=workspace, email__iexact="mixed@example.com").count() == 1
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_deleting_project_cancels_project_created_invites_without_spots(admin_client, workspace, project, project2):
+    _invite(admin_client, workspace, project, [{"email": "solo@example.com", "role": 15}])
+    _invite(admin_client, workspace, project, [{"email": "both@example.com", "role": 15}])
+    _invite(admin_client, workspace, project2, [{"email": "both@example.com", "role": 15}])
+    WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="ws@example.com", token="t", role=15, created_by=None, created_from_project=False
+    )
+    ws_invite = WorkspaceMemberInvite.objects.get(email="ws@example.com")
+    WorkspaceMemberInviteProject.objects.create(invite=ws_invite, project=project, workspace=workspace, role=15)
+
+    res = admin_client.delete(f"/api/workspaces/{workspace.slug}/projects/{project.id}/")
+    assert res.status_code == 204
+    assert not WorkspaceMemberInvite.objects.filter(email="solo@example.com").exists()
+    assert WorkspaceMemberInvite.objects.filter(email="both@example.com").exists()
+    assert WorkspaceMemberInvite.objects.filter(email="ws@example.com").exists()
+    assert not WorkspaceMemberInviteProject.objects.filter(project_id=project.id).exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_members_page_reinvite_makes_project_invite_workspace_level(admin_client, workspace, project):
+    _invite(admin_client, workspace, project, [{"email": "a@example.com", "role": 15}])
+    with patch("plane.app.views.workspace.invite.workspace_invitation.delay"):
+        res = admin_client.post(
+            f"/api/workspaces/{workspace.slug}/invitations/",
+            {"emails": [{"email": "A@example.com", "role": 15}]},
+            format="json",
+        )
+    assert res.status_code == 200
+    assert WorkspaceMemberInvite.objects.get(email="a@example.com").created_from_project is False
+    spot = WorkspaceMemberInviteProject.objects.get()
+    assert admin_client.delete(_pending_url(workspace, project, spot.id)).status_code == 204
+    assert WorkspaceMemberInvite.objects.filter(email="a@example.com").exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_pending_list_effective_role(admin_client, workspace, project, create_user):
+    _invite(admin_client, workspace, project, [{"email": "g@example.com", "role": 20}], workspace_role=5)
+    _invite(admin_client, workspace, project, [{"email": "m@example.com", "role": 15}])
+    adm = WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="adm@example.com", token="t", role=20, created_by=create_user
+    )
+    WorkspaceMemberInviteProject.objects.create(invite=adm, project=project, workspace=workspace, role=5)
+    rows = {r["email"]: r for r in admin_client.get(_pending_url(workspace, project)).data}
+    assert rows["g@example.com"]["role"] == 20 and rows["g@example.com"]["effective_role"] == 5
+    assert rows["m@example.com"]["effective_role"] == 15
+    assert rows["adm@example.com"]["role"] == 5 and rows["adm@example.com"]["effective_role"] == 20
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_resend_has_a_per_invite_cooldown(admin_client, workspace, project, mocked_tasks):
+    from django.core.cache import cache
+
+    _invite(admin_client, workspace, project, [{"email": "a@example.com", "role": 15}])
+    spot = WorkspaceMemberInviteProject.objects.get()
+    cache.delete(f"psr124:resend-invite:{spot.invite_id}")
+    mocked_tasks["send"].reset_mock()
+    try:
+        assert admin_client.post(_pending_url(workspace, project, spot.id, "resend/")).status_code == 200
+        res = admin_client.post(_pending_url(workspace, project, spot.id, "resend/"))
+        assert res.status_code == 429
+        assert res.data == {"error": "Please wait a minute before resending this invitation."}
+        mocked_tasks["send"].assert_called_once()
+    finally:
+        cache.delete(f"psr124:resend-invite:{spot.invite_id}")
