@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Q
+from django.db.models.functions import Lower
 
 # Module imports
 from plane.db.mixins import AuditModel, ChangeTrackerMixin
@@ -65,6 +66,30 @@ def get_default_preferences():
     return {"pages": {"block_display": True}, "navigation": {"default_tab": "work_items", "hide_in_more_menu": []}}
 
 
+# FORK: PSR-123 -- workspace-admin-managed grouping label for projects (shown on the Projects list view).
+class ProjectCategory(BaseModel):
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="project_categories")
+    name = models.CharField(max_length=100)
+    sort_order = models.FloatField(default=65535)
+
+    class Meta:
+        verbose_name = "Project Category"
+        verbose_name_plural = "Project Categories"
+        db_table = "project_categories"
+        ordering = ("sort_order", "name")
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                "workspace",
+                condition=Q(deleted_at__isnull=True),
+                name="project_category_unique_workspace_name_when_deleted_at_null",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} <{self.workspace.name}>"
+
+
 class Project(ChangeTrackerMixin, BaseModel):
     TRACKED_FIELDS = ["timezone"]
 
@@ -115,6 +140,14 @@ class Project(ChangeTrackerMixin, BaseModel):
         related_name="projects",
     )
     guest_view_all_features = models.BooleanField(default=False)
+    # FORK: PSR-123 -- optional workspace-level category; cleared when the category is deleted.
+    category = models.ForeignKey(
+        "db.ProjectCategory",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="projects",
+    )
     cover_image = models.TextField(blank=True, null=True)
     cover_image_asset = models.ForeignKey(
         "db.FileAsset",

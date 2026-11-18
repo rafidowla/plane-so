@@ -6,6 +6,7 @@ from django.urls import path
 
 from plane.app.views import (
     ProjectViewSet,
+    ProjectCategoryEndpoint,  # FORK: PSR-123
     DeployBoardViewSet,
     ProjectInvitationsViewset,
     ProjectMemberViewSet,
@@ -22,6 +23,17 @@ from plane.app.views import (
 
 
 urlpatterns = [
+    # FORK: PSR-123
+    path(
+        "workspaces/<str:slug>/project-categories/",
+        ProjectCategoryEndpoint.as_view(),
+        name="project-categories",
+    ),
+    path(
+        "workspaces/<str:slug>/project-categories/<uuid:pk>/",
+        ProjectCategoryEndpoint.as_view(),
+        name="project-category-detail",
+    ),
     path(
         "workspaces/<str:slug>/projects/",
         ProjectViewSet.as_view({"get": "list", "post": "create"}),

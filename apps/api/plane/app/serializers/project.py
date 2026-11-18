@@ -15,6 +15,7 @@ from plane.app.permissions import ROLE  # FORK: guest-access PSR-119
 from plane.app.serializers.workspace import WorkspaceLiteSerializer
 from plane.app.serializers.user import UserLiteSerializer, UserAdminLiteSerializer
 from plane.db.models import (
+    ProjectCategory,  # FORK: PSR-123
     Project,
     ProjectMember,
     ProjectMemberInvite,
@@ -31,12 +32,21 @@ from plane.utils.content_validator import (
 class ProjectSerializer(BaseSerializer):
     workspace_detail = WorkspaceLiteSerializer(source="workspace", read_only=True)
     inbox_view = serializers.BooleanField(read_only=True, source="intake_view")
+    # FORK: PSR-123 -- optional project category; must belong to the project's workspace.
+    category_id = serializers.PrimaryKeyRelatedField(
+        source="category", queryset=ProjectCategory.objects.all(), allow_null=True, required=False
+    )
 
     class Meta:
         model = Project
         fields = "__all__"
         # Audit fields are set server-side by BaseModel.save().
-        read_only_fields = ["workspace", "deleted_at", "created_by", "updated_by"]
+        read_only_fields = ["workspace", "deleted_at", "created_by", "updated_by", "category"]
+
+    def validate_category_id(self, category):
+        if category is not None and str(category.workspace_id) != str(self.context["workspace_id"]):
+            raise serializers.ValidationError("Category does not belong to this workspace.")
+        return category
 
     def validate_name(self, name):
         project_id = self.instance.id if self.instance else None
@@ -123,6 +133,7 @@ class ProjectListSerializer(DynamicBaseSerializer):
     cover_image_url = serializers.CharField(read_only=True)
     inbox_view = serializers.BooleanField(read_only=True, source="intake_view")
     next_work_item_sequence = serializers.SerializerMethodField()
+    category_id = serializers.UUIDField(read_only=True)  # FORK: PSR-123
 
     def get_members(self, obj):
         project_members = getattr(obj, "members_list", None)
@@ -146,7 +157,7 @@ class ProjectListSerializer(DynamicBaseSerializer):
         fields = "__all__"
         # FORK: put-permission — this is ProjectViewSet.serializer_class, so the default PUT handler wrote
         # through it and accepted ``workspace``, moving a project into another workspace. Match ProjectSerializer.
-        read_only_fields = ["workspace", "deleted_at"]
+        read_only_fields = ["workspace", "deleted_at", "category"]
 
 
 class ProjectDetailSerializer(BaseSerializer):
@@ -157,6 +168,7 @@ class ProjectDetailSerializer(BaseSerializer):
     sort_order = serializers.FloatField(read_only=True)
     member_role = serializers.IntegerField(read_only=True)
     anchor = serializers.CharField(read_only=True)
+    category_id = serializers.UUIDField(read_only=True)  # FORK: PSR-123
 
     class Meta:
         model = Project

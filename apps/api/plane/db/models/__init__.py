@@ -55,6 +55,7 @@ from .page import Page, PageLabel, PageLog, ProjectPage, PageVersion
 from .project import (
     Project,
     ProjectBaseModel,
+    ProjectCategory,
     ProjectIdentifier,
     ProjectMember,
     ProjectMemberInvite,

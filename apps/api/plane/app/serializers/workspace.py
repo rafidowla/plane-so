@@ -186,6 +186,32 @@ class WorkspaceUserPropertiesSerializer(BaseSerializer):
         fields = "__all__"
         read_only_fields = ["workspace", "user"]
 
+    # FORK: PSR-123 -- the Projects page List/Grid choice lives in display_filters["projects_layout"].
+    PROJECTS_LAYOUTS = ("list", "grid")
+
+    def validate_display_filters(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("display_filters must be an object.")
+        if "projects_layout" in value and value["projects_layout"] not in self.PROJECTS_LAYOUTS:
+            raise serializers.ValidationError({"projects_layout": 'Must be "list" or "grid".'})
+        return value
+
+    def update(self, instance, validated_data):
+        # Merge (shallow) so saving projects_layout alone never wipes the other stored display filters.
+        if isinstance(validated_data.get("display_filters"), dict):
+            validated_data["display_filters"] = {
+                **(instance.display_filters or {}),
+                **validated_data["display_filters"],
+            }
+        return super().update(instance, validated_data)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        display_filters = dict(data.get("display_filters") or {})
+        display_filters.setdefault("projects_layout", "list")
+        data["display_filters"] = display_filters
+        return data
+
 
 class WorkspaceUserLinkSerializer(BaseSerializer):
     class Meta:

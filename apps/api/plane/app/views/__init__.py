@@ -11,6 +11,8 @@ from .project.base import (
     ProjectArchiveUnarchiveEndpoint,
 )
 
+from .project.category import ProjectCategoryEndpoint  # FORK: PSR-123
+
 from .project.invite import (
     UserProjectInvitationsViewset,
     ProjectInvitationsViewset,

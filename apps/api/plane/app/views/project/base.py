@@ -202,6 +202,7 @@ class ProjectViewSet(BaseViewSet):
             "updated_at",
             "created_by",
             "updated_by",
+            "category_id",  # FORK: PSR-123
         )
 
         if WorkspaceMember.objects.filter(
