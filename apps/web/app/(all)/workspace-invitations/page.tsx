@@ -58,9 +58,14 @@ function WorkspaceInvitationPage() {
         accepted: true,
         token: token,
       })
-      .then(() => {
+      .then((response: { project_id?: string | null } | undefined) => {
         if (invitationDetail.email === currentUser?.email) {
-          router.push(`/${invitationDetail.workspace.slug}`);
+          // FORK: PSR-124 -- land on the project the person was invited to, when there is one
+          if (response?.project_id) {
+            router.push(`/${invitationDetail.workspace.slug}/projects/${response.project_id}/issues`);
+          } else {
+            router.push(`/${invitationDetail.workspace.slug}`);
+          }
         } else {
           router.push("/");
         }

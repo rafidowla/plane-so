@@ -6,7 +6,13 @@
 
 // types
 import { API_BASE_URL } from "@plane/constants";
-import type { IProjectBulkAddFormData, TProjectMembership } from "@plane/types";
+import type {
+  IProjectBulkAddFormData,
+  TProjectInviteByEmailPayload,
+  TProjectInviteByEmailResponse,
+  TProjectMembership,
+  TProjectPendingMember,
+} from "@plane/types";
 // services
 import { APIService } from "@/services/api.service";
 
@@ -29,6 +35,43 @@ export class ProjectMemberService extends APIService {
     data: IProjectBulkAddFormData
   ): Promise<TProjectMembership[]> {
     return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/members/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // FORK: PSR-124 -- invite people to a project by email
+  async inviteByEmail(
+    workspaceSlug: string,
+    projectId: string,
+    data: TProjectInviteByEmailPayload
+  ): Promise<TProjectInviteByEmailResponse> {
+    return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/members/invite-by-email/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async fetchPendingMembers(workspaceSlug: string, projectId: string): Promise<TProjectPendingMember[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/pending-members/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async cancelPendingMember(workspaceSlug: string, projectId: string, spotId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/projects/${projectId}/pending-members/${spotId}/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async resendPendingMember(workspaceSlug: string, projectId: string, spotId: string): Promise<void> {
+    return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/pending-members/${spotId}/resend/`, {})
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

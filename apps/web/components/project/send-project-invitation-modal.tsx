@@ -27,6 +27,7 @@ import {
 } from "@makeplane/propel/components/dialog";
 // components
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
+import { InviteByEmailSection } from "./invite-by-email-section";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -101,6 +102,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     const payload = { ...formData };
 
     await bulkAddMembersToProject(workspaceSlug.toString(), projectId.toString(), payload)
+      // oxlint-disable-next-line promise/always-return
       .then(() => {
         if (onSuccess) onSuccess();
         onClose();
@@ -270,6 +272,15 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
                     </div>
                   </div>
                 ))}
+              </div>
+              {/* FORK: PSR-124 -- invite people who aren't in the workspace yet, by email */}
+              <div className="mt-4">
+                <InviteByEmailSection
+                  workspaceSlug={workspaceSlug}
+                  projectId={projectId}
+                  onSuccess={onSuccess}
+                  onDone={handleClose}
+                />
               </div>
             </DialogBody>
           </DialogMain>

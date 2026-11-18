@@ -33,7 +33,48 @@
       "invite_members": {
         "title": "Invite members",
         "sub_heading": "Invite members to work on your project.",
-        "select_co_worker": "Select co-worker"
+        "select_co_worker": "Select co-worker",
+        "by_email": {
+          "title": "Invite by email",
+          "description": "Add people by email. New people get an invitation to join the workspace and this project.",
+          "email_label": "Email addresses",
+          "email_placeholder": "Type or paste emails, separated by commas or spaces",
+          "remove_email": "Remove {email}",
+          "invalid_emails": "These don't look like valid emails: {emails}",
+          "too_many": "You can invite up to {count} people at a time.",
+          "non_admin_hint": "Only workspace admins can invite people who aren't in the workspace yet.",
+          "project_role": "Project role",
+          "workspace_role": "Workspace role for new people",
+          "message_label": "Personal note (optional)",
+          "message_placeholder": "Add a short note to include in the invitation email",
+          "submit": "Send invitations",
+          "submitting": "Sending...",
+          "nothing_to_send": "Add at least one email address.",
+          "failed": "Couldn't send the invitations. Please try again.",
+          "summary_title": "Some people couldn't be added",
+          "summary_added": "{count, plural, one {# person added to the project} other {# people added to the project}}",
+          "summary_invited": "{count, plural, one {# invitation sent} other {# invitations sent}}",
+          "summary_already_member": "Already a member: {emails}",
+          "summary_not_allowed": "Only workspace admins can invite people who aren't in the workspace yet: {emails}",
+          "summary_invalid": "Invalid: {emails}",
+          "success_title": "Done",
+          "success_message": "Invitations processed."
+        }
+      },
+      "pending": {
+        "tag": "Invitation pending",
+        "invited_by": "Invited by {name}",
+        "resend": "Resend invitation",
+        "resend_success": "Invitation email sent again.",
+        "resend_error": "Couldn't resend the invitation.",
+        "copy_link": "Copy invite link",
+        "copy_link_success": "Invite link copied.",
+        "copy_link_error": "Couldn't copy the invite link.",
+        "cancel": "Cancel invitation",
+        "cancel_title": "Cancel invitation",
+        "cancel_message": "Cancel the invitation for {email}? They will no longer get access to this project.",
+        "cancel_success": "Invitation cancelled.",
+        "cancel_error": "Couldn't cancel the invitation."
       }
     },
     "states": {

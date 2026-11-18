@@ -10,6 +10,9 @@ import { computedFn } from "mobx-utils";
 // plane imports
 import { EUserPermissions } from "@plane/constants";
 import type {
+  TProjectInviteByEmailPayload,
+  TProjectInviteByEmailResponse,
+  TProjectPendingMember,
   EUserProjectRoles,
   IProjectBulkAddFormData,
   IProjectUserPropertiesResponse,
@@ -75,6 +78,17 @@ export interface IBaseProjectMemberStore {
     data: IProjectBulkAddFormData
   ) => Promise<TProjectMembership[]>;
   // crud actions
+  // FORK: PSR-124
+  pendingMemberMap: { [projectId: string]: TProjectPendingMember[] };
+  getPendingMembers: (projectId: string) => TProjectPendingMember[] | null;
+  fetchPendingMembers: (workspaceSlug: string, projectId: string) => Promise<TProjectPendingMember[]>;
+  inviteMembersByEmail: (
+    workspaceSlug: string,
+    projectId: string,
+    data: TProjectInviteByEmailPayload
+  ) => Promise<TProjectInviteByEmailResponse>;
+  cancelPendingMember: (workspaceSlug: string, projectId: string, spotId: string) => Promise<void>;
+  resendPendingMember: (workspaceSlug: string, projectId: string, spotId: string) => Promise<void>;
   updateMemberRole: (
     workspaceSlug: string,
     projectId: string,
@@ -95,6 +109,10 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
   projectUserPropertiesMap: {
     [projectId: string]: IProjectUserPropertiesResponse;
   } = {};
+  // FORK: PSR-124 -- pending (not yet accepted) email invitations per project
+  pendingMemberMap: {
+    [projectId: string]: TProjectPendingMember[];
+  } = {};
   // filters store
   filters: IProjectMemberFiltersStore;
   // stores
@@ -112,6 +130,7 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
       // observables
       projectMemberMap: observable,
       projectUserPropertiesMap: observable,
+      pendingMemberMap: observable,
       // computed
       projectMemberIds: computed,
       // actions
@@ -119,6 +138,10 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
       fetchProjectUserProperties: action,
       updateProjectUserProperties: action,
       bulkAddMembersToProject: action,
+      fetchPendingMembers: action,
+      inviteMembersByEmail: action,
+      cancelPendingMember: action,
+      resendPendingMember: action,
       updateMemberRole: action,
       removeMemberFromProject: action,
     });
@@ -329,6 +352,43 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
 
       return response;
     });
+
+  // FORK: PSR-124 -- pending email invitations
+  getPendingMembers = computedFn((projectId: string) => this.pendingMemberMap[projectId] ?? null);
+
+  fetchPendingMembers = async (workspaceSlug: string, projectId: string) =>
+    await this.projectMemberService.fetchPendingMembers(workspaceSlug, projectId).then((response) => {
+      runInAction(() => {
+        set(this.pendingMemberMap, [projectId], response);
+      });
+      return response;
+    });
+
+  /** Invites by email; re-fetches members when anyone was added directly and the pending list always. */
+  inviteMembersByEmail = async (workspaceSlug: string, projectId: string, data: TProjectInviteByEmailPayload) =>
+    await this.projectMemberService.inviteByEmail(workspaceSlug, projectId, data).then(async (response) => {
+      const results = response?.results ?? [];
+      if (results.some((r) => r.status === "added")) {
+        await this.fetchProjectMembers(workspaceSlug, projectId).catch((error) => console.error(error));
+      }
+      await this.fetchPendingMembers(workspaceSlug, projectId).catch((error) => console.error(error));
+      return response;
+    });
+
+  cancelPendingMember = async (workspaceSlug: string, projectId: string, spotId: string) => {
+    await this.projectMemberService.cancelPendingMember(workspaceSlug, projectId, spotId);
+    runInAction(() => {
+      set(
+        this.pendingMemberMap,
+        [projectId],
+        (this.pendingMemberMap[projectId] ?? []).filter((spot) => spot.id !== spotId)
+      );
+    });
+    await this.fetchPendingMembers(workspaceSlug, projectId).catch((error) => console.error(error));
+  };
+
+  resendPendingMember = async (workspaceSlug: string, projectId: string, spotId: string) =>
+    await this.projectMemberService.resendPendingMember(workspaceSlug, projectId, spotId);
 
   /**
    * @description Returns the role to use when updating a project member

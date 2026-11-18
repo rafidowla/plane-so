@@ -115,6 +115,43 @@ export interface IProjectBulkAddFormData {
   members: { role: TUserPermissions | EUserProjectRoles; member_id: string }[];
 }
 
+// FORK: PSR-124 -- invite people to a project by email
+export type TProjectInviteByEmailStatus =
+  | "added"
+  | "invited"
+  | "invite_updated"
+  | "already_member"
+  | "not_allowed"
+  | "invalid";
+
+export type TProjectInviteByEmailPayload = {
+  emails: { email: string; role: 5 | 15 | 20 }[];
+  workspace_role?: 5 | 15;
+  message?: string | null;
+};
+
+export type TProjectInviteByEmailResult = {
+  email: string;
+  status: TProjectInviteByEmailStatus;
+  detail?: string;
+};
+
+export type TProjectInviteByEmailResponse = {
+  results: TProjectInviteByEmailResult[];
+};
+
+export type TProjectPendingMember = {
+  id: string;
+  invite_id: string;
+  email: string;
+  role: number;
+  workspace_role: number;
+  created_at: string;
+  invited_by: { id: string; display_name: string } | null;
+  /** Only present when the requester is a workspace admin. */
+  invite_link?: string;
+};
+
 export type IProjectMemberNavigationPreferences = {
   default_tab: string;
   hide_in_more_menu: string[];

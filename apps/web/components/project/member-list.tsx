@@ -19,6 +19,7 @@ import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { MemberListFiltersDropdown } from "./dropdowns/filters/member-list";
 import { ProjectMemberListItem } from "./member-list-item";
+import { ProjectPendingMemberList } from "./pending-member-list";
 import { SendProjectInvitationModal } from "./send-project-invitation-modal";
 
 type TProjectMemberListProps = {
@@ -90,6 +91,7 @@ export const ProjectMemberList = observer(function ProjectMemberList(props: TPro
               className="w-full max-w-[234px] border-none bg-transparent text-13 placeholder:text-placeholder focus:outline-none"
               placeholder="Search"
               value={searchQuery}
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- pre-existing behaviour: search box focuses on open
               autoFocus
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -123,6 +125,8 @@ export const ProjectMemberList = observer(function ProjectMemberList(props: TPro
               workspaceSlug={workspaceSlug}
             />
           )}
+          {/* FORK: PSR-124 -- invitations not yet accepted */}
+          <ProjectPendingMemberList workspaceSlug={workspaceSlug} projectId={projectId} searchQuery={searchQuery} />
           {searchedProjectMembers.length === 0 && (
             <h4 className="mt-16 text-center text-13 text-placeholder">{t("no_matching_members")}</h4>
           )}
