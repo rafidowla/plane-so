@@ -5,7 +5,13 @@
  */
 // FORK: PSR-124
 import { describe, expect, it } from "vitest";
-import { isValidEmail, parseEmails, summariseInviteResults } from "./project-invite-by-email";
+import {
+  isNoteDropped,
+  isValidEmail,
+  parseEmails,
+  shouldCommitTypedEmails,
+  summariseInviteResults,
+} from "./project-invite-by-email";
 
 describe("isValidEmail", () => {
   it("accepts normal addresses and rejects malformed ones", () => {
@@ -78,5 +84,40 @@ describe("summariseInviteResults", () => {
     expect(summariseInviteResults([{ email: "a@x.com", status: "added" }]).hasProblems).toBe(false);
     const s = summariseInviteResults([{ email: "z@x.com", status: "weird" as never }]);
     expect(s.hasProblems).toBe(true);
+  });
+});
+
+describe("shouldCommitTypedEmails", () => {
+  it("commits on comma, semicolon and newline", () => {
+    expect(shouldCommitTypedEmails("a@x.com,")).toBe(true);
+    expect(shouldCommitTypedEmails("a@x.com;b")).toBe(true);
+    expect(shouldCommitTypedEmails("a@x.com\nb@x.com")).toBe(true);
+  });
+  it("commits on a trailing space only after one valid bare address", () => {
+    expect(shouldCommitTypedEmails("a@x.com ")).toBe(true);
+    expect(shouldCommitTypedEmails("John ")).toBe(false);
+    expect(shouldCommitTypedEmails("John Doe ")).toBe(false);
+    expect(shouldCommitTypedEmails("John Doe <j@x.com> ")).toBe(false);
+    expect(shouldCommitTypedEmails('"John" <j@x.com> ')).toBe(false);
+    expect(shouldCommitTypedEmails("a@x.com b@x.com ")).toBe(false);
+  });
+  it("does not commit while typing", () => {
+    expect(shouldCommitTypedEmails("a@x.com")).toBe(false);
+  });
+});
+
+describe("isNoteDropped", () => {
+  const summary = (results: Parameters<typeof summariseInviteResults>[0]) => summariseInviteResults(results);
+  it("is false without a note", () => {
+    expect(isNoteDropped("  ", summary([{ email: "a@x.com", status: "added" }]), true)).toBe(false);
+  });
+  it("is true when any recipient got no new invitation email", () => {
+    expect(isNoteDropped("hi", summary([{ email: "a@x.com", status: "added" }]), false)).toBe(true);
+    expect(isNoteDropped("hi", summary([{ email: "a@x.com", status: "already_member" }]), false)).toBe(true);
+    expect(isNoteDropped("hi", summary([{ email: "a@x.com", status: "invite_updated" }]), false)).toBe(true);
+    expect(isNoteDropped("hi", null, true)).toBe(true);
+  });
+  it("is false when everyone got a new invitation email", () => {
+    expect(isNoteDropped("hi", summary([{ email: "a@x.com", status: "invited" }]), false)).toBe(false);
   });
 });

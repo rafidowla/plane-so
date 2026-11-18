@@ -20,7 +20,13 @@ import { useTranslation } from "@plane/i18n";
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
 // plane web imports
-import { MAX_INVITE_EMAILS, parseEmails, summariseInviteResults } from "@/plane-web/helpers/project-invite-by-email";
+import {
+  MAX_INVITE_EMAILS,
+  isNoteDropped,
+  parseEmails,
+  shouldCommitTypedEmails,
+  summariseInviteResults,
+} from "@/plane-web/helpers/project-invite-by-email";
 import type { TInviteSummary } from "@/plane-web/helpers/project-invite-by-email";
 
 type TRoleOption = { key: number; label: string };
@@ -43,6 +49,8 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
   const [workspaceRole, setWorkspaceRole] = useState<number>(EUserPermissions.MEMBER);
   const [message, setMessage] = useState("");
   const [summary, setSummary] = useState<TInviteSummary | null>(null);
+  /** How many picked member rows were added in the last submit (shown next to the email results). */
+  const [membersAdded, setMembersAdded] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
   /** Typed text that isn't a valid email. It stays in the input so it is never lost. */
   const [invalidTokens, setInvalidTokens] = useState<string[]>([]);
@@ -125,6 +133,7 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
     setWorkspaceRole(EUserPermissions.MEMBER);
     setMessage("");
     setSummary(null);
+    setMembersAdded(0);
     setFormError(null);
   };
 
@@ -142,6 +151,8 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
     setMessage,
     summary,
     setSummary,
+    membersAdded,
+    setMembersAdded,
     formError,
     setFormError,
     isWorkspaceAdmin,
@@ -230,9 +241,16 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
             aria-invalid={form.invalidTokens.length > 0}
             onChange={(e) => {
               const value = e.target.value;
-              // a separator typed or pasted turns the text before it into chips; invalid text stays in the box
-              if (/[\s,;]/.test(value)) form.commitDraft(value);
+              // commas/semicolons, or a space after one bare valid address, turn the text into chips;
+              // anything else (e.g. "John Doe <j@x.com>" being typed) stays in the box until Enter/blur
+              if (shouldCommitTypedEmails(value)) form.commitDraft(value);
               else form.setDraft(value);
+            }}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text");
+              if (!/[\s,;]/.test(text.trim())) return;
+              e.preventDefault();
+              form.commitDraft(form.draft ? `${form.draft}, ${text}` : text);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -292,12 +310,14 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
       {summary?.hasProblems && (
         <div className="space-y-1 rounded-md border border-subtle bg-layer-1 p-3 text-13" role="status">
           <p className="font-medium">{t(`${BASE}.summary_title`)}</p>
-          {summary.added.length > 0 && <p>{t(`${BASE}.summary_added`, { count: summary.added.length })}</p>}
+          {summary.added.length + form.membersAdded > 0 && (
+            <p>{t(`${BASE}.summary_added`, { count: summary.added.length + form.membersAdded })}</p>
+          )}
           {summary.invited.length > 0 && <p>{t(`${BASE}.summary_invited`, { count: summary.invited.length })}</p>}
           {summary.inviteUpdated.length > 0 && (
             <p>{t(`${BASE}.summary_invite_updated`, { emails: list(summary.inviteUpdated) })}</p>
           )}
-          {summary.inviteUpdated.length > 0 && form.message.trim() && <p>{t(`${BASE}.note_not_sent`)}</p>}
+          {isNoteDropped(form.message, summary, form.membersAdded > 0) && <p>{t(`${BASE}.note_not_sent`)}</p>}
           {summary.alreadyMember.length > 0 && (
             <p>{t(`${BASE}.summary_already_member`, { emails: list(summary.alreadyMember) })}</p>
           )}

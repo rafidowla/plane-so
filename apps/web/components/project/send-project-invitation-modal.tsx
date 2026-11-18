@@ -29,6 +29,7 @@ import {
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 // FORK: PSR-124
 import { InviteByEmailSection, useInviteByEmailForm } from "./invite-by-email-section";
+import { isNoteDropped } from "@/plane-web/helpers/project-invite-by-email";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -84,6 +85,8 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
   // FORK: PSR-124 -- state of the "invite by email" section; one submit sends both it and the member rows
   const emailForm = useInviteByEmailForm(workspaceSlug, projectId);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasClosedRef = useRef(!isOpen);
+  const submittingRef = useRef(false);
   // form info
   const {
     formState: { errors, isSubmitting },
@@ -108,11 +111,14 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     }) ?? [];
 
   // FORK: PSR-124 -- the Dialog unmounts its content on close, but THIS component (and its form state) stays
-  // mounted, so state is reset explicitly: after the close animation, and cancelled if the modal reopens.
+  // mounted, so state is reset explicitly: after the close animation, and always (synchronously) when the
+  // modal reopens, so a stale note/summary/chips can never survive into the next invitation.
   const resetAll = () => {
     reset(defaultValues);
     emailForm.reset();
   };
+  const resetAllRef = useRef(resetAll);
+  resetAllRef.current = resetAll;
 
   const clearPendingReset = () => {
     if (resetTimeoutRef.current) {
@@ -122,9 +128,19 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
   };
 
   useEffect(() => {
-    if (isOpen) clearPendingReset();
-    return clearPendingReset;
+    if (!isOpen) {
+      wasClosedRef.current = true;
+      return;
+    }
+    if (wasClosedRef.current) {
+      wasClosedRef.current = false;
+      clearPendingReset();
+      resetAllRef.current();
+    }
   }, [isOpen]);
+
+  // only on unmount: a timer left running after the modal is gone
+  useEffect(() => clearPendingReset, []);
 
   // FORK: PSR-124 -- ONE submit: picked member rows go through bulk add, typed emails through invite-by-email.
   // Close only if everything succeeded; otherwise keep failed emails / unsent rows in place.
@@ -140,8 +156,17 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
   })();
 
   const onSubmit = async (formData: FormValues) => {
-    if (!workspaceSlug || !projectId || isSubmitting) return;
+    // a ref, not `isSubmitting`: the latter is a stale render closure, so it cannot stop a quick double click
+    if (!workspaceSlug || !projectId || submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      await submit(formData);
+    } finally {
+      submittingRef.current = false;
+    }
+  };
 
+  const submit = async (formData: FormValues) => {
     const rows = formData.members.filter((row) => row.member_id);
     const emails = emailForm.collect();
     // invalid typed text (or too many emails): shown in place, nothing is sent
@@ -152,6 +177,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     }
     emailForm.setFormError(null);
     emailForm.setSummary(null);
+    emailForm.setMembersAdded(0);
 
     const [rowsResult, emailsResult] = await Promise.allSettled([
       rows.length > 0
@@ -167,6 +193,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     const emailsFailed = emails.length > 0 && !emailSummary;
 
     if (rowsOk) {
+      emailForm.setMembersAdded(rows.length);
       // these people are members now: drop them from the form so they are never re-sent
       reset(defaultValues);
       onSuccess?.();
@@ -189,7 +216,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
       emailSummary?.inviteUpdated.length
         ? t(`${by}.summary_invite_updated`, { emails: emailSummary.inviteUpdated.join(", ") })
         : null,
-      emailSummary?.inviteUpdated.length && emailForm.message.trim() ? t(`${by}.note_not_sent`) : null,
+      isNoteDropped(emailForm.message, emailSummary, rowsOk) ? t(`${by}.note_not_sent`) : null,
     ].filter(Boolean);
     setToast({ title: t(`${by}.success_title`), type: "success", message: messageParts.join(". ") });
     handleClose();

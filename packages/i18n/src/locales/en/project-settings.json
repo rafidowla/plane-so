@@ -61,7 +61,7 @@
           "success_message": "Invitations processed.",
           "submit_both": "Add members and send invitations",
           "summary_invite_updated": "Already invited, added to this project too (no new email sent): {emails}",
-          "note_not_sent": "Your note wasn't sent because they already had an invitation.",
+          "note_not_sent": "Your note was only included in new invitation emails.",
           "members_failed": "Couldn't add the selected members. Please try again."
         }
       },

@@ -18,6 +18,19 @@ const ANGLE_ADDRESS_REGEX = /(?<![^\s,;])(?:"[^"]*"\s*|(?:[^\s,;<>@"]+\s+)*)<([^
 
 export const isValidEmail = (value: string): boolean => EMAIL_REGEX.test(value);
 
+/**
+ * Decide whether the text typed in the email box should be turned into chips right now.
+ * Commas, semicolons and newlines always commit. A space commits only when the text so far is exactly one
+ * valid bare address (so "John Doe <j@x.com>" can still be typed by hand); everything else waits for
+ * Enter, blur or paste.
+ */
+export const shouldCommitTypedEmails = (value: string): boolean => {
+  if (/[,;\n\r]/.test(value)) return true;
+  if (!/\s$/.test(value)) return false;
+  if (/[<>"]/.test(value)) return false;
+  return isValidEmail(value.trim());
+};
+
 export type TParsedEmails = {
   /** Valid, trimmed, lowercased, de-duplicated (also against `existing`). */
   valid: string[];
@@ -52,7 +65,7 @@ export const parseEmails = (raw: string, existing: string[] = []): TParsedEmails
 export type TInviteSummary = {
   added: string[];
   invited: string[]; // new invitations (email sent)
-  /** Already had a pending workspace invitation: added to this project too, no new email, note not sent. */
+  /** Already had a pending workspace invitation: added to this project too, no new email (so no note). */
   inviteUpdated: string[];
   alreadyMember: string[];
   notAllowed: string[];
@@ -60,6 +73,17 @@ export type TInviteSummary = {
   /** Emails that did not succeed; the modal keeps these as chips for another try. */
   problemEmails: string[];
   hasProblems: boolean;
+};
+
+/**
+ * The personal note only goes in NEW invitation emails. True when a note was typed and at least one person
+ * (or picked member row) did not get one.
+ */
+export const isNoteDropped = (note: string, summary: TInviteSummary | null, hasMemberRows: boolean): boolean => {
+  if (!note.trim()) return false;
+  if (hasMemberRows) return true;
+  if (!summary) return false;
+  return summary.added.length + summary.alreadyMember.length + summary.inviteUpdated.length > 0;
 };
 
 const bucketFor: Record<TProjectInviteByEmailStatus, keyof Omit<TInviteSummary, "problemEmails" | "hasProblems">> = {
