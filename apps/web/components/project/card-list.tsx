@@ -20,6 +20,8 @@ import { useProjectFilter } from "@/hooks/store/use-project-filter";
 import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { ProjectCard } from "./card";
+import { ProjectListView } from "./list-view"; // FORK: PSR-123
+import { useProjectsLayout } from "./use-projects-layout"; // FORK: PSR-123
 
 type TProjectCardListProps = {
   totalProjectIds?: string[];
@@ -41,6 +43,8 @@ export const ProjectCardList = observer(function ProjectCardList(props: TProject
   } = useProject();
   const { currentWorkspaceDisplayFilters, currentWorkspaceFilters } = useProjectFilter();
   const { allowPermissions } = useUserPermissions();
+  // FORK: PSR-123 -- saved layout (List by default); the loader covers the wait so the wrong layout never flashes
+  const { layout, isLoaded: isLayoutLoaded } = useProjectsLayout();
 
   // derived values
   const workspaceProjectIds = totalProjectIdsProps ?? storeWorkspaceProjectIds;
@@ -52,7 +56,13 @@ export const ProjectCardList = observer(function ProjectCardList(props: TProject
     EUserPermissionsLevel.WORKSPACE
   );
 
-  if (!filteredProjectIds || !workspaceProjectIds || loader === "init-loader" || fetchStatus !== "complete")
+  if (
+    !filteredProjectIds ||
+    !workspaceProjectIds ||
+    loader === "init-loader" ||
+    fetchStatus !== "complete" ||
+    !isLayoutLoaded
+  )
     return <ProjectsLoader />;
 
   if (workspaceProjectIds?.length === 0 && !currentWorkspaceDisplayFilters?.archived_projects)
@@ -99,6 +109,9 @@ export const ProjectCardList = observer(function ProjectCardList(props: TProject
         assetClassName="size-40"
       />
     );
+
+  // FORK: PSR-123 -- List view (default); Grid below is the original layout
+  if (layout === "list") return <ProjectListView projectIds={filteredProjectIds} />;
 
   return (
     <ContentWrapper>

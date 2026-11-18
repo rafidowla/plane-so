@@ -189,7 +189,9 @@
       "manual": "Handmatig",
       "name": "Naam",
       "created_at": "Aanmaakdatum",
-      "members_length": "Aantal leden"
+      "members_length": "Aantal leden",
+      "key": "Sleutel",
+      "lead": "Lead"
     },
     "scope": {
       "my_projects": "Mijn projecten",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Geen projecten gevonden die aan de criteria voldoen.\nMaak in plaats daarvan een nieuw project aan"
       }
+    },
+    "list_view": {
+      "layout_label": "Indeling",
+      "layout_list": "Lijst",
+      "layout_grid": "Raster",
+      "col_favorite": "Favoriet",
+      "col_name": "Naam",
+      "col_key": "Sleutel",
+      "col_lead": "Lead",
+      "col_category": "Categorie",
+      "col_url": "Project-URL",
+      "col_actions": "Acties",
+      "sort_by": "Sorteren op {column}",
+      "copy_url": "Project-URL kopiëren",
+      "open": "Openen",
+      "settings": "Instellingen",
+      "members": "Leden",
+      "archive": "Archiveren",
+      "restore": "Herstellen",
+      "join": "Deelnemen",
+      "favorite_add": "Toevoegen aan favorieten",
+      "favorite_remove": "Verwijderen uit favorieten",
+      "all_categories": "Alle categorieën",
+      "no_category": "Geen categorie",
+      "filter_category": "Categorie"
     }
   },
   "workspace_views": {

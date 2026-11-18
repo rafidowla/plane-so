@@ -13,6 +13,7 @@ import { EHeaderVariant, Header } from "@plane/blocks/layout";
 import { replaceUnderscoreIfSnakeCase } from "@plane/utils";
 // local imports
 import { AppliedAccessFilters } from "./access";
+import { AppliedCategoryFilters } from "./category"; // FORK: PSR-123
 import { AppliedDateFilters } from "./date";
 import { AppliedMembersFilters } from "./members";
 import { AppliedProjectDisplayFilters } from "./project-display-filters";
@@ -71,6 +72,14 @@ export function ProjectAppliedFiltersList(props: Props) {
                 <AppliedAccessFilters
                   editable={isEditingAllowed}
                   handleRemove={(val) => handleRemoveFilter("access", val)}
+                  values={value}
+                />
+              )}
+              {/* FORK: PSR-123 */}
+              {filterKey === "category" && (
+                <AppliedCategoryFilters
+                  editable={isEditingAllowed}
+                  handleRemove={(val) => handleRemoveFilter("category", val)}
                   values={value}
                 />
               )}

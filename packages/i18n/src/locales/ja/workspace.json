@@ -189,7 +189,9 @@
       "manual": "手動",
       "name": "名前",
       "created_at": "作成日",
-      "members_length": "メンバー数"
+      "members_length": "メンバー数",
+      "key": "キー",
+      "lead": "リード"
     },
     "scope": {
       "my_projects": "自分のプロジェクト",
@@ -229,6 +231,31 @@
       "search": {
         "description": "条件に一致するプロジェクトが見つかりません。\n代わりに新しいプロジェクトを作成してください。"
       }
+    },
+    "list_view": {
+      "layout_label": "レイアウト",
+      "layout_list": "リスト",
+      "layout_grid": "グリッド",
+      "col_favorite": "お気に入り",
+      "col_name": "名前",
+      "col_key": "キー",
+      "col_lead": "リード",
+      "col_category": "カテゴリ",
+      "col_url": "プロジェクトURL",
+      "col_actions": "操作",
+      "sort_by": "{column}で並べ替え",
+      "copy_url": "プロジェクトURLをコピー",
+      "open": "開く",
+      "settings": "設定",
+      "members": "メンバー",
+      "archive": "アーカイブ",
+      "restore": "復元",
+      "join": "参加",
+      "favorite_add": "お気に入りに追加",
+      "favorite_remove": "お気に入りから削除",
+      "all_categories": "すべてのカテゴリ",
+      "no_category": "カテゴリなし",
+      "filter_category": "カテゴリ"
     }
   },
   "workspace_views": {

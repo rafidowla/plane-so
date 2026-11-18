@@ -189,7 +189,9 @@
       "manual": "ხელით",
       "name": "სახელი",
       "created_at": "შექმნის თარიღი",
-      "members_length": "წევრების რაოდენობა"
+      "members_length": "წევრების რაოდენობა",
+      "key": "გასაღები",
+      "lead": "ლიდერი"
     },
     "scope": {
       "my_projects": "ჩემი პროექტები",
@@ -229,6 +231,31 @@
       "search": {
         "description": "შესაბამისი კრიტერიუმებით პროექტები არ მოიძებნა.\nშექმენით ახალი პროექტი ნაცვლად"
       }
+    },
+    "list_view": {
+      "layout_label": "განლაგება",
+      "layout_list": "სია",
+      "layout_grid": "ბადე",
+      "col_favorite": "რჩეული",
+      "col_name": "სახელი",
+      "col_key": "გასაღები",
+      "col_lead": "ლიდერი",
+      "col_category": "კატეგორია",
+      "col_url": "პროექტის URL",
+      "col_actions": "მოქმედებები",
+      "sort_by": "დალაგება: {column}",
+      "copy_url": "პროექტის URL-ის კოპირება",
+      "open": "გახსნა",
+      "settings": "პარამეტრები",
+      "members": "წევრები",
+      "archive": "დაარქივება",
+      "restore": "აღდგენა",
+      "join": "გაწევრიანება",
+      "favorite_add": "რჩეულებში დამატება",
+      "favorite_remove": "რჩეულებიდან ამოშლა",
+      "all_categories": "ყველა კატეგორია",
+      "no_category": "კატეგორიის გარეშე",
+      "filter_category": "კატეგორია"
     }
   },
   "workspace_views": {

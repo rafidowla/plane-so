@@ -189,7 +189,9 @@
       "manual": "Manuell",
       "name": "Name",
       "created_at": "Erstellungsdatum",
-      "members_length": "Mitgliederanzahl"
+      "members_length": "Mitgliederanzahl",
+      "key": "Schlüssel",
+      "lead": "Leiter"
     },
     "scope": {
       "my_projects": "Meine Projekte",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Keine Projekte entsprechen Ihren Suchkriterien.\nErstellen Sie ein neues."
       }
+    },
+    "list_view": {
+      "layout_label": "Layout",
+      "layout_list": "Liste",
+      "layout_grid": "Raster",
+      "col_favorite": "Favorit",
+      "col_name": "Name",
+      "col_key": "Schlüssel",
+      "col_lead": "Leiter",
+      "col_category": "Kategorie",
+      "col_url": "Projekt-URL",
+      "col_actions": "Aktionen",
+      "sort_by": "Nach {column} sortieren",
+      "copy_url": "Projekt-URL kopieren",
+      "open": "Öffnen",
+      "settings": "Einstellungen",
+      "members": "Mitglieder",
+      "archive": "Archivieren",
+      "restore": "Wiederherstellen",
+      "join": "Beitreten",
+      "favorite_add": "Zu Favoriten hinzufügen",
+      "favorite_remove": "Aus Favoriten entfernen",
+      "all_categories": "Alle Kategorien",
+      "no_category": "Keine Kategorie",
+      "filter_category": "Kategorie"
     }
   },
   "workspace_views": {

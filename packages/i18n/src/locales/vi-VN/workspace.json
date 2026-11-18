@@ -189,7 +189,9 @@
       "manual": "Thủ công",
       "name": "Tên",
       "created_at": "Ngày tạo",
-      "members_length": "Số lượng thành viên"
+      "members_length": "Số lượng thành viên",
+      "key": "Khóa",
+      "lead": "Trưởng nhóm"
     },
     "scope": {
       "my_projects": "Dự án của tôi",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Không phát hiện dự án nào phù hợp với điều kiện tìm kiếm.\nTạo dự án mới"
       }
+    },
+    "list_view": {
+      "layout_label": "Bố cục",
+      "layout_list": "Danh sách",
+      "layout_grid": "Lưới",
+      "col_favorite": "Yêu thích",
+      "col_name": "Tên",
+      "col_key": "Khóa",
+      "col_lead": "Trưởng nhóm",
+      "col_category": "Danh mục",
+      "col_url": "URL dự án",
+      "col_actions": "Hành động",
+      "sort_by": "Sắp xếp theo {column}",
+      "copy_url": "Sao chép URL dự án",
+      "open": "Mở",
+      "settings": "Cài đặt",
+      "members": "Thành viên",
+      "archive": "Lưu trữ",
+      "restore": "Khôi phục",
+      "join": "Tham gia",
+      "favorite_add": "Thêm vào yêu thích",
+      "favorite_remove": "Xóa khỏi yêu thích",
+      "all_categories": "Tất cả danh mục",
+      "no_category": "Không có danh mục",
+      "filter_category": "Danh mục"
     }
   },
   "workspace_views": {

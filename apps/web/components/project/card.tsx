@@ -19,25 +19,22 @@ import {
   UserPlusOutline,
 } from "@makeplane/propel/icons";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel, IS_FAVORITE_MENU_OPEN } from "@plane/constants";
-import { useLocalStorage } from "@plane/hooks";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { Avatar } from "@makeplane/propel/components/avatar";
 import { AvatarGroup } from "@makeplane/propel/components/avatar-group";
 import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Logo } from "@plane/blocks/emoji-icon-picker";
-import { setPromiseToast, setToast } from "@plane/blocks/toast";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
 import type { IProject } from "@plane/types";
 import type { TContextMenuItem } from "@plane/blocks/context-menu";
 import { ContextMenu } from "@plane/blocks/context-menu";
 import { FavoriteStar } from "@plane/blocks/common";
-import { copyUrlToClipboard, cn, getFileURL, renderFormattedDate } from "@plane/utils";
+import { cn, getFileURL, renderFormattedDate } from "@plane/utils";
 // components
 // hooks
 import { useMember } from "@/hooks/store/use-member";
-import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { usePlatformOS } from "@/hooks/use-platform-os";
@@ -46,6 +43,7 @@ import { CoverImage } from "@/components/common/cover-image";
 import { DeleteProjectModal } from "./delete-project-modal";
 import { JoinProjectModal } from "./join-project-modal";
 import { ArchiveRestoreProjectModal } from "./archive-restore-modal";
+import { useProjectSharedActions } from "./use-project-shared-actions"; // FORK: PSR-123
 
 type Props = {
   project: IProject;
@@ -64,7 +62,6 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
   const { workspaceSlug } = useParams();
   // store hooks
   const { getUserDetails } = useMember();
-  const { addProjectToFavorites, removeProjectFromFavorites } = useProject();
   const { allowPermissions } = useUserPermissions();
   // hooks
   const { isMobile } = usePlatformOS();
@@ -85,61 +82,14 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
   const hasMemberRole = project.member_role === EUserPermissions.MEMBER;
   // archive
   const isArchived = !!project.archived_at;
-  // local storage
-  const { setValue: toggleFavoriteMenu, storedValue: isFavoriteMenuOpen } = useLocalStorage<boolean>(
-    IS_FAVORITE_MENU_OPEN,
-    false
+  // FORK: PSR-123 -- favourite + copy-link handlers shared with the List view row
+  const { handleAddToFavorites, handleRemoveFromFavorites, handleCopyLink } = useProjectSharedActions(
+    workspaceSlug?.toString(),
+    project.id
   );
 
-  const handleAddToFavorites = () => {
-    if (!workspaceSlug) return;
-
-    const addToFavoritePromise = addProjectToFavorites(workspaceSlug.toString(), project.id);
-    setPromiseToast(addToFavoritePromise, {
-      loading: "Adding project to favorites...",
-      success: {
-        title: "Success!",
-        message: () => "Project added to favorites.",
-        // propel: the callback exists for its side effect; a toast action is data, and there is
-        // none here, so it returns an empty list rather than an empty fragment.
-        actionItems: () => {
-          if (!isFavoriteMenuOpen) toggleFavoriteMenu(true);
-          return [];
-        },
-      },
-      error: {
-        title: "Error!",
-        message: () => "Couldn't add the project to favorites. Please try again.",
-      },
-    });
-  };
-
-  const handleRemoveFromFavorites = () => {
-    if (!workspaceSlug) return;
-
-    const removeFromFavoritePromise = removeProjectFromFavorites(workspaceSlug.toString(), project.id);
-    setPromiseToast(removeFromFavoritePromise, {
-      loading: "Removing project from favorites...",
-      success: {
-        title: "Success!",
-        message: () => "Project removed from favorites.",
-      },
-      error: {
-        title: "Error!",
-        message: () => "Couldn't remove the project from favorites. Please try again.",
-      },
-    });
-  };
-
   const projectLink = `${workspaceSlug}/projects/${project.id}/issues`;
-  const handleCopyText = () =>
-    copyUrlToClipboard(projectLink).then(() =>
-      setToast({
-        type: "info",
-        title: "Link Copied!",
-        message: "Project link copied to clipboard.",
-      })
-    );
+  const handleCopyText = handleCopyLink;
   const handleOpenInNewTab = () => window.open(`/${projectLink}`, "_blank");
 
   const MENU_ITEMS: TContextMenuItem[] = [

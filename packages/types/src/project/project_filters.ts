@@ -11,7 +11,15 @@ export type TProjectOrderByOptions =
   | "created_at"
   | "-created_at"
   | "members_length"
-  | "-members_length";
+  | "-members_length"
+  // FORK: PSR-123 -- List view column sorts
+  | "key"
+  | "-key"
+  | "lead"
+  | "-lead";
+
+// FORK: PSR-123 -- saved Projects page layout (per user, per workspace)
+export type TProjectsLayout = "list" | "grid";
 
 export type TProjectDisplayFilters = {
   my_projects?: boolean;
@@ -26,6 +34,8 @@ export type TProjectFilters = {
   lead?: string[] | null;
   members?: string[] | null;
   created_at?: string[] | null;
+  // FORK: PSR-123 -- category ids; the sentinel "none" matches projects without a category
+  category?: string[] | null;
 };
 
 export type TProjectStoredFilters = {

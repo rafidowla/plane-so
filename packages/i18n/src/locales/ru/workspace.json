@@ -189,7 +189,9 @@
       "manual": "Вручную",
       "name": "По имени",
       "created_at": "По дате создания",
-      "members_length": "По количеству участников"
+      "members_length": "По количеству участников",
+      "key": "Ключ",
+      "lead": "Руководитель"
     },
     "scope": {
       "my_projects": "Мои проекты",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Не найдено проектов по заданным критериям.\nСоздайте новый проект"
       }
+    },
+    "list_view": {
+      "layout_label": "Вид",
+      "layout_list": "Список",
+      "layout_grid": "Сетка",
+      "col_favorite": "Избранное",
+      "col_name": "Название",
+      "col_key": "Ключ",
+      "col_lead": "Руководитель",
+      "col_category": "Категория",
+      "col_url": "URL проекта",
+      "col_actions": "Действия",
+      "sort_by": "Сортировать по: {column}",
+      "copy_url": "Копировать URL проекта",
+      "open": "Открыть",
+      "settings": "Настройки",
+      "members": "Участники",
+      "archive": "Архивировать",
+      "restore": "Восстановить",
+      "join": "Присоединиться",
+      "favorite_add": "Добавить в избранное",
+      "favorite_remove": "Удалить из избранного",
+      "all_categories": "Все категории",
+      "no_category": "Без категории",
+      "filter_category": "Категория"
     }
   },
   "workspace_views": {

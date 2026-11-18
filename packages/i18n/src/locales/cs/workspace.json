@@ -189,7 +189,9 @@
       "manual": "Ručně",
       "name": "Název",
       "created_at": "Datum vytvoření",
-      "members_length": "Počet členů"
+      "members_length": "Počet členů",
+      "key": "Klíč",
+      "lead": "Vedoucí"
     },
     "scope": {
       "my_projects": "Moje projekty",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Nenalezeny projekty odpovídající kritériím.\nVytvořte nový."
       }
+    },
+    "list_view": {
+      "layout_label": "Rozvržení",
+      "layout_list": "Seznam",
+      "layout_grid": "Mřížka",
+      "col_favorite": "Oblíbené",
+      "col_name": "Název",
+      "col_key": "Klíč",
+      "col_lead": "Vedoucí",
+      "col_category": "Kategorie",
+      "col_url": "URL projektu",
+      "col_actions": "Akce",
+      "sort_by": "Seřadit podle: {column}",
+      "copy_url": "Kopírovat URL projektu",
+      "open": "Otevřít",
+      "settings": "Nastavení",
+      "members": "Členové",
+      "archive": "Archivovat",
+      "restore": "Obnovit",
+      "join": "Připojit se",
+      "favorite_add": "Přidat do oblíbených",
+      "favorite_remove": "Odebrat z oblíbených",
+      "all_categories": "Všechny kategorie",
+      "no_category": "Bez kategorie",
+      "filter_category": "Kategorie"
     }
   },
   "workspace_views": {

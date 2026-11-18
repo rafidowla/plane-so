@@ -17,6 +17,7 @@ import type {
 // services
 import { WorkspaceService } from "@/services/workspace.service";
 import type { TWorkspaceDeleteConfirmation } from "@/services/workspace.service"; // FORK: PSR-125
+import { mergeWorkspaceUserProperties } from "@/plane-web/helpers/workspace-user-properties"; // FORK: PSR-123
 // store
 import type { CoreRootStore } from "@/store/root.store";
 // sub-stores
@@ -360,10 +361,11 @@ export class BaseWorkspaceRootStore implements IWorkspaceRootStore {
     try {
       // Optimistically update store
       runInAction(() => {
-        this.projectNavigationPreferencesMap[workspaceSlug] = {
-          ...this.projectNavigationPreferencesMap[workspaceSlug],
-          ...data,
-        };
+        // FORK: PSR-123 -- display_filters is merged (not replaced) so projects_layout keeps its siblings
+        this.projectNavigationPreferencesMap[workspaceSlug] = mergeWorkspaceUserProperties(
+          this.projectNavigationPreferencesMap[workspaceSlug],
+          data
+        );
       });
 
       // Call API to persist changes

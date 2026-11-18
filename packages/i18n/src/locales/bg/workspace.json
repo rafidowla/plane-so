@@ -189,7 +189,9 @@
       "manual": "Ръчно",
       "name": "Име",
       "created_at": "Дата на създаване",
-      "members_length": "Брой членове"
+      "members_length": "Брой членове",
+      "key": "Ключ",
+      "lead": "Ръководител"
     },
     "scope": {
       "my_projects": "Моите проекти",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Не са открити проекти, отговарящи на критериите.\nВместо това създайте нов проект"
       }
+    },
+    "list_view": {
+      "layout_label": "Изглед",
+      "layout_list": "Списък",
+      "layout_grid": "Решетка",
+      "col_favorite": "Любим",
+      "col_name": "Име",
+      "col_key": "Ключ",
+      "col_lead": "Ръководител",
+      "col_category": "Категория",
+      "col_url": "URL на проекта",
+      "col_actions": "Действия",
+      "sort_by": "Сортиране по {column}",
+      "copy_url": "Копиране на URL на проекта",
+      "open": "Отвори",
+      "settings": "Настройки",
+      "members": "Членове",
+      "archive": "Архивиране",
+      "restore": "Възстановяване",
+      "join": "Присъединяване",
+      "favorite_add": "Добавяне в любими",
+      "favorite_remove": "Премахване от любими",
+      "all_categories": "Всички категории",
+      "no_category": "Без категория",
+      "filter_category": "Категория"
     }
   },
   "workspace_views": {

@@ -10,7 +10,7 @@ import { computedFn } from "mobx-utils";
 // plane imports
 import type { TFetchStatus, TLoader, TProjectAnalyticsCount, TProjectAnalyticsCountParams } from "@plane/types";
 // helpers
-import { orderProjects, shouldFilterProject } from "@plane/utils";
+import { getProjectLeadId, orderProjects, projectMatchesSearch, shouldFilterProject } from "@plane/utils";
 // services
 import type { TProject, TPartialProject } from "@plane/types";
 import { IssueLabelService, IssueService } from "@/services/issue";
@@ -166,11 +166,15 @@ export class ProjectStore implements IProjectStore {
     let workspaceProjects = Object.values(this.projectMap).filter(
       (p) =>
         p.workspace === workspaceDetails.id &&
-        (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.identifier.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        // FORK: PSR-123 -- search matches name or key
+        projectMatchesSearch(p, searchQuery) &&
         shouldFilterProject(p, displayFilters, filters)
     );
-    workspaceProjects = orderProjects(workspaceProjects, displayFilters.order_by);
+    workspaceProjects = orderProjects(workspaceProjects, displayFilters.order_by, (p) => {
+      // FORK: PSR-123 -- "lead" ordering sorts by the lead's display name
+      const leadId = getProjectLeadId(p);
+      return leadId ? this.rootStore.memberRoot.getUserDetails(leadId)?.display_name : undefined;
+    });
     return workspaceProjects.map((p) => p.id);
   }
 

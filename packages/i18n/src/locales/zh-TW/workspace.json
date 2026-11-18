@@ -189,7 +189,9 @@
       "manual": "手動",
       "name": "名稱",
       "created_at": "建立日期",
-      "members_length": "成員數量"
+      "members_length": "成員數量",
+      "key": "識別碼",
+      "lead": "負責人"
     },
     "scope": {
       "my_projects": "我的專案",
@@ -229,6 +231,31 @@
       "search": {
         "description": "找不到符合篩選條件的專案。\n改為建立新專案"
       }
+    },
+    "list_view": {
+      "layout_label": "版面配置",
+      "layout_list": "清單",
+      "layout_grid": "格狀",
+      "col_favorite": "我的最愛",
+      "col_name": "名稱",
+      "col_key": "識別碼",
+      "col_lead": "負責人",
+      "col_category": "分類",
+      "col_url": "專案連結",
+      "col_actions": "操作",
+      "sort_by": "依{column}排序",
+      "copy_url": "複製專案連結",
+      "open": "開啟",
+      "settings": "設定",
+      "members": "成員",
+      "archive": "封存",
+      "restore": "還原",
+      "join": "加入",
+      "favorite_add": "加入我的最愛",
+      "favorite_remove": "從我的最愛移除",
+      "all_categories": "所有分類",
+      "no_category": "無分類",
+      "filter_category": "分類"
     }
   },
   "workspace_views": {

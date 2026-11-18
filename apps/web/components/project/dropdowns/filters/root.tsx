@@ -15,6 +15,7 @@ import { FilterOption } from "@/components/issues/issue-layouts/filters";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // local imports
 import { FilterAccess } from "./access";
+import { FilterCategory } from "./category"; // FORK: PSR-123
 import { FilterCreatedDate } from "./created-at";
 import { FilterLead } from "./lead";
 import { FilterMembers } from "./members";
@@ -45,6 +46,8 @@ export const ProjectFiltersSelection = observer(function ProjectFiltersSelection
             placeholder="Search"
             value={filtersSearchQuery}
             onChange={(e) => setFiltersSearchQuery(e.target.value)}
+            // FORK: PSR-123 -- pre-existing warning; deny-warnings hook needs it clean
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus={!isMobile}
           />
           {filtersSearchQuery !== "" && (
@@ -83,6 +86,15 @@ export const ProjectFiltersSelection = observer(function ProjectFiltersSelection
             handleUpdate={(val) => handleFiltersUpdate("lead", val)}
             searchQuery={filtersSearchQuery}
             memberIds={memberIds}
+          />
+        </div>
+
+        {/* FORK: PSR-123 -- category */}
+        <div className="py-2">
+          <FilterCategory
+            appliedFilters={filters.category ?? null}
+            handleUpdate={(val) => handleFiltersUpdate("category", val)}
+            searchQuery={filtersSearchQuery}
           />
         </div>
 

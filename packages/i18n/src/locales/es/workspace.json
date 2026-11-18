@@ -189,7 +189,9 @@
       "manual": "Manual",
       "name": "Nombre",
       "created_at": "Fecha de creación",
-      "members_length": "Número de miembros"
+      "members_length": "Número de miembros",
+      "key": "Clave",
+      "lead": "Responsable"
     },
     "scope": {
       "my_projects": "Mis proyectos",
@@ -229,6 +231,31 @@
       "search": {
         "description": "No se detectaron proyectos con los criterios coincidentes.\nCrea un nuevo proyecto en su lugar"
       }
+    },
+    "list_view": {
+      "layout_label": "Diseño",
+      "layout_list": "Lista",
+      "layout_grid": "Cuadrícula",
+      "col_favorite": "Favorito",
+      "col_name": "Nombre",
+      "col_key": "Clave",
+      "col_lead": "Responsable",
+      "col_category": "Categoría",
+      "col_url": "URL del proyecto",
+      "col_actions": "Acciones",
+      "sort_by": "Ordenar por {column}",
+      "copy_url": "Copiar URL del proyecto",
+      "open": "Abrir",
+      "settings": "Configuración",
+      "members": "Miembros",
+      "archive": "Archivar",
+      "restore": "Restaurar",
+      "join": "Unirse",
+      "favorite_add": "Añadir a favoritos",
+      "favorite_remove": "Quitar de favoritos",
+      "all_categories": "Todas las categorías",
+      "no_category": "Sin categoría",
+      "filter_category": "Categoría"
     }
   },
   "workspace_views": {

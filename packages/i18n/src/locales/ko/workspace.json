@@ -189,7 +189,9 @@
       "manual": "수동",
       "name": "이름",
       "created_at": "생성일",
-      "members_length": "멤버 수"
+      "members_length": "멤버 수",
+      "key": "키",
+      "lead": "리드"
     },
     "scope": {
       "my_projects": "내 프로젝트",
@@ -229,6 +231,31 @@
       "search": {
         "description": "일치하는 프로젝트가 없습니다. 대신 새 프로젝트를 생성하세요"
       }
+    },
+    "list_view": {
+      "layout_label": "레이아웃",
+      "layout_list": "목록",
+      "layout_grid": "그리드",
+      "col_favorite": "즐겨찾기",
+      "col_name": "이름",
+      "col_key": "키",
+      "col_lead": "리드",
+      "col_category": "카테고리",
+      "col_url": "프로젝트 URL",
+      "col_actions": "작업",
+      "sort_by": "{column} 기준 정렬",
+      "copy_url": "프로젝트 URL 복사",
+      "open": "열기",
+      "settings": "설정",
+      "members": "멤버",
+      "archive": "보관",
+      "restore": "복원",
+      "join": "참여",
+      "favorite_add": "즐겨찾기에 추가",
+      "favorite_remove": "즐겨찾기에서 제거",
+      "all_categories": "모든 카테고리",
+      "no_category": "카테고리 없음",
+      "filter_category": "카테고리"
     }
   },
   "workspace_views": {

@@ -189,7 +189,9 @@
       "manual": "手动",
       "name": "名称",
       "created_at": "创建日期",
-      "members_length": "成员数量"
+      "members_length": "成员数量",
+      "key": "标识",
+      "lead": "负责人"
     },
     "scope": {
       "my_projects": "我的项目",
@@ -229,6 +231,31 @@
       "search": {
         "description": "未检测到符合匹配条件的项目。\n创建一个新项目"
       }
+    },
+    "list_view": {
+      "layout_label": "布局",
+      "layout_list": "列表",
+      "layout_grid": "网格",
+      "col_favorite": "收藏",
+      "col_name": "名称",
+      "col_key": "标识",
+      "col_lead": "负责人",
+      "col_category": "分类",
+      "col_url": "项目链接",
+      "col_actions": "操作",
+      "sort_by": "按{column}排序",
+      "copy_url": "复制项目链接",
+      "open": "打开",
+      "settings": "设置",
+      "members": "成员",
+      "archive": "归档",
+      "restore": "恢复",
+      "join": "加入",
+      "favorite_add": "添加到收藏",
+      "favorite_remove": "从收藏中移除",
+      "all_categories": "所有分类",
+      "no_category": "无分类",
+      "filter_category": "分类"
     }
   },
   "workspace_views": {

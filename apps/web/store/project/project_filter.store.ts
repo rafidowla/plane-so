@@ -123,7 +123,8 @@ export class ProjectFilterStore implements IProjectFilterStore {
     const displayFilters = this.getDisplayFiltersByWorkspaceSlug(workspaceSlug);
     runInAction(() => {
       this.displayFilters[workspaceSlug] = {
-        order_by: displayFilters?.order_by || "created_at",
+        // FORK: PSR-123 -- default order is Name A-Z (the List view default)
+        order_by: displayFilters?.order_by || "name",
       };
       this.filters[workspaceSlug] = this.filters[workspaceSlug] ?? {};
     });

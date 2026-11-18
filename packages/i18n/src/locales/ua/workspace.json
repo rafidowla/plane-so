@@ -189,7 +189,9 @@
       "manual": "Вручну",
       "name": "Назва",
       "created_at": "Дата створення",
-      "members_length": "Кількість учасників"
+      "members_length": "Кількість учасників",
+      "key": "Ключ",
+      "lead": "Керівник"
     },
     "scope": {
       "my_projects": "Мої проєкти",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Не знайдено проєктів, що відповідають критеріям.\nСтворіть новий."
       }
+    },
+    "list_view": {
+      "layout_label": "Вигляд",
+      "layout_list": "Список",
+      "layout_grid": "Сітка",
+      "col_favorite": "Обране",
+      "col_name": "Назва",
+      "col_key": "Ключ",
+      "col_lead": "Керівник",
+      "col_category": "Категорія",
+      "col_url": "URL проєкту",
+      "col_actions": "Дії",
+      "sort_by": "Сортувати за: {column}",
+      "copy_url": "Копіювати URL проєкту",
+      "open": "Відкрити",
+      "settings": "Налаштування",
+      "members": "Учасники",
+      "archive": "Архівувати",
+      "restore": "Відновити",
+      "join": "Приєднатися",
+      "favorite_add": "Додати до обраного",
+      "favorite_remove": "Видалити з обраного",
+      "all_categories": "Усі категорії",
+      "no_category": "Без категорії",
+      "filter_category": "Категорія"
     }
   },
   "workspace_views": {

@@ -212,6 +212,8 @@ export interface IProjectUserPropertiesResponse extends IIssueFiltersResponse {
 }
 
 export interface IWorkspaceUserPropertiesResponse extends IIssueFiltersResponse {
+  // FORK: PSR-123 -- the server stores the saved Projects page layout inside display_filters
+  display_filters: IIssueDisplayFilterOptions & { projects_layout?: "list" | "grid" };
   navigation_project_limit?: number;
   navigation_control_preference?: "ACCORDION" | "TABBED";
   // Note: show_limited_projects is derived from navigation_project_limit (0 = false, >0 = true)

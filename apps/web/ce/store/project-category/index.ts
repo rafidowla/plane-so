@@ -67,10 +67,14 @@ export class ProjectCategoryStore implements IProjectCategoryStore {
   getCategoriesForWorkspace = computedFn((workspaceSlug: string | null | undefined): TProjectCategory[] => {
     if (!workspaceSlug) return [];
     const ids = this.categoryIdsByWorkspace[workspaceSlug] ?? [];
-    return ids
-      .map((id) => this.categoryMap[id])
-      .filter((category): category is TProjectCategory => !!category)
-      .toSorted(compareCategories);
+    return (
+      ids
+        .map((id) => this.categoryMap[id])
+        .filter((category): category is TProjectCategory => !!category)
+        // FORK: PSR-123 -- filter() already copied the array; toSorted is outside the tsc lib
+        // oxlint-disable-next-line unicorn/no-array-sort
+        .sort(compareCategories)
+    );
   });
 
   getCategoryById = computedFn((categoryId: string | null | undefined): TProjectCategory | undefined =>

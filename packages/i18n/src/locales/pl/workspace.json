@@ -189,7 +189,9 @@
       "manual": "Ręcznie",
       "name": "Nazwa",
       "created_at": "Data utworzenia",
-      "members_length": "Liczba członków"
+      "members_length": "Liczba członków",
+      "key": "Klucz",
+      "lead": "Lider"
     },
     "scope": {
       "my_projects": "Moje projekty",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Nie znaleziono projektów spełniających kryteria.\nUtwórz nowy."
       }
+    },
+    "list_view": {
+      "layout_label": "Układ",
+      "layout_list": "Lista",
+      "layout_grid": "Siatka",
+      "col_favorite": "Ulubiony",
+      "col_name": "Nazwa",
+      "col_key": "Klucz",
+      "col_lead": "Lider",
+      "col_category": "Kategoria",
+      "col_url": "URL projektu",
+      "col_actions": "Akcje",
+      "sort_by": "Sortuj według: {column}",
+      "copy_url": "Kopiuj URL projektu",
+      "open": "Otwórz",
+      "settings": "Ustawienia",
+      "members": "Członkowie",
+      "archive": "Archiwizuj",
+      "restore": "Przywróć",
+      "join": "Dołącz",
+      "favorite_add": "Dodaj do ulubionych",
+      "favorite_remove": "Usuń z ulubionych",
+      "all_categories": "Wszystkie kategorie",
+      "no_category": "Bez kategorii",
+      "filter_category": "Kategoria"
     }
   },
   "workspace_views": {

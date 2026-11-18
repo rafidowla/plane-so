@@ -189,7 +189,9 @@
       "manual": "Manuel",
       "name": "Ad",
       "created_at": "Oluşturulma tarihi",
-      "members_length": "Üye sayısı"
+      "members_length": "Üye sayısı",
+      "key": "Anahtar",
+      "lead": "Lider"
     },
     "scope": {
       "my_projects": "Projelerim",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Eşleşen kriterlerle proje bulunamadı.\nBunun yerine yeni bir proje oluşturun"
       }
+    },
+    "list_view": {
+      "layout_label": "Düzen",
+      "layout_list": "Liste",
+      "layout_grid": "Izgara",
+      "col_favorite": "Favori",
+      "col_name": "Ad",
+      "col_key": "Anahtar",
+      "col_lead": "Lider",
+      "col_category": "Kategori",
+      "col_url": "Proje URL'si",
+      "col_actions": "Eylemler",
+      "sort_by": "{column} sütununa göre sırala",
+      "copy_url": "Proje URL'sini kopyala",
+      "open": "Aç",
+      "settings": "Ayarlar",
+      "members": "Üyeler",
+      "archive": "Arşivle",
+      "restore": "Geri yükle",
+      "join": "Katıl",
+      "favorite_add": "Favorilere ekle",
+      "favorite_remove": "Favorilerden kaldır",
+      "all_categories": "Tüm kategoriler",
+      "no_category": "Kategorisiz",
+      "filter_category": "Kategori"
     }
   },
   "workspace_views": {

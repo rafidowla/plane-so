@@ -22,6 +22,7 @@ import { useUserPermissions } from "@/hooks/store/user";
 // plane web constants
 // components
 import HeaderFilters from "./filters";
+import { ProjectsLayoutToggle } from "./layout-toggle"; // FORK: PSR-123
 import { ProjectSearch } from "./search-projects";
 
 export const ProjectsBaseHeader = observer(function ProjectsBaseHeader() {
@@ -56,6 +57,8 @@ export const ProjectsBaseHeader = observer(function ProjectsBaseHeader() {
       </Header.LeftItem>
       <Header.RightItem>
         <ProjectSearch />
+        {/* FORK: PSR-123 -- List / Grid layout toggle */}
+        <ProjectsLayoutToggle />
         <div className="hidden md:flex">
           <HeaderFilters />
         </div>

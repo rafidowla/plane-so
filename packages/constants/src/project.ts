@@ -79,6 +79,14 @@ export const PROJECT_ORDER_BY_OPTIONS: {
     i18n_label: "workspace_projects.sort.name",
   },
   {
+    key: "key",
+    i18n_label: "workspace_projects.sort.key",
+  },
+  {
+    key: "lead",
+    i18n_label: "workspace_projects.sort.lead",
+  },
+  {
     key: "created_at",
     i18n_label: "workspace_projects.sort.created_at",
   },

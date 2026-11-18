@@ -189,7 +189,9 @@
       "manual": "Manuálne",
       "name": "Názov",
       "created_at": "Dátum vytvorenia",
-      "members_length": "Počet členov"
+      "members_length": "Počet členov",
+      "key": "Kľúč",
+      "lead": "Vedúci"
     },
     "scope": {
       "my_projects": "Moje projekty",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Nenašli sa projekty zodpovedajúce kritériám.\nVytvorte nový."
       }
+    },
+    "list_view": {
+      "layout_label": "Rozloženie",
+      "layout_list": "Zoznam",
+      "layout_grid": "Mriežka",
+      "col_favorite": "Obľúbené",
+      "col_name": "Názov",
+      "col_key": "Kľúč",
+      "col_lead": "Vedúci",
+      "col_category": "Kategória",
+      "col_url": "URL projektu",
+      "col_actions": "Akcie",
+      "sort_by": "Zoradiť podľa: {column}",
+      "copy_url": "Kopírovať URL projektu",
+      "open": "Otvoriť",
+      "settings": "Nastavenia",
+      "members": "Členovia",
+      "archive": "Archivovať",
+      "restore": "Obnoviť",
+      "join": "Pripojiť sa",
+      "favorite_add": "Pridať do obľúbených",
+      "favorite_remove": "Odstrániť z obľúbených",
+      "all_categories": "Všetky kategórie",
+      "no_category": "Bez kategórie",
+      "filter_category": "Kategória"
     }
   },
   "workspace_views": {

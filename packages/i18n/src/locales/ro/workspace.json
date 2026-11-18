@@ -189,7 +189,9 @@
       "manual": "Manual",
       "name": "Nume",
       "created_at": "Data creării",
-      "members_length": "Număr de membri"
+      "members_length": "Număr de membri",
+      "key": "Cheie",
+      "lead": "Lider"
     },
     "scope": {
       "my_projects": "Proiectele mele",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Nu s-au găsit proiecte care să corespundă criteriilor.\nCreează un proiect nou."
       }
+    },
+    "list_view": {
+      "layout_label": "Aspect",
+      "layout_list": "Listă",
+      "layout_grid": "Grilă",
+      "col_favorite": "Favorit",
+      "col_name": "Nume",
+      "col_key": "Cheie",
+      "col_lead": "Lider",
+      "col_category": "Categorie",
+      "col_url": "URL proiect",
+      "col_actions": "Acțiuni",
+      "sort_by": "Sortează după {column}",
+      "copy_url": "Copiază URL-ul proiectului",
+      "open": "Deschide",
+      "settings": "Setări",
+      "members": "Membri",
+      "archive": "Arhivează",
+      "restore": "Restaurează",
+      "join": "Alătură-te",
+      "favorite_add": "Adaugă la favorite",
+      "favorite_remove": "Elimină din favorite",
+      "all_categories": "Toate categoriile",
+      "no_category": "Fără categorie",
+      "filter_category": "Categorie"
     }
   },
   "workspace_views": {

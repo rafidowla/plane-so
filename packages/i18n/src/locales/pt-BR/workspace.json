@@ -189,7 +189,9 @@
       "manual": "Manual",
       "name": "Nome",
       "created_at": "Data de criação",
-      "members_length": "Número de membros"
+      "members_length": "Número de membros",
+      "key": "Chave",
+      "lead": "Líder"
     },
     "scope": {
       "my_projects": "Meus projetos",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Nenhum projeto detectado com os critérios correspondentes.\nCrie um novo projeto em vez disso"
       }
+    },
+    "list_view": {
+      "layout_label": "Layout",
+      "layout_list": "Lista",
+      "layout_grid": "Grade",
+      "col_favorite": "Favorito",
+      "col_name": "Nome",
+      "col_key": "Chave",
+      "col_lead": "Líder",
+      "col_category": "Categoria",
+      "col_url": "URL do projeto",
+      "col_actions": "Ações",
+      "sort_by": "Ordenar por {column}",
+      "copy_url": "Copiar URL do projeto",
+      "open": "Abrir",
+      "settings": "Configurações",
+      "members": "Membros",
+      "archive": "Arquivar",
+      "restore": "Restaurar",
+      "join": "Participar",
+      "favorite_add": "Adicionar aos favoritos",
+      "favorite_remove": "Remover dos favoritos",
+      "all_categories": "Todas as categorias",
+      "no_category": "Sem categoria",
+      "filter_category": "Categoria"
     }
   },
   "workspace_views": {

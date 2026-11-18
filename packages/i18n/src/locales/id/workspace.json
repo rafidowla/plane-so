@@ -189,7 +189,9 @@
       "manual": "Manual",
       "name": "Nama",
       "created_at": "Tanggal dibuat",
-      "members_length": "Jumlah anggota"
+      "members_length": "Jumlah anggota",
+      "key": "Kunci",
+      "lead": "Pemimpin"
     },
     "scope": {
       "my_projects": "Proyek saya",
@@ -229,6 +231,31 @@
       "search": {
         "description": "Tidak ada proyek yang terdeteksi dengan kriteria yang cocok.\nBuat proyek baru sebagai gantinya"
       }
+    },
+    "list_view": {
+      "layout_label": "Tata letak",
+      "layout_list": "Daftar",
+      "layout_grid": "Kisi",
+      "col_favorite": "Favorit",
+      "col_name": "Nama",
+      "col_key": "Kunci",
+      "col_lead": "Pemimpin",
+      "col_category": "Kategori",
+      "col_url": "URL proyek",
+      "col_actions": "Tindakan",
+      "sort_by": "Urutkan berdasarkan {column}",
+      "copy_url": "Salin URL proyek",
+      "open": "Buka",
+      "settings": "Pengaturan",
+      "members": "Anggota",
+      "archive": "Arsipkan",
+      "restore": "Pulihkan",
+      "join": "Gabung",
+      "favorite_add": "Tambahkan ke favorit",
+      "favorite_remove": "Hapus dari favorit",
+      "all_categories": "Semua kategori",
+      "no_category": "Tanpa kategori",
+      "filter_category": "Kategori"
     }
   },
   "workspace_views": {
