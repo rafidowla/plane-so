@@ -773,3 +773,24 @@ def test_workspace_join_processing_matches_invite_email_case_insensitively(works
     process_workspace_project_invitations(user)
     assert WorkspaceMember.objects.filter(workspace=workspace, member=user).exists()
     assert ProjectMember.objects.filter(project=project, member=user).exists()
+
+
+# FORK: PSR-124 -- invites are locked while a spot is attached (cancel race), in email order
+# (no deadlock between overlapping batches); results still come back in request order.
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_batch_locks_invites_and_keeps_request_order(admin_client, workspace, project, mocked_tasks):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    existing = _ws_member(workspace, 15)
+    emails = ["zed@example.com", existing.email, "amy@example.com", "not-an-email"]
+    with CaptureQueriesContext(connection) as ctx:
+        res = _invite(admin_client, workspace, project, [{"email": e, "role": 15} for e in emails])
+    assert res.status_code == 200
+    assert [r["email"] for r in res.data["results"]] == [e.lower() for e in emails]
+    assert [r["status"] for r in res.data["results"]] == ["invited", "added", "invited", "invalid"]
+    locked = [
+        q["sql"] for q in ctx.captured_queries if "FOR UPDATE" in q["sql"] and "workspace_member_invites" in q["sql"]
+    ]
+    assert len(locked) >= 2

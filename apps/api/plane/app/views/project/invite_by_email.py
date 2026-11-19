@@ -89,9 +89,20 @@ def _upsert_spot(invite, project, role):
         spot.save()
 
 
+def _sort_key(entry):
+    raw = entry.get("email") if isinstance(entry, dict) else None
+    return raw.strip().lower() if isinstance(raw, str) else ""
+
+
 def _invite_and_spot(project, email, role, workspace_role, user):
     """Reuse (or create) the workspace invitation for ``email`` and add this project's spot."""
-    invite = WorkspaceMemberInvite.objects.filter(workspace_id=project.workspace_id, email__iexact=email).first()
+    # Lock the invitation (same lock the cancel endpoint takes) so a concurrent cancel of its last spot
+    # cannot delete it while this request attaches a new spot to it.
+    invite = (
+        WorkspaceMemberInvite.objects.select_for_update()
+        .filter(workspace_id=project.workspace_id, email__iexact=email)
+        .first()
+    )
     if invite is not None and invite.responded_at is not None and not invite.accepted:
         # a declined invitation can never be accepted again: replace it
         remove_project_spots(invite)
@@ -152,8 +163,11 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
         results = []
         added_project_member_ids = []
         invites_to_send = []
+        # Invitation rows are locked until the batch commits, so take them in a fixed (email) order to
+        # avoid deadlocks between two overlapping batches; results go back in request order below.
+        order = sorted(range(len(emails)), key=lambda i: _sort_key(emails[i]))
         with transaction.atomic():
-            for entry in emails:
+            for entry in (emails[i] for i in order):
                 raw = entry.get("email") if isinstance(entry, dict) else None
                 role = entry.get("role", ROLE.MEMBER.value) if isinstance(entry, dict) else None
                 email = raw.strip().lower() if isinstance(raw, str) else ""
@@ -199,12 +213,16 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                 except IntegrityError:
                     created = False
                     # only a still-pending invitation may receive the spot (never a declined/accepted one)
-                    invite = WorkspaceMemberInvite.objects.filter(
-                        workspace_id=project.workspace_id,
-                        email__iexact=email,
-                        accepted=False,
-                        responded_at__isnull=True,
-                    ).first()
+                    invite = (
+                        WorkspaceMemberInvite.objects.select_for_update()
+                        .filter(
+                            workspace_id=project.workspace_id,
+                            email__iexact=email,
+                            accepted=False,
+                            responded_at__isnull=True,
+                        )
+                        .first()
+                    )
                     if invite is None:
                         results.append({"email": email, "status": "invalid", "detail": "Please try again."})
                         continue
@@ -217,6 +235,9 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                 if created:
                     invites_to_send.append(invite)
                 results.append({"email": email, "status": "invited" if created else "invite_updated"})
+
+        # exactly one result per entry, appended in processing order -> restore request order
+        results = [result for _, result in sorted(zip(order, results), key=lambda pair: pair[0])]
 
         # Side effects only once the data is committed
         for invite in invites_to_send:
