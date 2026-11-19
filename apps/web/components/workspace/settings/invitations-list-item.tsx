@@ -10,7 +10,13 @@ import { useParams } from "next/navigation";
 // plane imports
 import { ROLE, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import { ChevronDownOutline, DeleteOutline, LinkOutline, MoreHorizontalOutline } from "@makeplane/propel/icons";
+import {
+  ChevronDownOutline,
+  DeleteOutline,
+  LinkOutline,
+  MoreHorizontalOutline,
+  RefreshOutline,
+} from "@makeplane/propel/icons";
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
@@ -45,7 +51,12 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
   // store hooks
   const { allowPermissions, workspaceInfoBySlug } = useUserPermissions();
   const {
-    workspace: { updateMemberInvitation, deleteMemberInvitation, getWorkspaceInvitationDetails },
+    workspace: {
+      updateMemberInvitation,
+      deleteMemberInvitation,
+      getWorkspaceInvitationDetails,
+      resendMemberInvitation,
+    },
   } = useMember();
   // derived values
   const invitationDetails = getWorkspaceInvitationDetails(invitationId);
@@ -89,6 +100,27 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
     }
   };
 
+  // FORK: PSR-124 Part 2 -- resend (also revives an expired invitation). The server answers 429 with a
+  // "please wait a minute" message inside the cooldown, which is shown as is.
+  const handleResend = async () => {
+    if (!workspaceSlug || !invitationDetails) return;
+    try {
+      await resendMemberInvitation(workspaceSlug.toString(), invitationDetails.id);
+      setToast({
+        type: "success",
+        title: t("success"),
+        message: t("workspace_settings.settings.members.invitation_resend_success"),
+      });
+    } catch (err: unknown) {
+      const error = err as { error?: string };
+      setToast({
+        type: "error",
+        title: t("error"),
+        message: error?.error || t("workspace_settings.settings.members.invitation_resend_error"),
+      });
+    }
+  };
+
   if (!invitationDetails || !currentWorkspaceMemberInfo) return null;
 
   const handleCopyText = async () => {
@@ -112,6 +144,14 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
       title: t("common.actions.copy_link"),
       icon: LinkOutline,
       shouldRender: !!invitationDetails.invite_link,
+    },
+    {
+      // FORK: PSR-124 Part 2
+      key: "resend",
+      action: () => void handleResend(),
+      title: t("workspace_settings.settings.members.invitation_resend"),
+      icon: RefreshOutline,
+      shouldRender: isAdmin,
     },
     {
       key: "remove",
@@ -146,9 +186,16 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
           </div>
         </div>
         <div className="flex items-center gap-2 text-11">
-          <div className="flex items-center justify-center rounded-sm bg-label-yellow-bg-strong/20 px-2.5 py-1 text-center text-caption-sm-medium text-label-yellow-text">
-            <p>{t("common.pending")}</p>
-          </div>
+          {/* FORK: PSR-124 Part 2 -- "Expired" instead of "Pending" once the invitation ran out */}
+          {invitationDetails.is_expired ? (
+            <div className="flex items-center justify-center rounded-sm bg-danger-subtle px-2.5 py-1 text-center text-caption-sm-medium text-danger-primary">
+              <p>{t("workspace_settings.settings.members.invitation_expired_tag")}</p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center rounded-sm bg-label-yellow-bg-strong/20 px-2.5 py-1 text-center text-caption-sm-medium text-label-yellow-text">
+              <p>{t("common.pending")}</p>
+            </div>
+          )}
           <SelectDropdownPlacementContext.Provider value={ROLE_DROPDOWN_PLACEMENT}>
             <Select<TRoleOption>
               value={roleOptions.find((role) => role.key === invitationDetails.role) ?? null}

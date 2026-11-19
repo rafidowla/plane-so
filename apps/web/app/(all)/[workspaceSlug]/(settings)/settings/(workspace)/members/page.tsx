@@ -22,6 +22,8 @@ import { MemberListFiltersDropdown } from "@/components/project/dropdowns/filter
 import { WorkspaceMembersList } from "@/components/workspace/settings/members-list";
 import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
 import { SendWorkspaceInvitationModal } from "@/components/workspace/members";
+// FORK: PSR-124
+import { WorkspaceInviteSettingsSection } from "@/components/workspace/settings/invite-settings-section";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useWorkspace } from "@/hooks/store/use-workspace";
@@ -106,6 +108,8 @@ const WorkspaceMembersSettingsPage = observer(function WorkspaceMembersSettingsP
         onClose={() => setInviteModal(false)}
         onSubmit={handleWorkspaceInvite}
       />
+      {/* FORK: PSR-124 -- invitation settings, workspace Admins only */}
+      {canPerformWorkspaceAdminActions && <WorkspaceInviteSettingsSection workspaceSlug={workspaceSlug} />}
       <section
         className={cn("size-full", {
           "opacity-60": !canPerformWorkspaceMemberActions,
