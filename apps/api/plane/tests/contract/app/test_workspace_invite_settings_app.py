@@ -366,7 +366,10 @@ def test_workspace_resend_permissions_cooldown_and_state(workspace, admin_client
     assert admin_client.post(url).status_code == 200
     res = admin_client.post(url)
     assert res.status_code == 429
-    assert res.data == {"error": "Please wait a minute before resending this invitation."}
+    assert res.data == {
+        "error": "Please wait a minute before resending this invitation.",
+        "error_code": "RESEND_COOLDOWN",
+    }
     declined = _invite_row(workspace, "d@example.com", responded_at=timezone.now())
     assert admin_client.post(f"/api/workspaces/{workspace.slug}/invitations/{declined.id}/resend/").status_code == 400
     assert admin_client.post(f"/api/workspaces/{workspace.slug}/invitations/{invite.id.__class__(int=1)}/resend/").status_code == 404
@@ -851,6 +854,83 @@ def test_workspace_page_reinvite_cooldown_admin_and_declined_are_untouched(works
     assert len(_audit(workspace, "member.invite_resent")) == 1
     declined.refresh_from_db()
     assert declined.responded_at is not None
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_page_reinvite_skipped_cooldown_is_reported_and_clears_project_flag(
+    workspace, admin_client, mocked_tasks
+):
+    # FORK: PSR-124 -- a skipped re-invite still becomes a workspace invite and the skip is reported
+    invite = _invite_row(workspace, "p@example.com", created_from_project=True)
+    url = f"/api/workspaces/{workspace.slug}/invitations/"
+    body = {"emails": [{"email": "p@example.com", "role": 15}]}
+    cache.clear()
+    assert admin_client.post(f"/api/workspaces/{workspace.slug}/invitations/{invite.id}/resend/").status_code == 200
+    invite.refresh_from_db()
+    assert invite.created_from_project is True  # the plain resend does not change the origin
+    mocked_tasks["workspace"].reset_mock()
+
+    res = admin_client.post(url, body, format="json")
+    assert res.status_code == 200
+    assert res.data["skipped"] == [{"email": "p@example.com", "reason": "cooldown"}]
+    assert res.data["message"]
+    assert not mocked_tasks["workspace"].called
+    invite.refresh_from_db()
+    assert invite.created_from_project is False
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_page_reinvite_admin_invite_by_non_super_admin_is_reported(workspace, mocked_tasks):
+    plain_admin = _ws_member(workspace, 20)
+    invite = _invite_row(workspace, "adm@example.com", role=20, age_days=9, created_from_project=True)
+    res = _client(plain_admin).post(
+        f"/api/workspaces/{workspace.slug}/invitations/",
+        {"emails": [{"email": "adm@example.com", "role": 15}, {"email": "fresh@example.com", "role": 15}]},
+        format="json",
+    )
+    assert res.status_code == 200
+    assert res.data["skipped"] == [{"email": "adm@example.com", "reason": "super_admin_required"}]
+    invite.refresh_from_db()
+    assert invite.created_from_project is False
+    assert is_invite_expired(invite, 7)  # not renewed
+    assert [c.args[0] for c in mocked_tasks["workspace"].call_args_list] == ["fresh@example.com"]
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_page_invite_without_skips_returns_empty_skipped(workspace, admin_client, mocked_tasks):
+    res = admin_client.post(
+        f"/api/workspaces/{workspace.slug}/invitations/",
+        {"emails": [{"email": "x@example.com", "role": 15}]},
+        format="json",
+    )
+    assert res.status_code == 200
+    assert res.data == {"message": "Emails sent successfully", "skipped": []}
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_error_codes_on_super_admin_403_and_resend_429(workspace, project, admin_client):
+    invite = _invite_row(workspace, "adm@example.com", role=20, age_days=9)
+    plain_admin = _ws_member(workspace, 20)
+    res = _client(plain_admin).post(f"/api/workspaces/{workspace.slug}/invitations/{invite.id}/resend/")
+    assert res.status_code == 403
+    assert res.data["error_code"] == "SUPER_ADMIN_REQUIRED"
+    assert res.data["error"] == "Only a Super Admin of this workspace can do this."
+
+    url = f"/api/workspaces/{workspace.slug}/invitations/{invite.id}/resend/"
+    assert admin_client.post(url).status_code == 200
+    res = admin_client.post(url)
+    assert res.status_code == 429 and res.data["error_code"] == "RESEND_COOLDOWN"
+
+    _post_project_invite(admin_client, workspace, project, [{"email": "pp@example.com", "role": 15}])
+    spot = WorkspaceMemberInviteProject.objects.get()
+    purl = f"/api/workspaces/{workspace.slug}/projects/{project.id}/pending-members/{spot.id}/resend/"
+    assert admin_client.post(purl).status_code == 200
+    res = admin_client.post(purl)
+    assert res.status_code == 429 and res.data["error_code"] == "RESEND_COOLDOWN"
 
 
 @pytest.mark.contract

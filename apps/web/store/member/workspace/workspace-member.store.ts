@@ -63,7 +63,7 @@ export interface IWorkspaceMemberStore {
   updateMember: (workspaceSlug: string, userId: string, data: TWorkspaceMemberUpdate) => Promise<void>;
   removeMemberFromWorkspace: (workspaceSlug: string, userId: string) => Promise<void>;
   // invite actions
-  inviteMembersToWorkspace: (workspaceSlug: string, data: IWorkspaceBulkInviteFormData) => Promise<void>;
+  inviteMembersToWorkspace: (workspaceSlug: string, data: IWorkspaceBulkInviteFormData) => Promise<any>; // FORK: PSR-124 -- response carries `skipped`
   updateMemberInvitation: (
     workspaceSlug: string,
     invitationId: string,

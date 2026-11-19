@@ -91,14 +91,32 @@ export const canResendProjectInvite = (
   return email === undefined || isEmailDomainAllowed(email, settings.allowed_email_domains);
 };
 
-/** i18n key suffix for a refused resend, from the server's `detail` code (or its Super Admin message). */
+/**
+ * i18n key suffix for a refused resend. Matches the server's `error_code` / `detail` codes first; the
+ * Super Admin message text is only a fallback for responses that carry no `error_code`.
+ */
 export const resendDeniedReasonKey = (error: unknown): string | null => {
-  const body = error as { detail?: string; error?: string } | null | undefined;
+  const body = error as { detail?: string; error?: string; error_code?: string } | null | undefined;
   if (body?.detail === "workspace_admin_only") return "resend_denied_workspace_admin_only";
   if (body?.detail === "domain_not_allowed") return "resend_denied_domain_not_allowed";
+  if (body?.error_code === "SUPER_ADMIN_REQUIRED") return "resend_denied_super_admin_only";
+  if (body?.error_code === "RESEND_COOLDOWN") return "resend_denied_cooldown";
   if (typeof body?.error === "string" && body.error.includes("Super Admin")) return "resend_denied_super_admin_only";
   return null;
 };
+
+export type TSkippedInvite = { email: string; reason: "cooldown" | "super_admin_required" | string };
+
+/** The `skipped` list of a Members-page invite response (invites that were not resent), or []. */
+export const getSkippedInvites = (response: unknown): TSkippedInvite[] => {
+  const skipped = (response as { skipped?: unknown } | null | undefined)?.skipped;
+  if (!Array.isArray(skipped)) return [];
+  return skipped.filter((item): item is TSkippedInvite => typeof (item as TSkippedInvite)?.email === "string");
+};
+
+/** i18n key suffix (under `invite_skipped_reason`) for a skipped invite's reason. */
+export const skippedInviteReasonKey = (reason: string): string =>
+  reason === "super_admin_required" ? "super_admin_required" : "cooldown";
 
 /** The first field error of a `{ field: [message] }` 400 body, if any. */
 export const fieldErrorText = (error: unknown, field: string): string | null => {

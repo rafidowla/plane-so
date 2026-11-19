@@ -131,18 +131,25 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         is_super_admin = requesting_user.is_super_admin
         invites_to_send = []
         claimed_slots = []
+        skipped = []  # FORK: PSR-124 -- pending invites that were not resent, with the reason
         try:
             with transaction.atomic():
                 requested_emails = [i.email for i in workspace_invitations]
                 existing = {
                     i.email: i
-                    for i in WorkspaceMemberInvite.objects.select_for_update().filter(
-                        workspace_id=workspace.id, email__in=requested_emails
-                    )
+                    for i in WorkspaceMemberInvite.objects.select_for_update()
+                    # FORK: PSR-124 -- fixed lock order, so overlapping concurrent creates cannot deadlock
+                    .filter(workspace_id=workspace.id, email__in=requested_emails)
+                    .order_by("id")
                 }
                 new_invitations = []
+                handled = set()  # an email repeated in one request is handled once
                 for invitation in workspace_invitations:
                     current = existing.get(invitation.email)
+                    if current is not None:
+                        if current.id in handled:
+                            continue
+                        handled.add(current.id)
                     if current is None:
                         if invitation.email not in {n.email for n in new_invitations}:
                             new_invitations.append(invitation)
@@ -150,15 +157,20 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                     # An existing PENDING invite is treated as a resend: renew it, keep its token and role.
                     if not is_pending(current):
                         continue  # declined: upstream behaviour (left as is, nothing sent)
-                    if current.role == 20 and not is_super_admin:
-                        continue  # PSR-125: only a Super Admin renews an Admin invitation
-                    if not claim_resend_slot(current.id):
-                        continue  # inside the 60 s resend cooldown
-                    claimed_slots.append(current.id)
-                    renew_invite(current)
+                    # FORK: PSR-124 -- re-inviting from the workspace page makes it a workspace invite, even when
+                    # the resend itself is skipped below (same transaction, under the row lock).
                     if current.created_from_project:
                         current.created_from_project = False
                         current.save(update_fields=["created_from_project", "updated_at"])
+                    if current.role == 20 and not is_super_admin:
+                        # PSR-125: only a Super Admin renews an Admin invitation
+                        skipped.append({"email": current.email, "reason": "super_admin_required"})
+                        continue
+                    if not claim_resend_slot(current.id):
+                        skipped.append({"email": current.email, "reason": "cooldown"})  # 60 s resend cooldown
+                        continue
+                    claimed_slots.append(current.id)
+                    renew_invite(current)
                     workspace_audit.record_invite_resent(workspace.id, request.user, current)
                     invites_to_send.append(current)
 
@@ -196,7 +208,13 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                 request.user.email,
             )
 
-        return Response({"message": "Emails sent successfully"}, status=status.HTTP_200_OK)
+        # FORK: PSR-124 -- `skipped` lists pending invites that were not resent (HTTP 200 and `message` kept)
+        if skipped:
+            return Response(
+                {"message": "Some invitations were not resent", "skipped": skipped},
+                status=status.HTTP_200_OK,
+            )
+        return Response({"message": "Emails sent successfully", "skipped": []}, status=status.HTTP_200_OK)
 
     def partial_update(self, request, slug, pk):
         # SECURITY: only ``role`` is writable, capped at the requester's own role as in create().

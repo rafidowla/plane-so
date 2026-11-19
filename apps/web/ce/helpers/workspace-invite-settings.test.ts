@@ -11,8 +11,10 @@ import {
   isEmailDomainAllowed,
   parseDomains,
   parseExpiryDays,
+  getSkippedInvites,
   resendDeniedReasonKey,
   selectInviteHint,
+  skippedInviteReasonKey,
 } from "./workspace-invite-settings";
 
 const settings = (over: Partial<Parameters<typeof selectInviteHint>[0] & object> = {}) => ({
@@ -116,6 +118,33 @@ describe("resendDeniedReasonKey", () => {
     );
     expect(resendDeniedReasonKey({ error: "boom" })).toBeNull();
     expect(resendDeniedReasonKey(undefined)).toBeNull();
+  });
+});
+
+describe("resendDeniedReasonKey error codes", () => {
+  it("prefers error_code and keeps the text match as a fallback", () => {
+    expect(resendDeniedReasonKey({ error: "any wording", error_code: "SUPER_ADMIN_REQUIRED" })).toBe(
+      "resend_denied_super_admin_only"
+    );
+    expect(resendDeniedReasonKey({ error: "wait", error_code: "RESEND_COOLDOWN" })).toBe("resend_denied_cooldown");
+    expect(resendDeniedReasonKey({ error: "x", error_code: "OTHER" })).toBeNull();
+    expect(resendDeniedReasonKey({ error: "Only a Super Admin of this workspace can do this." })).toBe(
+      "resend_denied_super_admin_only"
+    );
+  });
+});
+
+describe("skipped invites", () => {
+  it("reads the skipped list defensively", () => {
+    const skipped = [{ email: "a@b.co", reason: "cooldown" }];
+    expect(getSkippedInvites({ message: "m", skipped })).toEqual(skipped);
+    expect(getSkippedInvites({ skipped: [{ reason: "cooldown" }, null] })).toEqual([]);
+    expect(getSkippedInvites({ message: "m" })).toEqual([]);
+    expect(getSkippedInvites(undefined)).toEqual([]);
+  });
+  it("maps reasons to i18n keys", () => {
+    expect(skippedInviteReasonKey("super_admin_required")).toBe("super_admin_required");
+    expect(skippedInviteReasonKey("cooldown")).toBe("cooldown");
   });
 });
 

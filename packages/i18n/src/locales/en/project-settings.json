@@ -80,6 +80,7 @@
         "resend_error": "Couldn't resend the invitation.",
         "resend_denied_workspace_admin_only": "Only a workspace admin can resend this invitation.",
         "resend_denied_domain_not_allowed": "This email address isn't on the workspace's allowed email domains. A workspace admin needs to resend it.",
+        "resend_denied_cooldown": "This invitation was just sent. Please wait a minute before resending it.",
         "resend_denied_super_admin_only": "This is an invitation for a workspace admin. Only a super admin can resend it.",
         "copy_link": "Copy invite link",
         "copy_link_success": "Invite link copied.",

@@ -426,7 +426,10 @@ class ProjectPendingMemberResendEndpoint(BaseAPIView):
                 # Per-invite cooldown; cache.add is atomic, so a double click sends only once.
                 if not claim_resend_slot(invite.id):
                     return Response(
-                        {"error": "Please wait a minute before resending this invitation."},
+                        {
+                            "error": "Please wait a minute before resending this invitation.",
+                            "error_code": "RESEND_COOLDOWN",  # FORK: PSR-124
+                        },
                         status=status.HTTP_429_TOO_MANY_REQUESTS,
                     )
                 claimed = True

@@ -698,7 +698,10 @@ def test_resend_has_a_per_invite_cooldown(admin_client, workspace, project, mock
         assert admin_client.post(_pending_url(workspace, project, spot.id, "resend/")).status_code == 200
         res = admin_client.post(_pending_url(workspace, project, spot.id, "resend/"))
         assert res.status_code == 429
-        assert res.data == {"error": "Please wait a minute before resending this invitation."}
+        assert res.data == {
+            "error": "Please wait a minute before resending this invitation.",
+            "error_code": "RESEND_COOLDOWN",
+        }
         mocked_tasks["send"].assert_called_once()
     finally:
         cache.delete(f"psr124:resend-invite:{spot.invite_id}")
@@ -737,6 +740,64 @@ def test_integrity_fallback_never_attaches_spot_to_a_declined_invite(admin_clien
     assert _status_of(res, "a@example.com")["status"] == "invalid"
     assert _status_of(res, "a@example.com")["detail"] == "Please try again."
     assert not WorkspaceMemberInviteProject.objects.filter(project=project).exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_integrity_fallback_renews_and_resends_an_expired_pending_invite(
+    admin_client, workspace, project, mocked_tasks
+):
+    # FORK: PSR-124 -- the fallback path (a concurrent create won the race) renews an expired invite
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from plane.app.views.project import invite_by_email as mod
+    from plane.db.models import WorkspaceAuditLog
+
+    invite = WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="a@example.com", token="t", role=15, created_by=None, created_from_project=True
+    )
+    old_sent = timezone.now() - timedelta(days=30)
+    WorkspaceMemberInvite.objects.filter(pk=invite.pk).update(last_sent_at=old_sent, expiry_recorded_at=timezone.now())
+    with patch.object(mod, "_invite_and_spot", side_effect=mod.IntegrityError("duplicate key")):
+        res = _invite(admin_client, workspace, project, [{"email": "a@example.com", "role": 15}], message="hi")
+    assert res.status_code == 200
+    assert _status_of(res, "a@example.com")["status"] == "invited"
+    invite.refresh_from_db()
+    assert invite.last_sent_at > old_sent and invite.expiry_recorded_at is None
+    assert WorkspaceMemberInviteProject.objects.filter(invite=invite, project=project).exists()
+    mocked_tasks["send"].assert_called_once()
+    assert mocked_tasks["send"].call_args.args[-1] is None  # the note only goes in the first email
+    assert WorkspaceAuditLog.objects.filter(workspace=workspace, action="member.invite_resent").count() == 1
+    assert not WorkspaceAuditLog.objects.filter(workspace=workspace, action="member.invited").exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_integrity_fallback_expired_admin_invite_needs_super_admin(workspace, project, mocked_tasks):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from plane.app.views.project import invite_by_email as mod
+
+    plain_admin = _ws_member(workspace, 20)
+    _proj_member(project, plain_admin, 20)
+    invite = WorkspaceMemberInvite.objects.create(
+        workspace=workspace, email="a@example.com", token="t", role=20, created_by=None, created_from_project=True
+    )
+    old_sent = timezone.now() - timedelta(days=30)
+    WorkspaceMemberInvite.objects.filter(pk=invite.pk).update(last_sent_at=old_sent)
+    with patch.object(mod, "_invite_and_spot", side_effect=mod.IntegrityError("duplicate key")):
+        res = _invite(_client(plain_admin), workspace, project, [{"email": "a@example.com", "role": 15}])
+    assert res.status_code == 200
+    assert _status_of(res, "a@example.com")["status"] == "not_allowed"
+    assert _status_of(res, "a@example.com")["detail"] == "admin_invite_super_admin_only"
+    invite.refresh_from_db()
+    assert invite.last_sent_at == old_sent
+    assert not WorkspaceMemberInviteProject.objects.filter(invite=invite).exists()
+    mocked_tasks["send"].assert_not_called()
 
 
 @pytest.mark.contract

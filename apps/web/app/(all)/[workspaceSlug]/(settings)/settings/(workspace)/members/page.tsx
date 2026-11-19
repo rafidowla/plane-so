@@ -23,6 +23,7 @@ import { WorkspaceMembersList } from "@/components/workspace/settings/members-li
 import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
 import { SendWorkspaceInvitationModal } from "@/components/workspace/members";
 // FORK: PSR-124
+import { getSkippedInvites, skippedInviteReasonKey } from "@/plane-web/helpers/workspace-invite-settings";
 import { WorkspaceInviteSettingsSection } from "@/components/workspace/settings/invite-settings-section";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
@@ -55,15 +56,30 @@ const WorkspaceMembersSettingsPage = observer(function WorkspaceMembersSettingsP
 
   const handleWorkspaceInvite = async (data: IWorkspaceBulkInviteFormData) => {
     try {
-      await inviteMembersToWorkspace(workspaceSlug, data);
+      const response = await inviteMembersToWorkspace(workspaceSlug, data);
 
       setInviteModal(false);
 
-      setToast({
-        type: "success",
-        title: "Success!",
-        message: t("workspace_settings.settings.members.invitations_sent_successfully"),
-      });
+      // FORK: PSR-124 -- name each pending invite that was not resent, with the reason
+      const skipped = getSkippedInvites(response);
+      if (skipped.length > 0) {
+        setToast({
+          type: "warning",
+          title: t("workspace_settings.settings.members.invite_skipped_title"),
+          message: skipped
+            .map(
+              (item) =>
+                `${item.email}: ${t(`workspace_settings.settings.members.invite_skipped_reason.${skippedInviteReasonKey(item.reason)}`)}`
+            )
+            .join(" "),
+        });
+      } else {
+        setToast({
+          type: "success",
+          title: "Success!",
+          message: t("workspace_settings.settings.members.invitations_sent_successfully"),
+        });
+      }
     } catch (error: unknown) {
       let message = undefined;
       if (error instanceof Error) {

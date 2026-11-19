@@ -124,7 +124,11 @@ def is_workspace_super_admin(user, slug=None, workspace_id=None):
 
 
 def super_admin_forbidden():
-    return Response({"error": SUPER_ADMIN_REQUIRED_ERROR}, status=status.HTTP_403_FORBIDDEN)
+    # FORK: PSR-124 -- additive machine-readable code; the `error` text is unchanged
+    return Response(
+        {"error": SUPER_ADMIN_REQUIRED_ERROR, "error_code": "SUPER_ADMIN_REQUIRED"},
+        status=status.HTTP_403_FORBIDDEN,
+    )
 
 
 def allow_workspace_super_admin(view_func):

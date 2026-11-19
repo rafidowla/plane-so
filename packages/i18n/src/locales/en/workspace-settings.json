@@ -61,6 +61,11 @@
         "add_member": "Add member",
         "pending_invites": "Pending invites",
         "invitations_sent_successfully": "Invitations sent successfully",
+        "invite_skipped_title": "Some invitations were not resent",
+        "invite_skipped_reason": {
+          "cooldown": "already sent a moment ago, try again in a minute.",
+          "super_admin_required": "this is an admin invitation, only a super admin can resend it."
+        },
         "invitation_expired_tag": "Expired",
         "invitation_resend": "Resend invitation",
         "invitation_resend_success": "Invitation email sent again.",
