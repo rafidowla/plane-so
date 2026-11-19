@@ -137,11 +137,17 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
     }
   };
 
+  /** A plain edit of the box: the invalid-email warning is re-checked on commit/blur/submit, so drop it now. */
+  const editDraft = (value: string) => {
+    setDraft(value);
+    setInvalidTokens([]);
+  };
+
   return {
     emails,
     setEmails,
     draft,
-    setDraft,
+    editDraft,
     invalidTokens,
     projectRole,
     setProjectRole,
@@ -247,7 +253,7 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
               // commas/semicolons, a space after one bare valid address, or a pasted list turn the text into
               // chips; anything else (e.g. "John Doe <j@x.com>" being typed) stays in the box until Enter/blur
               if (pasted ? shouldCommitPastedEmails(value) : shouldCommitTypedEmails(value)) form.commitDraft(value);
-              else form.setDraft(value);
+              else form.editDraft(value);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
