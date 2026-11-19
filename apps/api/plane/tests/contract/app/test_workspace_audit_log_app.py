@@ -257,7 +257,7 @@ def test_purge_erases_the_log_with_the_workspace(create_user, audit_guard):
 
 @pytest.mark.contract
 @pytest.mark.django_db
-def test_admin_invitation_is_recorded_member_invitation_is_not(session_client, workspace):
+def test_admin_invitation_is_recorded_as_admin_invited_member_as_invited(session_client, workspace):
     response = session_client.post(
         f"/api/workspaces/{workspace.slug}/invitations/",
         {"emails": [{"email": "a@example.com", "role": 20}, {"email": "m@example.com", "role": 15}]},
@@ -266,7 +266,9 @@ def test_admin_invitation_is_recorded_member_invitation_is_not(session_client, w
     assert response.status_code == status.HTTP_200_OK, response.data
     entry = _one(workspace, "member.admin_invited")
     assert entry.target_label == "a@example.com"
-    assert len(_entries(workspace)) == 1
+    # FORK: PSR-124 -- member invitations are now audited too (member.invited)
+    assert _one(workspace, "member.invited").target_label == "m@example.com"
+    assert len(_entries(workspace)) == 2
 
 
 @pytest.mark.contract
