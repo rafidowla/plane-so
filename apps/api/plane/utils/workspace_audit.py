@@ -115,6 +115,101 @@ def record_invite_role_change(workspace_id, actor, invite, before_role, after_ro
     )
 
 
+# FORK: PSR-124 -- invitation lifecycle entries. Call each inside the same transaction as the change.
+# ``after`` holds small facts only; the invitation token and the personal note are never logged.
+INVITE_SETTINGS_FIELDS = ("invite_expiry_days", "allowed_email_domains", "project_admins_can_invite")
+
+
+def _invite_facts(invite, project=None, project_role=None, **extra):
+    facts = {"email": invite.email, "role": invite.role, "role_name": ROLE_NAMES.get(invite.role, str(invite.role))}
+    if project is not None:
+        facts.update({"project_id": str(project.id), "project_name": project.name, "project_role": project_role})
+    facts.update(extra)
+    return facts
+
+
+def _record_invite(action, workspace_id, actor, invite, project=None, project_role=None, **extra):
+    from plane.db.models import WorkspaceAuditTarget
+
+    return record(
+        workspace_id,
+        actor,
+        action,
+        WorkspaceAuditTarget.INVITE,
+        target_id=invite.id,
+        target_label=invite.email,
+        after=_invite_facts(invite, project, project_role, **extra),
+    )
+
+
+def record_invite_sent(workspace_id, actor, invite, project=None, project_role=None):
+    """``member.invited``; an Admin invitation keeps its own action (``member.admin_invited``)."""
+    from plane.db.models import WorkspaceAuditAction
+
+    if int(invite.role) == 20 and project is None:
+        return record_admin_invite(workspace_id, actor, invite.email, invite.id)
+    return _record_invite(WorkspaceAuditAction.MEMBER_INVITED, workspace_id, actor, invite, project, project_role)
+
+
+def record_invite_resent(workspace_id, actor, invite, project=None, project_role=None):
+    from plane.db.models import WorkspaceAuditAction
+
+    return _record_invite(WorkspaceAuditAction.MEMBER_INVITE_RESENT, workspace_id, actor, invite, project, project_role)
+
+
+def record_invite_accepted(workspace_id, actor, invite):
+    from plane.db.models import WorkspaceAuditAction
+
+    return _record_invite(WorkspaceAuditAction.MEMBER_INVITE_ACCEPTED, workspace_id, actor, invite)
+
+
+def record_invite_declined(workspace_id, actor, invite):
+    from plane.db.models import WorkspaceAuditAction
+
+    return _record_invite(WorkspaceAuditAction.MEMBER_INVITE_DECLINED, workspace_id, actor, invite)
+
+
+def record_invite_cancelled(workspace_id, actor, invite, project=None, project_role=None):
+    from plane.db.models import WorkspaceAuditAction
+
+    return _record_invite(
+        WorkspaceAuditAction.MEMBER_INVITE_CANCELLED, workspace_id, actor, invite, project, project_role
+    )
+
+
+def record_invite_expired(workspace_id, invite, expired_at):
+    """Written by the hourly sweep: actor None = the system."""
+    from plane.db.models import WorkspaceAuditAction
+
+    return _record_invite(
+        WorkspaceAuditAction.MEMBER_INVITE_EXPIRED, workspace_id, None, invite, expired_at=expired_at.isoformat()
+    )
+
+
+def invite_settings_state(settings_obj):
+    data = state(settings_obj, INVITE_SETTINGS_FIELDS)
+    data["allowed_email_domains"] = list(data.get("allowed_email_domains") or [])
+    return data
+
+
+def record_invite_settings_changed(workspace_id, actor, before, after):
+    """``before`` / ``after`` are ``invite_settings_state`` dicts; nothing is written when equal."""
+    from plane.db.models import WorkspaceAuditAction, WorkspaceAuditTarget
+
+    before_diff, after_diff = diff(before, after)
+    if before_diff is None:
+        return None
+    return record(
+        workspace_id,
+        actor,
+        WorkspaceAuditAction.INVITE_SETTINGS_CHANGED,
+        WorkspaceAuditTarget.WORKSPACE,
+        target_id=workspace_id,
+        before=before_diff,
+        after=after_diff,
+    )
+
+
 def record(workspace_id, actor, action, target_type, target_id=None, target_label="", before=None, after=None):
     """Write one entry. ``actor`` None / anonymous = the system."""
     from plane.db.models import WorkspaceAuditLog
