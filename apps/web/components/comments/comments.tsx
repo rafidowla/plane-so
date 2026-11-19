@@ -85,7 +85,7 @@ export const CommentsWrapper = observer(function CommentsWrapper(props: TComment
                   comment={comment}
                   activityOperations={activityOperations}
                   disabled={!isEditingAllowed}
-                  ends={index === 0 ? "top" : index === topLevel.length - 1 ? "bottom" : undefined}
+                  ends={index === topLevel.length - 1 ? "bottom" : index === 0 ? "top" : undefined}
                   projectId={projectId}
                   showAccessSpecifier={showAccessSpecifier}
                   showCopyLinkOption={showCopyLinkOption}

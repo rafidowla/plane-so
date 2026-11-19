@@ -42,7 +42,8 @@
             "too_many_attempts": "尝试次数过多。请几分钟后重试。",
             "too_many_codes": "发送的验证码过多。请 10 分钟后重试。",
             "use_code": "您的账户没有密码。请改用邮件验证码。"
-          }
+          },
+          "confirm_description": "您即将删除工作区 {workspaceName}。您将无法再访问此工作区中的所有工作数据，且无法恢复。"
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "电子邮件无效"
           }
         },
-        "super_admin": "超级管理员"
+        "super_admin": "超级管理员",
+        "leave_input_label": "输入此工作区的名称以继续。",
+        "description": "管理对此工作区的访问权限。",
+        "leave_title": "离开工作区？"
       },
       "billing_and_plans": {
         "heading": "账单与计划",
@@ -188,7 +192,13 @@
             "title": "错误！",
             "message": "无法删除 API 令牌"
           }
-        }
+        },
+        "columns": {
+          "expires": "过期时间",
+          "last_used": "上次使用"
+        },
+        "expired": "已过期",
+        "not_used_yet": "尚未使用"
       },
       "integrations": {
         "title": "集成",

@@ -257,6 +257,11 @@
       "no_category": "无分类",
       "unknown_category": "未知分类",
       "filter_category": "分类"
+    },
+    "card": {
+      "joined": "已加入",
+      "archived": "已归档",
+      "no_lead": "无负责人"
     }
   },
   "workspace_views": {
@@ -407,6 +412,12 @@
           "message": "出了些问题。"
         }
       }
+    }
+  },
+  "instance_workspaces": {
+    "empty_state": {
+      "title": "暂无工作区",
+      "description": "在此实例上创建的工作区将显示在这里。"
     }
   }
 }

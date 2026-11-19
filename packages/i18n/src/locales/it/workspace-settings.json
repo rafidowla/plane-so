@@ -42,7 +42,8 @@
             "too_many_attempts": "Troppi tentativi. Riprova tra qualche minuto.",
             "too_many_codes": "Troppi codici inviati. Riprova tra 10 minuti.",
             "use_code": "Il tuo account non ha una password. Invia invece un codice alla tua email."
-          }
+          },
+          "confirm_description": "Stai per eliminare lo spazio di lavoro {workspaceName}. Perderai l’accesso a tutti i dati di lavoro di questo spazio e non sarà possibile ripristinarli."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "L'email non è valida"
           }
         },
-        "super_admin": "Super amministratore"
+        "super_admin": "Super amministratore",
+        "leave_input_label": "Digita il nome di questo spazio di lavoro per continuare.",
+        "description": "Gestisci l'accesso a questo spazio di lavoro.",
+        "leave_title": "Lasciare lo spazio di lavoro?"
       },
       "billing_and_plans": {
         "heading": "Fatturazione e piani",
@@ -188,7 +192,13 @@
             "title": "Errore!",
             "message": "Il token API non può essere eliminato"
           }
-        }
+        },
+        "columns": {
+          "expires": "Scade",
+          "last_used": "Ultimo utilizzo"
+        },
+        "expired": "Scaduto",
+        "not_used_yet": "Non ancora usato"
       },
       "integrations": {
         "title": "Integrazioni",

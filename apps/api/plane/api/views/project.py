@@ -31,6 +31,7 @@ from plane.db.models import (
     State,
     DEFAULT_STATES,
     Workspace,
+    WorkspaceMember,
     UserFavorite,
     Label,
     Issue,
@@ -52,6 +53,7 @@ from plane.api.serializers import (
     ProjectUpdateSerializer,
 )
 from plane.app.permissions import (
+    ROLE,
     ProjectArchiveUnarchivePermission,
     ProjectBasePermission,
     WorkSpaceAdminPermission,
@@ -78,6 +80,13 @@ from plane.utils.openapi import (
     ARCHIVED_RESPONSE,
     UNARCHIVED_RESPONSE,
 )
+
+
+def has_workspace_role(user, **role):
+    """Exists(): the user is an active member of the project's workspace with a role matching the lookup."""
+    return Exists(
+        WorkspaceMember.objects.filter(workspace_id=OuterRef("workspace_id"), member=user, is_active=True, **role)
+    )
 
 
 class ProjectListCreateAPIEndpoint(BaseAPIView):
@@ -350,7 +359,7 @@ class ProjectListLiteAPIEndpoint(BaseAPIView):
 
     def get_queryset(self):
         # Projects the user can access: those they are an active member of, plus
-        # public (network=2) ones.
+        # public (network=2) ones unless they are a workspace guest.
         return (
             Project.objects.filter(workspace__slug=self.kwargs.get("slug"))
             # FORK: guest-access — workspace guests only get projects they belong to, as in the app
@@ -716,7 +725,15 @@ class ProjectSummaryAPIEndpoint(BaseAPIView):
 
         Get the summary of a project
         """
-        project = Project.objects.filter(pk=project_id, workspace__slug=slug).first()
+        # Only the project's active members and workspace admins get its summary
+        project = (
+            Project.objects.filter(pk=project_id, workspace__slug=slug)
+            .filter(
+                Q(project_projectmember__member=request.user, project_projectmember__is_active=True)
+                | has_workspace_role(request.user, role=ROLE.ADMIN.value)
+            )
+            .first()
+        )
         if not project:
             return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
         fields = request.GET.get("fields", "").split(",")

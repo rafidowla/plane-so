@@ -86,7 +86,9 @@ export const ModuleIssuesMobileHeader = observer(function ModuleIssuesMobileHead
       <div className="flex justify-evenly border-b border-subtle bg-surface-1 py-2">
         <Menu>
           <MenuTrigger
-            render={<button type="button" className="flex flex-grow justify-center text-13 text-secondary" />}
+            render={
+              <button type="button" className="flex flex-grow justify-center text-body-xs-regular text-secondary" />
+            }
           >
             Layout
           </MenuTrigger>
@@ -103,12 +105,12 @@ export const ModuleIssuesMobileHeader = observer(function ModuleIssuesMobileHead
             ))}
           </MenuContent>
         </Menu>
-        <div className="flex flex-grow items-center justify-center border-l border-subtle text-13 text-secondary">
+        <div className="flex flex-grow items-center justify-center border-l border-subtle text-body-xs-regular text-secondary">
           <FiltersDropdown
             title="Display"
             placement="bottom-end"
             menuButton={
-              <span className="flex items-center text-13 text-secondary">
+              <span className="flex items-center text-body-xs-regular text-secondary">
                 Display
                 <ChevronDownOutline className="ml-2 h-4 w-4 text-secondary" />
               </span>
@@ -133,7 +135,7 @@ export const ModuleIssuesMobileHeader = observer(function ModuleIssuesMobileHead
         {!isGuest && (
           <button
             onClick={() => setAnalyticsModal(true)}
-            className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
+            className="flex flex-grow justify-center border-l border-subtle text-body-xs-regular text-secondary"
           >
             Analytics
           </button>

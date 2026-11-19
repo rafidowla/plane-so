@@ -117,7 +117,7 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 completed_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="completed",
@@ -130,7 +130,7 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 cancelled_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="cancelled",
@@ -143,7 +143,7 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 started_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="started",
@@ -156,7 +156,7 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 unstarted_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="unstarted",
@@ -169,7 +169,7 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 backlog_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="backlog",
@@ -376,7 +376,7 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 completed_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="completed",
@@ -389,7 +389,7 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 cancelled_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="cancelled",
@@ -402,7 +402,7 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 started_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="started",
@@ -415,7 +415,7 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 unstarted_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="unstarted",
@@ -428,7 +428,7 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 backlog_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="backlog",
@@ -1018,7 +1018,7 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 completed_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="completed",
@@ -1031,7 +1031,7 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 cancelled_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="cancelled",
@@ -1044,7 +1044,7 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 started_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="started",
@@ -1057,7 +1057,7 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 unstarted_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="unstarted",
@@ -1070,7 +1070,7 @@ class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
             )
             .annotate(
                 backlog_issues=Count(
-                    "issue_module__issue__state__group",
+                    "issue_module",
                     filter=guest_scope
                     & Q(
                         issue_module__issue__state__group="backlog",

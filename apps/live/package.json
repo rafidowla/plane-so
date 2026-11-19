@@ -1,6 +1,6 @@
 {
   "name": "live",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "private": true,
   "description": "A realtime collaborative server powers Plane's rich text editor",
   "license": "AGPL-3.0",
@@ -27,8 +27,6 @@
     "clean": "rm -rf .turbo && rm -rf .next && rm -rf node_modules && rm -rf dist"
   },
   "dependencies": {
-    "@effect/platform": "catalog:",
-    "@effect/platform-node": "catalog:",
     "@fontsource/inter": "catalog:",
     "@hocuspocus/extension-database": "catalog:",
     "@hocuspocus/extension-logger": "catalog:",

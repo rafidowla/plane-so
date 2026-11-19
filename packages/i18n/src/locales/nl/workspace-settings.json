@@ -42,7 +42,8 @@
             "too_many_attempts": "Te veel pogingen. Probeer het over een paar minuten opnieuw.",
             "too_many_codes": "Te veel codes verzonden. Probeer het over 10 minuten opnieuw.",
             "use_code": "Je account heeft geen wachtwoord. Stuur jezelf in plaats daarvan een code per e-mail."
-          }
+          },
+          "confirm_description": "Je staat op het punt de werkruimte {workspaceName} te verwijderen. Je verliest de toegang tot alle werkgegevens in deze werkruimte en ze kunnen niet worden hersteld."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "E-mailadres is ongeldig"
           }
         },
-        "super_admin": "Superbeheerder"
+        "super_admin": "Superbeheerder",
+        "leave_input_label": "Typ de naam van deze werkruimte om door te gaan.",
+        "description": "Beheer de toegang tot deze werkruimte.",
+        "leave_title": "Werkruimte verlaten?"
       },
       "billing_and_plans": {
         "heading": "Facturering & plannen",
@@ -188,7 +192,13 @@
             "title": "Fout!",
             "message": "Het token kon niet worden verwijderd"
           }
-        }
+        },
+        "columns": {
+          "expires": "Verloopt",
+          "last_used": "Laatst gebruikt"
+        },
+        "expired": "Verlopen",
+        "not_used_yet": "Nog niet gebruikt"
       },
       "integrations": {
         "title": "Integraties",

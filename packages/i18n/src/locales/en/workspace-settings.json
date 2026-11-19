@@ -42,7 +42,8 @@
             "too_many_attempts": "Too many attempts. Try again in a few minutes.",
             "too_many_codes": "Too many codes sent. Try again in 10 minutes.",
             "use_code": "Your account has no password. Email yourself a code instead."
-          }
+          },
+          "confirm_description": "You are about to delete the workspace {workspaceName}. You will lose access to all work data in this workspace, and it cannot be restored."
         },
         "errors": {
           "name": {
@@ -109,7 +110,10 @@
             "invalid": "Email is invalid"
           }
         },
-        "super_admin": "Super Admin"
+        "super_admin": "Super Admin",
+        "leave_input_label": "Type in this workspace's name to continue.",
+        "description": "Manage access to this workspace.",
+        "leave_title": "Leave workspace?"
       },
       "billing_and_plans": {
         "heading": "Billing & Plans",
@@ -216,7 +220,13 @@
             "title": "Error!",
             "message": "The token could not be deleted"
           }
-        }
+        },
+        "columns": {
+          "expires": "Expires",
+          "last_used": "Last used"
+        },
+        "expired": "Expired",
+        "not_used_yet": "Not used yet"
       },
       "integrations": {
         "title": "Integrations",

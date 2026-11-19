@@ -42,7 +42,8 @@
             "too_many_attempts": "시도 횟수가 너무 많습니다. 몇 분 후에 다시 시도해주세요.",
             "too_many_codes": "전송된 코드가 너무 많습니다. 10분 후에 다시 시도해주세요.",
             "use_code": "계정에 비밀번호가 없습니다. 대신 이메일로 코드를 받으세요."
-          }
+          },
+          "confirm_description": "작업 공간 {workspaceName}을(를) 삭제하려고 합니다. 이 작업 공간의 모든 작업 데이터에 접근할 수 없게 되며 복원할 수 없습니다."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "이메일이 유효하지 않습니다"
           }
         },
-        "super_admin": "슈퍼 관리자"
+        "super_admin": "슈퍼 관리자",
+        "leave_input_label": "계속하려면 이 작업 공간의 이름을 입력하세요.",
+        "description": "이 작업 공간에 대한 접근을 관리합니다.",
+        "leave_title": "작업 공간을 떠나시겠습니까?"
       },
       "billing_and_plans": {
         "heading": "청구 및 플랜",
@@ -188,7 +192,13 @@
             "title": "오류!",
             "message": "API 토큰을 삭제할 수 없습니다"
           }
-        }
+        },
+        "columns": {
+          "expires": "만료",
+          "last_used": "마지막 사용"
+        },
+        "expired": "만료됨",
+        "not_used_yet": "아직 사용 안 함"
       },
       "integrations": {
         "title": "인테그레이션",

@@ -70,8 +70,8 @@ export const IssueAttachmentsListItem = observer(function IssueAttachmentsListIt
           else window.open(fileURL, "_blank");
         }}
       >
-        <div className="group flex h-11 items-center justify-between gap-3 px-3 hover:bg-surface-2">
-          <div className="flex items-center gap-3 truncate text-13">
+        <div className="group flex h-11 items-center justify-between gap-3 pr-2 pl-3 hover:bg-surface-2">
+          <div className="flex items-center gap-3 truncate text-body-xs-regular">
             <AttachmentListThumbnail attachment={attachment} fallback={fileIcon} />
             {/* FORK: attachment-preview */}
             <Tooltip label={`${fileName}.${fileExtension}`} layout="stacked" disabled={isMobile}>

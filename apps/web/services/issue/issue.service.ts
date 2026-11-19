@@ -461,9 +461,10 @@ export class IssueService extends APIService {
         return response?.data;
       })
       .catch((error) => {
-        // FORK: PSR-59 — keep the HTTP status next to the body so the UI can
-        // tell "no access" (403) apart from "does not exist" (404/other).
-        throw { ...error?.response?.data, status: error?.response?.status };
+        const data = error?.response?.data;
+        // FORK: PSR-59 — keep the HTTP status alongside the payload so callers can tell "no access" from "not found"
+        if (data && typeof data === "object") throw { ...data, status: error?.response?.status };
+        throw data;
       });
   }
 }

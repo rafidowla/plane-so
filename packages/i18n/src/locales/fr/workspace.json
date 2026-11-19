@@ -257,6 +257,11 @@
       "no_category": "Aucune catégorie",
       "unknown_category": "Catégorie inconnue",
       "filter_category": "Catégorie"
+    },
+    "card": {
+      "joined": "Rejoint",
+      "archived": "Archivé",
+      "no_lead": "Aucun responsable"
     }
   },
   "workspace_views": {
@@ -407,6 +412,12 @@
           "message": "Une erreur s'est produite."
         }
       }
+    }
+  },
+  "instance_workspaces": {
+    "empty_state": {
+      "title": "Aucun espace de travail pour le moment",
+      "description": "Les espaces de travail créés sur cette instance s’affichent ici."
     }
   }
 }

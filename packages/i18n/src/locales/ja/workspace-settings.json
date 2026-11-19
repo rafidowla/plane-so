@@ -42,7 +42,8 @@
             "too_many_attempts": "試行回数が多すぎます。数分後にもう一度お試しください。",
             "too_many_codes": "送信されたコードが多すぎます。10分後にもう一度お試しください。",
             "use_code": "お使いのアカウントにはパスワードがありません。代わりにコードをメールで送信してください。"
-          }
+          },
+          "confirm_description": "ワークスペース {workspaceName} を削除しようとしています。このワークスペースのすべての作業データにアクセスできなくなり、復元することはできません。"
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "メールアドレスが無効です"
           }
         },
-        "super_admin": "スーパー管理者"
+        "super_admin": "スーパー管理者",
+        "leave_input_label": "続行するには、このワークスペースの名前を入力してください。",
+        "description": "このワークスペースへのアクセスを管理します。",
+        "leave_title": "ワークスペースから退出しますか？"
       },
       "billing_and_plans": {
         "heading": "請求とプラン",
@@ -188,7 +192,13 @@
             "title": "エラー！",
             "message": "APIトークンを削除できませんでした"
           }
-        }
+        },
+        "columns": {
+          "expires": "有効期限",
+          "last_used": "最終使用"
+        },
+        "expired": "期限切れ",
+        "not_used_yet": "未使用"
       },
       "integrations": {
         "title": "インテグレーション",

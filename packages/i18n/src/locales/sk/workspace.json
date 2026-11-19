@@ -257,6 +257,11 @@
       "no_category": "Bez kategórie",
       "unknown_category": "Neznáma kategória",
       "filter_category": "Kategória"
+    },
+    "card": {
+      "joined": "Pripojené",
+      "archived": "Archivované",
+      "no_lead": "Bez vedúceho"
     }
   },
   "workspace_views": {
@@ -407,6 +412,12 @@
           "message": "Niečo sa pokazilo."
         }
       }
+    }
+  },
+  "instance_workspaces": {
+    "empty_state": {
+      "title": "Zatiaľ žiadne pracovné priestory",
+      "description": "Tu sa zobrazia pracovné priestory vytvorené v tejto inštancii."
     }
   }
 }

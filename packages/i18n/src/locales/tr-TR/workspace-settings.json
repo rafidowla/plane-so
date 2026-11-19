@@ -42,7 +42,8 @@
             "too_many_attempts": "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.",
             "too_many_codes": "Çok fazla kod gönderildi. Lütfen 10 dakika sonra tekrar deneyin.",
             "use_code": "Hesabınızın şifresi yok. Bunun yerine kendinize e-posta ile bir kod gönderin."
-          }
+          },
+          "confirm_description": "{workspaceName} çalışma alanını silmek üzeresiniz. Bu çalışma alanındaki tüm iş verilerine erişiminizi kaybedeceksiniz ve bunlar geri yüklenemeyecek."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "E-posta geçersiz"
           }
         },
-        "super_admin": "Süper Yönetici"
+        "super_admin": "Süper Yönetici",
+        "leave_input_label": "Devam etmek için bu çalışma alanının adını yazın.",
+        "description": "Bu çalışma alanına erişimi yönetin.",
+        "leave_title": "Çalışma alanından ayrılmak istiyor musunuz?"
       },
       "billing_and_plans": {
         "heading": "Faturalandırma ve Planlar",
@@ -188,7 +192,13 @@
             "title": "Hata!",
             "message": "API token'ı silinemedi"
           }
-        }
+        },
+        "columns": {
+          "expires": "Bitiş",
+          "last_used": "Son kullanım"
+        },
+        "expired": "Süresi doldu",
+        "not_used_yet": "Henüz kullanılmadı"
       },
       "integrations": {
         "title": "Entegrasyonlar",

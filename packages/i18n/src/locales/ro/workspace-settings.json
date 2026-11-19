@@ -42,7 +42,8 @@
             "too_many_attempts": "Prea multe încercări. Încearcă din nou peste câteva minute.",
             "too_many_codes": "Prea multe coduri trimise. Încearcă din nou peste 10 minute.",
             "use_code": "Contul tău nu are parolă. Trimite-ți în schimb un cod pe email."
-          }
+          },
+          "confirm_description": "Ești pe cale să ștergi spațiul de lucru {workspaceName}. Vei pierde accesul la toate datele de lucru din acest spațiu și nu vor putea fi restaurate."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "Adresa de email este invalidă"
           }
         },
-        "super_admin": "Super administrator"
+        "super_admin": "Super administrator",
+        "leave_input_label": "Introdu numele acestui spațiu de lucru pentru a continua.",
+        "description": "Gestionează accesul la acest spațiu de lucru.",
+        "leave_title": "Părăsești spațiul de lucru?"
       },
       "billing_and_plans": {
         "heading": "Facturare și abonamente",
@@ -188,7 +192,13 @@
             "title": "Eroare!",
             "message": "Cheia secretă API nu a putut fi ștearsă"
           }
-        }
+        },
+        "columns": {
+          "expires": "Expiră",
+          "last_used": "Ultima utilizare"
+        },
+        "expired": "Expirat",
+        "not_used_yet": "Încă neutilizat"
       },
       "integrations": {
         "title": "Integrări",

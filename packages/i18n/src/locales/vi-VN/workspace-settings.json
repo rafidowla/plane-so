@@ -42,7 +42,8 @@
             "too_many_attempts": "Quá nhiều lần thử. Vui lòng thử lại sau vài phút.",
             "too_many_codes": "Đã gửi quá nhiều mã. Vui lòng thử lại sau 10 phút.",
             "use_code": "Tài khoản của bạn không có mật khẩu. Hãy gửi mã qua email cho chính bạn."
-          }
+          },
+          "confirm_description": "Bạn sắp xóa không gian làm việc {workspaceName}. Bạn sẽ mất quyền truy cập vào toàn bộ dữ liệu công việc trong không gian này và không thể khôi phục."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "Email không hợp lệ"
           }
         },
-        "super_admin": "Siêu quản trị viên"
+        "super_admin": "Siêu quản trị viên",
+        "leave_input_label": "Nhập tên không gian làm việc này để tiếp tục.",
+        "description": "Quản lý quyền truy cập vào không gian làm việc này.",
+        "leave_title": "Rời khỏi không gian làm việc?"
       },
       "billing_and_plans": {
         "heading": "Thanh toán và Kế hoạch",
@@ -188,7 +192,13 @@
             "title": "Lỗi!",
             "message": "Không thể xóa token API"
           }
-        }
+        },
+        "columns": {
+          "expires": "Hết hạn",
+          "last_used": "Lần dùng cuối"
+        },
+        "expired": "Đã hết hạn",
+        "not_used_yet": "Chưa sử dụng"
       },
       "integrations": {
         "title": "Tích hợp",

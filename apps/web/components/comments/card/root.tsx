@@ -11,7 +11,6 @@ import type { EditorRefApi } from "@plane/editor";
 import type { TIssueComment, TCommentsOperations } from "@plane/types";
 // local imports
 import { CommentQuickActions } from "../quick-actions";
-import { CommentBlock } from "../comment-block";
 import { CommentCardDisplay } from "./display";
 // FORK: comment-replies (#26)
 import { CommentReplyComposer } from "@/plane-web/comment-replies";
@@ -53,7 +52,7 @@ export const CommentCard = observer(function CommentCard(props: TCommentCard) {
   if (!comment || !workspaceId) return null;
 
   return (
-    <CommentBlock comment={comment} ends={ends}>
+    <>
       <CommentCardDisplay
         activityOperations={activityOperations}
         entityId={entityId}
@@ -66,6 +65,7 @@ export const CommentCard = observer(function CommentCard(props: TCommentCard) {
         workspaceSlug={workspaceSlug}
         isEditing={isEditing}
         setIsEditing={setIsEditing}
+        showConnector={ends !== "bottom"}
         renderQuickActions={() => (
           <CommentQuickActions
             activityOperations={activityOperations}
@@ -90,6 +90,6 @@ export const CommentCard = observer(function CommentCard(props: TCommentCard) {
           onDone={() => setIsReplying(false)}
         />
       )}
-    </CommentBlock>
+    </>
   );
 });

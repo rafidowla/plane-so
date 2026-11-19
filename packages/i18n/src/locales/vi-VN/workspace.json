@@ -257,6 +257,11 @@
       "no_category": "Không có danh mục",
       "unknown_category": "Danh mục không xác định",
       "filter_category": "Danh mục"
+    },
+    "card": {
+      "joined": "Đã tham gia",
+      "archived": "Đã lưu trữ",
+      "no_lead": "Không có người phụ trách"
     }
   },
   "workspace_views": {
@@ -407,6 +412,12 @@
           "message": "Đã xảy ra lỗi."
         }
       }
+    }
+  },
+  "instance_workspaces": {
+    "empty_state": {
+      "title": "Chưa có không gian làm việc nào",
+      "description": "Các không gian làm việc được tạo trên phiên bản này sẽ hiển thị tại đây."
     }
   }
 }

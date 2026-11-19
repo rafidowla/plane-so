@@ -257,6 +257,11 @@
       "no_category": "Nessuna categoria",
       "unknown_category": "Categoria sconosciuta",
       "filter_category": "Categoria"
+    },
+    "card": {
+      "joined": "Iscritto",
+      "archived": "Archiviato",
+      "no_lead": "Nessun responsabile"
     }
   },
   "workspace_views": {
@@ -407,6 +412,12 @@
           "message": "Qualcosa è andato storto."
         }
       }
+    }
+  },
+  "instance_workspaces": {
+    "empty_state": {
+      "title": "Ancora nessuno spazio di lavoro",
+      "description": "Gli spazi di lavoro creati su questa istanza vengono mostrati qui."
     }
   }
 }

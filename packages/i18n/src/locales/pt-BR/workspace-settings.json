@@ -42,7 +42,8 @@
             "too_many_attempts": "Muitas tentativas. Tente novamente em alguns minutos.",
             "too_many_codes": "Muitos códigos enviados. Tente novamente em 10 minutos.",
             "use_code": "Sua conta não tem senha. Envie um código para o seu e-mail."
-          }
+          },
+          "confirm_description": "Você está prestes a excluir o espaço de trabalho {workspaceName}. Você perderá o acesso a todos os dados de trabalho deste espaço, e eles não poderão ser restaurados."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "E-mail inválido"
           }
         },
-        "super_admin": "Superadministrador"
+        "super_admin": "Superadministrador",
+        "leave_input_label": "Digite o nome deste espaço de trabalho para continuar.",
+        "description": "Gerencie o acesso a este espaço de trabalho.",
+        "leave_title": "Sair do espaço de trabalho?"
       },
       "billing_and_plans": {
         "heading": "Faturamento e planos",
@@ -188,7 +192,13 @@
             "title": "Erro!",
             "message": "O token de API não pôde ser excluído"
           }
-        }
+        },
+        "columns": {
+          "expires": "Expira",
+          "last_used": "Último uso"
+        },
+        "expired": "Expirado",
+        "not_used_yet": "Ainda não usado"
       },
       "integrations": {
         "title": "Integrações",

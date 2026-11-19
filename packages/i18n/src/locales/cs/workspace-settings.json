@@ -42,7 +42,8 @@
             "too_many_attempts": "Příliš mnoho pokusů. Zkuste to znovu za několik minut.",
             "too_many_codes": "Bylo odesláno příliš mnoho kódů. Zkuste to znovu za 10 minut.",
             "use_code": "Váš účet nemá heslo. Pošlete si místo toho kód e-mailem."
-          }
+          },
+          "confirm_description": "Chystáte se smazat pracovní prostor {workspaceName}. Ztratíte přístup ke všem pracovním datům v tomto prostoru a nelze je obnovit."
         },
         "errors": {
           "name": {
@@ -81,7 +82,10 @@
             "invalid": "E-mail je neplatný"
           }
         },
-        "super_admin": "Superadministrátor"
+        "super_admin": "Superadministrátor",
+        "leave_input_label": "Pro pokračování zadejte název tohoto pracovního prostoru.",
+        "description": "Spravujte přístup k tomuto pracovnímu prostoru.",
+        "leave_title": "Opustit pracovní prostor?"
       },
       "billing_and_plans": {
         "heading": "Fakturace a plány",
@@ -188,7 +192,13 @@
             "title": "Chyba!",
             "message": "Mazání tokenu selhalo"
           }
-        }
+        },
+        "columns": {
+          "expires": "Vyprší",
+          "last_used": "Naposledy použito"
+        },
+        "expired": "Vypršelo",
+        "not_used_yet": "Zatím nepoužito"
       },
       "integrations": {
         "title": "Integrace",

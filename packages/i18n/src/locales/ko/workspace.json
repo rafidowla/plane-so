@@ -257,6 +257,11 @@
       "no_category": "카테고리 없음",
       "unknown_category": "알 수 없는 카테고리",
       "filter_category": "카테고리"
+    },
+    "card": {
+      "joined": "참여함",
+      "archived": "보관됨",
+      "no_lead": "리드 없음"
     }
   },
   "workspace_views": {
@@ -407,6 +412,12 @@
           "message": "문제가 발생했습니다."
         }
       }
+    }
+  },
+  "instance_workspaces": {
+    "empty_state": {
+      "title": "아직 작업 공간이 없습니다",
+      "description": "이 인스턴스에서 생성된 작업 공간이 여기에 표시됩니다."
     }
   }
 }
