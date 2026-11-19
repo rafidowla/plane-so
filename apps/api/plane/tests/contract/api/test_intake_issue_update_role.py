@@ -28,7 +28,7 @@ def project(db, workspace):
 
 def _join(workspace, project, user, role):
     """Give ``user`` the same role in the workspace and the project."""
-    WorkspaceMember.objects.update_or_create(workspace=workspace, member=user, defaults={"role": role})
+    WorkspaceMember.objects.update_or_create(workspace=workspace, member=user, defaults={"role": role, "is_super_admin": False})
     ProjectMember.objects.create(project=project, member=user, workspace=workspace, role=role, is_active=True)
 
 

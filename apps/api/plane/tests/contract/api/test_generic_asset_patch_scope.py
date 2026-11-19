@@ -25,7 +25,7 @@ def asset_detail_url(slug, asset_id):
 @pytest.fixture
 def guest_project(db, workspace, create_user):
     """A project the token holder is a guest of, in a workspace they are a guest of."""
-    WorkspaceMember.objects.filter(workspace=workspace, member=create_user).update(role=5)
+    WorkspaceMember.objects.filter(workspace=workspace, member=create_user).update(role=5, is_super_admin=False)
     project = Project.objects.create(name="Guest Project", identifier="GST", workspace=workspace)
     ProjectMember.objects.create(project=project, member=create_user, workspace=workspace, role=5, is_active=True)
     return project

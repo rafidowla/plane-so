@@ -390,9 +390,11 @@ class TestDeployBoardScope:
         assert foreign.is_comments_enabled is False
         assert foreign.deleted_at is None
 
-    def test_member_patch_own_board_ok(self, world, boards):
+    def test_admin_patch_own_board_ok(self, world, boards):
+        # Upstream df04d09750 (WEB-10173) made publish settings project-admin only
+        # (see test_deploy_board_admin_only_app.py), so the "own board" happy path is an admin's.
         own, _ = boards
-        r = world.c["member"].patch(
+        r = world.c["admin"].patch(
             f"{world.pbase}/project-deploy-boards/{own.id}/", {"is_comments_enabled": True}, format="json"
         )
         assert r.status_code == status.HTTP_200_OK, (r.status_code, getattr(r, "data", None))

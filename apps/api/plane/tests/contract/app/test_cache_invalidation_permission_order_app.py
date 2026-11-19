@@ -40,7 +40,7 @@ class TestCacheInvalidationPermissionOrder:
         self, session_client, workspace, project, create_user, resource, payload
     ):
         # A workspace and project member: allowed into the project, but not an admin
-        WorkspaceMember.objects.filter(workspace=workspace, member=create_user).update(role=15)
+        WorkspaceMember.objects.filter(workspace=workspace, member=create_user).update(role=15, is_super_admin=False)
         ProjectMember.objects.filter(project=project, member=create_user).update(role=15)
 
         with patch(INVALIDATE) as invalidate:

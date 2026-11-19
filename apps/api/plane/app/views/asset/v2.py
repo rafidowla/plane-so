@@ -936,7 +936,23 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
             FileAsset.EntityTypeContext.PAGE_DESCRIPTION: "page_id",
             FileAsset.EntityTypeContext.DRAFT_ISSUE_DESCRIPTION: "draft_issue_id",
         }.get(asset.entity_type)
-        if entity_field and not can_bind_asset(request.user, asset.workspace_id, {entity_field: entity_id}, project_id):
+        # FORK: PSR-104 — the create modal tags editor images ISSUE_DESCRIPTION even when the
+        # work item is saved as a draft, so entity_id may be the caller's own draft in this
+        # project. Validate it as a draft (own + this workspace/project), not as an issue,
+        # otherwise the bind check fails and the image is never linked.
+        is_own_draft = (
+            asset.entity_type == FileAsset.EntityTypeContext.ISSUE_DESCRIPTION
+            and bool(entity_id)
+            and DraftIssue.objects.filter(
+                pk=entity_id, workspace__slug=slug, project_id=project_id, created_by=request.user
+            ).exists()
+        )
+        if entity_field and not can_bind_asset(
+            request.user,
+            asset.workspace_id,
+            {"draft_issue_id": entity_id} if is_own_draft else {entity_field: entity_id},
+            project_id,
+        ):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         if asset.entity_type == FileAsset.EntityTypeContext.ISSUE_DESCRIPTION:
@@ -948,9 +964,6 @@ class ProjectBulkAssetEndpoint(BaseAPIView):
                 # Linking it as issue_id violates the FK (swallowed below) and leaves the image
                 # in its original project — broken when the draft was saved in another project.
                 # Link it to the caller's own draft in this project instead.
-                is_own_draft = DraftIssue.objects.filter(
-                    pk=entity_id, workspace__slug=slug, project_id=project_id, created_by=request.user
-                ).exists()
                 if is_own_draft:
                     assets.update(draft_issue_id=entity_id, project_id=project_id)
                 else:

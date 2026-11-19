@@ -7,7 +7,7 @@ import json
 
 # Django imports
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, F, Func, OuterRef, Prefetch, Subquery, Count
+from django.db.models import Exists, F, Func, OuterRef, Prefetch, Q, Subquery, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
