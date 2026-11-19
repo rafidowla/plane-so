@@ -10,6 +10,7 @@ import type {
   IWorkspaceMemberMe,
   IWorkspaceMember,
   IWorkspaceMemberInvitation,
+  TWorkspaceInviteSettings,
   ILastActiveWorkspaceDetails,
   IWorkspaceSearchResults,
   IProductUpdateResponse,
@@ -225,6 +226,35 @@ export class WorkspaceService extends APIService {
     data: Partial<IWorkspaceMember>
   ): Promise<any> {
     return this.patch(`/api/workspaces/${workspaceSlug}/invitations/${invitationId}/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // FORK: PSR-124 -- re-send a pending (or expired) workspace invitation; starts a fresh expiry window
+  async resendWorkspaceInvitation(workspaceSlug: string, invitationId: string): Promise<void> {
+    return this.post(`/api/workspaces/${workspaceSlug}/invitations/${invitationId}/resend/`, {})
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // FORK: PSR-124 -- invitation settings (expiry, allowed domains, project admins can invite)
+  async getInviteSettings(workspaceSlug: string): Promise<TWorkspaceInviteSettings> {
+    return this.get(`/api/workspaces/${workspaceSlug}/invite-settings/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async updateInviteSettings(
+    workspaceSlug: string,
+    data: Partial<TWorkspaceInviteSettings>
+  ): Promise<TWorkspaceInviteSettings> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/invite-settings/`, data)
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

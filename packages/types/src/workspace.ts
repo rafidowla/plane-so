@@ -51,6 +51,9 @@ export interface IWorkspaceMemberInvitation {
   role: TUserPermissions;
   token: string;
   invite_link: string;
+  // FORK: PSR-124 -- invitation expiry (computed by the server from the workspace's invite settings)
+  expires_at?: string;
+  is_expired?: boolean;
   workspace: {
     id: string;
     logo_url: string;
@@ -58,6 +61,13 @@ export interface IWorkspaceMemberInvitation {
     slug: string;
   };
 }
+
+// FORK: PSR-124 -- per-workspace invitation settings (workspace Admins edit; any member reads)
+export type TWorkspaceInviteSettings = {
+  invite_expiry_days: number;
+  allowed_email_domains: string[];
+  project_admins_can_invite: boolean;
+};
 
 export interface IWorkspaceBulkInviteFormData {
   emails: { email: string; role: TUserPermissions }[];

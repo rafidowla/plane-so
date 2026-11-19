@@ -133,6 +133,7 @@ export type TProjectInviteByEmailPayload = {
 export type TProjectInviteByEmailResult = {
   email: string;
   status: TProjectInviteByEmailStatus;
+  /** For `not_allowed`: "workspace_admin_only" | "domain_not_allowed". For `invalid`: a short reason. */
   detail?: string;
 };
 
@@ -152,6 +153,9 @@ export type TProjectPendingMember = {
   invited_by: { id: string; display_name: string } | null;
   /** Only present when the requester is a workspace admin. */
   invite_link?: string;
+  // FORK: PSR-124 Part 2 -- invitation expiry
+  expires_at?: string;
+  is_expired?: boolean;
 };
 
 export type IProjectMemberNavigationPreferences = {

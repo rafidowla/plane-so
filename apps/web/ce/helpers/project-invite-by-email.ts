@@ -82,7 +82,10 @@ export type TInviteSummary = {
   /** Already had a pending workspace invitation: added to this project too, no new email (so no note). */
   inviteUpdated: string[];
   alreadyMember: string[];
+  /** Not allowed because only workspace admins can invite new people (or the server gave no reason). */
   notAllowed: string[];
+  // FORK: PSR-124 Part 2 -- not allowed because the address is not on the workspace's allowed domains
+  notAllowedDomain: string[];
   /** Rejected by the server; the server's reason is appended when it says more than "Invalid email". */
   invalid: string[];
   /** Sent but missing from the server's answer: nothing is known about them, so they are kept for a retry. */
@@ -103,7 +106,14 @@ export const isNoteDropped = (note: string, summary: TInviteSummary | null, hasM
   return summary.added.length + summary.alreadyMember.length + summary.inviteUpdated.length > 0;
 };
 
-type TResultBucket = "added" | "invited" | "inviteUpdated" | "alreadyMember" | "notAllowed" | "invalid";
+type TResultBucket =
+  | "added"
+  | "invited"
+  | "inviteUpdated"
+  | "alreadyMember"
+  | "notAllowed"
+  | "notAllowedDomain"
+  | "invalid";
 
 const bucketFor: Record<TProjectInviteByEmailStatus, TResultBucket> = {
   added: "added",
@@ -125,6 +135,7 @@ export const summariseInviteResults = (results: TProjectInviteByEmailResult[], s
     inviteUpdated: [],
     alreadyMember: [],
     notAllowed: [],
+    notAllowedDomain: [],
     invalid: [],
     failed: [],
     problemEmails: [],
@@ -133,7 +144,9 @@ export const summariseInviteResults = (results: TProjectInviteByEmailResult[], s
   const answered = new Set<string>();
   for (const result of results) {
     answered.add(result.email);
-    const bucket = bucketFor[result.status] as TResultBucket | undefined;
+    let bucket = bucketFor[result.status] as TResultBucket | undefined;
+    // FORK: PSR-124 Part 2 -- the server says WHY an email is not allowed
+    if (bucket === "notAllowed" && result.detail === "domain_not_allowed") bucket = "notAllowedDomain";
     if (!bucket) {
       // unknown status from a newer server: treat as a problem so it is not silently dropped
       summary.failed.push(result.email);
@@ -147,7 +160,12 @@ export const summariseInviteResults = (results: TProjectInviteByEmailResult[], s
     } else {
       summary[bucket].push(result.email);
     }
-    if (bucket === "alreadyMember" || bucket === "notAllowed" || bucket === "invalid") {
+    if (
+      bucket === "alreadyMember" ||
+      bucket === "notAllowed" ||
+      bucket === "notAllowedDomain" ||
+      bucket === "invalid"
+    ) {
       summary.problemEmails.push(result.email);
     }
   }

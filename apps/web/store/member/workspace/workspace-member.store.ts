@@ -9,7 +9,12 @@ import { action, computed, makeObservable, observable, runInAction } from "mobx"
 import { computedFn } from "mobx-utils";
 // types
 import type { EUserPermissions } from "@plane/constants";
-import type { IWorkspaceBulkInviteFormData, IWorkspaceMember, IWorkspaceMemberInvitation } from "@plane/types";
+import type {
+  IWorkspaceBulkInviteFormData,
+  IWorkspaceMember,
+  IWorkspaceMemberInvitation,
+  TWorkspaceInviteSettings,
+} from "@plane/types";
 // services
 import { WorkspaceService } from "@/services/workspace.service";
 // types
@@ -36,6 +41,8 @@ export interface IWorkspaceMemberStore {
   // observables
   workspaceMemberMap: Record<string, Record<string, IWorkspaceMembership>>;
   workspaceMemberInvitations: Record<string, IWorkspaceMemberInvitation[]>;
+  // FORK: PSR-124 -- invitation settings per workspace slug
+  inviteSettingsMap: Record<string, TWorkspaceInviteSettings>;
   // filters store
   filtersStore: IWorkspaceMemberFiltersStore;
   // computed
@@ -63,6 +70,14 @@ export interface IWorkspaceMemberStore {
     data: Partial<IWorkspaceMemberInvitation>
   ) => Promise<void>;
   deleteMemberInvitation: (workspaceSlug: string, invitationId: string) => Promise<void>;
+  // FORK: PSR-124 -- resend + invitation settings
+  resendMemberInvitation: (workspaceSlug: string, invitationId: string) => Promise<void>;
+  getInviteSettings: (workspaceSlug: string) => TWorkspaceInviteSettings | null;
+  fetchInviteSettings: (workspaceSlug: string) => Promise<TWorkspaceInviteSettings>;
+  updateInviteSettings: (
+    workspaceSlug: string,
+    data: Partial<TWorkspaceInviteSettings>
+  ) => Promise<TWorkspaceInviteSettings>;
   isUserSuspended: (userId: string, workspaceSlug: string) => boolean;
 }
 
@@ -72,6 +87,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
     [workspaceSlug: string]: Record<string, IWorkspaceMembership>;
   } = {}; // { workspaceSlug: { userId: userDetails } }
   workspaceMemberInvitations: Record<string, IWorkspaceMemberInvitation[]> = {}; // { workspaceSlug: [invitations] }
+  // FORK: PSR-124
+  inviteSettingsMap: Record<string, TWorkspaceInviteSettings> = {};
   // filters store
   filtersStore: IWorkspaceMemberFiltersStore;
   // stores
@@ -86,6 +103,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       // observables
       workspaceMemberMap: observable,
       workspaceMemberInvitations: observable,
+      inviteSettingsMap: observable,
       // computed
       workspaceMemberIds: computed,
       workspaceMemberInvitationIds: computed,
@@ -97,6 +115,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       fetchWorkspaceMemberInvitations: action,
       updateMemberInvitation: action,
       deleteMemberInvitation: action,
+      fetchInviteSettings: action,
+      updateInviteSettings: action,
     });
     // initialize filters store
     this.filtersStore = new WorkspaceMemberFiltersStore();
@@ -366,6 +386,33 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
         );
       });
     });
+
+  // FORK: PSR-124 -- re-send a pending/expired invitation, then reload the list (the server renews expires_at)
+  resendMemberInvitation = async (workspaceSlug: string, invitationId: string) => {
+    await this.workspaceService.resendWorkspaceInvitation(workspaceSlug, invitationId);
+    await this.fetchWorkspaceMemberInvitations(workspaceSlug).catch((error) => console.error(error));
+  };
+
+  // FORK: PSR-124 -- invitation settings
+  getInviteSettings = computedFn((workspaceSlug: string) => this.inviteSettingsMap[workspaceSlug] ?? null);
+
+  fetchInviteSettings = async (workspaceSlug: string) => {
+    const response = await this.workspaceService.getInviteSettings(workspaceSlug);
+    runInAction(() => {
+      set(this.inviteSettingsMap, [workspaceSlug], response);
+    });
+    return response;
+  };
+
+  updateInviteSettings = async (workspaceSlug: string, data: Partial<TWorkspaceInviteSettings>) => {
+    const response = await this.workspaceService.updateInviteSettings(workspaceSlug, data);
+    runInAction(() => {
+      set(this.inviteSettingsMap, [workspaceSlug], response);
+    });
+    // expiry days changed: every pending invite's expires_at / is_expired moved with it
+    await this.fetchWorkspaceMemberInvitations(workspaceSlug).catch((error) => console.error(error));
+    return response;
+  };
 
   isUserSuspended = computedFn((userId: string, workspaceSlug: string) => {
     if (!workspaceSlug) return false;

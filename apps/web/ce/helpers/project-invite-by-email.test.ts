@@ -184,3 +184,18 @@ describe("isNoteDropped", () => {
     expect(isNoteDropped("hi", summary([{ email: "a@x.com", status: "invited" }]), false)).toBe(false);
   });
 });
+
+// FORK: PSR-124 Part 2
+describe("summariseInviteResults not_allowed details", () => {
+  it("separates domain rejections from admin-only ones and counts both as problems", () => {
+    const s = summariseInviteResults([
+      { email: "a@x.com", status: "not_allowed", detail: "workspace_admin_only" },
+      { email: "b@x.com", status: "not_allowed", detail: "domain_not_allowed" },
+      { email: "c@x.com", status: "not_allowed" },
+    ]);
+    expect(s.notAllowed).toEqual(["a@x.com", "c@x.com"]);
+    expect(s.notAllowedDomain).toEqual(["b@x.com"]);
+    expect(s.problemEmails).toEqual(["a@x.com", "b@x.com", "c@x.com"]);
+    expect(s.hasProblems).toBe(true);
+  });
+});
