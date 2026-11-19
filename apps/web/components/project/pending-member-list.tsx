@@ -17,6 +17,8 @@ import { EUserPermissions, EUserPermissionsLevel, ROLE } from "@plane/constants"
 import { useTranslation } from "@plane/i18n";
 import type { TProjectPendingMember } from "@plane/types";
 import { copyTextToClipboard } from "@plane/utils";
+// plane web imports
+import { canResendProjectInvite } from "@/plane-web/helpers/workspace-invite-settings";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -34,6 +36,7 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
   const { allowPermissions } = useUserPermissions();
   const {
     project: { getPendingMembers, fetchPendingMembers, cancelPendingMember, resendPendingMember },
+    workspace: { getInviteSettings, fetchInviteSettings },
   } = useMember();
   const [toCancel, setToCancel] = useState<TProjectPendingMember | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -44,10 +47,19 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
   // The server only lets project Admins use these endpoints (a workspace Admin must be in the project too);
   // resend and copy link additionally need workspace Admin.
   const canManage = isProjectAdmin;
+  // FORK: PSR-124 Part 2 -- Project Admins may resend too when the workspace lets them invite people.
+  // Copy link stays workspace-Admin only.
+  const canResend = canResendProjectInvite(isWorkspaceAdmin, isProjectAdmin, getInviteSettings(workspaceSlug));
 
   useSWR(
     canManage && workspaceSlug && projectId ? `PROJECT_PENDING_MEMBERS_${workspaceSlug}_${projectId}` : null,
     () => fetchPendingMembers(workspaceSlug, projectId),
+    { revalidateOnFocus: false }
+  );
+
+  useSWR(
+    canManage && workspaceSlug ? `WORKSPACE_INVITE_SETTINGS_${workspaceSlug}` : null,
+    () => fetchInviteSettings(workspaceSlug),
     { revalidateOnFocus: false }
   );
 
@@ -116,7 +128,16 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate text-13 font-medium">{spot.email}</span>
-                <span className="rounded-full bg-layer-1 px-2 py-0.5 text-11 text-secondary">{t(`${base}.tag`)}</span>
+                {/* FORK: PSR-124 Part 2 -- an expired invitation can no longer be accepted until it is resent */}
+                <span
+                  className={
+                    spot.is_expired
+                      ? "rounded-full bg-danger-subtle px-2 py-0.5 text-11 text-danger-primary"
+                      : "rounded-full bg-layer-1 px-2 py-0.5 text-11 text-secondary"
+                  }
+                >
+                  {t(spot.is_expired ? `${base}.expired_tag` : `${base}.tag`)}
+                </span>
               </div>
               <div className="text-12 text-secondary">
                 {/* effective_role = project role they will actually get; older servers only send `role` */}
@@ -126,7 +147,7 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {isWorkspaceAdmin && (
+              {canResend && (
                 <Button
                   variant="secondary"
                   size="sm"

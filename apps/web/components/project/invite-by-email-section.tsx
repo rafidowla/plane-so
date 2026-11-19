@@ -11,6 +11,7 @@
 
 import { useState } from "react";
 import { observer } from "mobx-react";
+import useSWR from "swr";
 // plane imports
 import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { CloseOutline, ChevronDownOutline } from "@makeplane/propel/icons";
@@ -31,6 +32,7 @@ import {
   shouldCommitTypedEmails,
   summariseInviteResults,
 } from "@/plane-web/helpers/project-invite-by-email";
+import { selectInviteHint } from "@/plane-web/helpers/workspace-invite-settings";
 import type { TInviteSummary } from "@/plane-web/helpers/project-invite-by-email";
 
 type TRoleOption = { key: number; label: string };
@@ -46,6 +48,7 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
   const { allowPermissions, getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
   const {
     project: { inviteMembersByEmail },
+    workspace: { getInviteSettings, fetchInviteSettings },
   } = useMember();
   const [emails, setEmails] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
@@ -60,6 +63,16 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
   const [invalidTokens, setInvalidTokens] = useState<string[]>([]);
 
   const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
+  // FORK: PSR-124 Part 2 -- the workspace's invite settings decide what the hint under the email box says.
+  // A failed load leaves the strict Part 1 wording in place (the server is the authority either way).
+  useSWR(
+    workspaceSlug ? `WORKSPACE_INVITE_SETTINGS_${workspaceSlug}` : null,
+    () => fetchInviteSettings(workspaceSlug),
+    {
+      revalidateOnFocus: false,
+    }
+  );
+  const inviteHint = selectInviteHint(getInviteSettings(workspaceSlug), isWorkspaceAdmin);
   const currentProjectRole = getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId);
   const projectRoleOptions: TRoleOption[] = Object.entries(ROLE)
     .filter(([key]) => isWorkspaceAdmin || parseInt(key) <= (currentProjectRole ?? EUserPermissions.GUEST))
@@ -162,6 +175,7 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
     formError,
     setFormError,
     isWorkspaceAdmin,
+    inviteHint,
     projectRoleOptions,
     workspaceRoleOptions,
     commitDraft,
@@ -270,7 +284,14 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
             {t(`${BASE}.invalid_emails`, { emails: list(form.invalidTokens) })}
           </p>
         )}
-        {!form.isWorkspaceAdmin && <p className="text-13 text-secondary">{t(`${BASE}.non_admin_hint`)}</p>}
+        {/* FORK: PSR-124 Part 2 -- the hint follows the workspace's invite settings */}
+        {form.inviteHint && (
+          <p className="text-13 text-secondary">
+            {form.inviteHint.key === "admin_only" && t(`${BASE}.non_admin_hint`)}
+            {form.inviteHint.key === "any_domain" && t(`${BASE}.hint_any_domain`)}
+            {form.inviteHint.key === "domains" && t(`${BASE}.hint_domains`, { domains: list(form.inviteHint.domains) })}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <div className="flex items-center gap-2 text-13">
@@ -327,6 +348,12 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
           {!!summary?.notAllowed.length && (
             <p className="text-danger-primary">
               {t(`${BASE}.summary_not_allowed`, { emails: list(summary.notAllowed) })}
+            </p>
+          )}
+          {/* FORK: PSR-124 Part 2 */}
+          {!!summary?.notAllowedDomain.length && (
+            <p className="text-danger-primary">
+              {t(`${BASE}.summary_not_allowed_domain`, { emails: list(summary.notAllowedDomain) })}
             </p>
           )}
           {!!summary?.invalid.length && (
