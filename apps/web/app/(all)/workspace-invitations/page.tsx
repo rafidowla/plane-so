@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { useState } from "react";
 import { observer } from "mobx-react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
@@ -43,6 +44,8 @@ function WorkspaceInvitationPage() {
   const token = searchParams.get("token");
   // store hooks
   const { data: currentUser } = useUser();
+  // FORK: PSR-124 Part 2 -- set when the server refuses the accept because the invitation ran out meanwhile
+  const [acceptExpired, setAcceptExpired] = useState(false);
 
   const { data: invitationDetail, error } = useSWR(
     invitation_id && slug && WORKSPACE_INVITATION(invitation_id.toString()),
@@ -71,7 +74,11 @@ function WorkspaceInvitationPage() {
         }
         return;
       })
-      .catch((err: unknown) => console.error(err));
+      .catch((err: unknown) => {
+        // FORK: PSR-124 Part 2
+        if ((err as { error_code?: string } | undefined)?.error_code === "INVITATION_EXPIRED") setAcceptExpired(true);
+        else console.error(err);
+      });
   };
 
   const handleReject = () => {
@@ -91,7 +98,19 @@ function WorkspaceInvitationPage() {
   return (
     <AuthenticationWrapper pageType={EPageTypes.PUBLIC}>
       <div className="flex h-full w-full flex-col items-center justify-center px-3">
-        {invitationDetail && !invitationDetail.responded_at ? (
+        {invitationDetail && !invitationDetail.responded_at && (invitationDetail.is_expired || acceptExpired) ? (
+          // FORK: PSR-124 Part 2 -- an expired invitation cannot be accepted; a workspace admin has to resend it
+          <EmptySpace
+            title="This invitation has expired. Ask a workspace admin to send it again."
+            description={`The invitation to join ${invitationDetail.workspace.name} is no longer valid.`}
+          >
+            {!currentUser ? (
+              <EmptySpaceItem Icon={UserOutline} title="Sign in to continue" href="/" />
+            ) : (
+              <EmptySpaceItem Icon={BoxesOutline} title="Continue to home" href="/" />
+            )}
+          </EmptySpace>
+        ) : invitationDetail && !invitationDetail.responded_at ? (
           error ? (
             <div className="shadow-2xl flex w-full flex-col space-y-4 rounded-sm border border-subtle bg-surface-1 px-4 py-8 text-center md:w-1/3">
               <h2 className="text-18 uppercase">INVITATION NOT FOUND</h2>

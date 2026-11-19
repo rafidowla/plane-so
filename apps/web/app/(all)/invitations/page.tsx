@@ -36,6 +36,9 @@ import { WorkspaceService } from "@/services/workspace.service";
 
 const workspaceService = new WorkspaceService();
 
+// FORK: PSR-124 Part 2
+const EXPIRED_INVITATION_MESSAGE = "This invitation has expired. Ask a workspace admin to send it again.";
+
 function UserInvitationsPage() {
   // states
   const [invitationsRespond, setInvitationsRespond] = useState<string[]>([]);
@@ -49,7 +52,9 @@ function UserInvitationsPage() {
 
   const { fetchWorkspaces } = useWorkspace();
 
-  const { data: invitations } = useSWR("USER_WORKSPACE_INVITATIONS", () => workspaceService.userWorkspaceInvitations());
+  const { data: invitations, mutate: mutateInvitations } = useSWR("USER_WORKSPACE_INVITATIONS", () =>
+    workspaceService.userWorkspaceInvitations()
+  );
 
   const redirectWorkspaceSlug =
     // currentUserSettings?.workspace?.last_workspace_slug ||
@@ -57,6 +62,8 @@ function UserInvitationsPage() {
     "";
 
   const handleInvitation = (workspace_invitation: IWorkspaceMemberInvitation, action: "accepted" | "withdraw") => {
+    // FORK: PSR-124 Part 2 -- expired invitations cannot be picked
+    if (workspace_invitation.is_expired) return;
     if (action === "accepted") {
       setInvitationsRespond((prevData) => [...prevData, workspace_invitation.id]);
     } else if (action === "withdraw") {
@@ -82,11 +89,13 @@ function UserInvitationsPage() {
         mutate(USER_WORKSPACES_LIST);
         const firstInviteId = invitationsRespond[0];
         const redirectWorkspace = invitations?.find((i) => i.id === firstInviteId)?.workspace;
-        updateUserProfile({ last_workspace_id: redirectWorkspace?.id })
+        // FORK: PSR-124 -- promises are returned (not fired and forgotten) so the file is lint-clean
+        return updateUserProfile({ last_workspace_id: redirectWorkspace?.id })
           .then(() => {
             setIsJoiningWorkspaces(false);
-            fetchWorkspaces().then(() => {
+            return fetchWorkspaces().then(() => {
               router.push(`/${redirectWorkspace?.slug}`);
+              return;
             });
           })
           .catch(() => {
@@ -98,12 +107,15 @@ function UserInvitationsPage() {
             setIsJoiningWorkspaces(false);
           });
       })
-      .catch((_err) => {
+      .catch((err: unknown) => {
+        // FORK: PSR-124 Part 2 -- the server refuses expired invitations
+        const expired = (err as { error_code?: string } | undefined)?.error_code === "INVITATION_EXPIRED";
         setToast({
           type: "error",
           title: t("error"),
-          message: t("something_went_wrong_please_try_again"),
+          message: expired ? EXPIRED_INVITATION_MESSAGE : t("something_went_wrong_please_try_again"),
         });
+        if (expired) void mutateInvitations();
         setIsJoiningWorkspaces(false);
       });
   };
@@ -131,16 +143,22 @@ function UserInvitationsPage() {
                 <h4 className="text-20 font-semibold">{t("join_a_workspace")}</h4>
                 <div className="max-h-[37vh] space-y-4 overflow-y-auto md:w-3/5">
                   {invitations.map((invitation) => {
-                    const isSelected = invitationsRespond.includes(invitation.id);
+                    const isExpired = !!invitation.is_expired; // FORK: PSR-124 Part 2
+                    const isSelected = !isExpired && invitationsRespond.includes(invitation.id);
 
                     return (
                       <button
                         key={invitation.id}
                         type="button"
-                        className={`flex w-full cursor-pointer items-center gap-2 rounded-sm border px-3.5 py-5 text-left ${
-                          isSelected ? "border-accent-strong" : "border-subtle hover:bg-layer-1"
+                        className={`flex w-full items-center gap-2 rounded-sm border px-3.5 py-5 text-left ${
+                          isExpired
+                            ? "cursor-not-allowed border-subtle opacity-60"
+                            : isSelected
+                              ? "cursor-pointer border-accent-strong"
+                              : "cursor-pointer border-subtle hover:bg-layer-1"
                         }`}
                         aria-pressed={isSelected}
+                        disabled={isExpired}
                         onClick={() => handleInvitation(invitation, isSelected ? "withdraw" : "accepted")}
                       >
                         <span className="flex-shrink-0">
@@ -155,10 +173,15 @@ function UserInvitationsPage() {
                             {truncateText(invitation.workspace.name, 30)}
                           </span>
                           <span className="block text-11 text-secondary">{ROLE[invitation.role]}</span>
+                          {isExpired && (
+                            <span className="block text-11 text-danger-primary">{EXPIRED_INVITATION_MESSAGE}</span>
+                          )}
                         </span>
-                        <span className={`flex-shrink-0 ${isSelected ? "text-accent-primary" : "text-secondary"}`}>
-                          <TickCircleOutline className="h-5 w-5" />
-                        </span>
+                        {!isExpired && (
+                          <span className={`flex-shrink-0 ${isSelected ? "text-accent-primary" : "text-secondary"}`}>
+                            <TickCircleOutline className="h-5 w-5" />
+                          </span>
+                        )}
                       </button>
                     );
                   })}
