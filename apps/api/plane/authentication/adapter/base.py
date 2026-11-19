@@ -97,12 +97,12 @@ class Adapter:
         return
 
     def _has_usable_invite(self, email):
-        """FORK: PSR-124 -- an invitation counts unless it is pending AND expired."""
+        """FORK: PSR-124 -- only a PENDING (not accepted/declined) and NON-expired invitation counts."""
         from plane.utils.invite_settings import InviteExpiryCache
 
         expiry = InviteExpiryCache()
-        for invite in WorkspaceMemberInvite.objects.filter(email=email):
-            if invite.accepted or invite.responded_at is not None or not expiry.is_expired(invite):
+        for invite in WorkspaceMemberInvite.objects.filter(email=email, accepted=False, responded_at__isnull=True):
+            if not expiry.is_expired(invite):
                 return True
         return False
 

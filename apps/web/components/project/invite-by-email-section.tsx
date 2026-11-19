@@ -356,6 +356,11 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
               {t(`${BASE}.summary_not_allowed_domain`, { emails: list(summary.notAllowedDomain) })}
             </p>
           )}
+          {!!summary?.notAllowedAdminInvite.length && (
+            <p className="text-danger-primary">
+              {t(`${BASE}.summary_not_allowed_admin_invite`, { emails: list(summary.notAllowedAdminInvite) })}
+            </p>
+          )}
           {!!summary?.invalid.length && (
             <p className="text-danger-primary">{t(`${BASE}.summary_invalid`, { emails: list(summary.invalid) })}</p>
           )}

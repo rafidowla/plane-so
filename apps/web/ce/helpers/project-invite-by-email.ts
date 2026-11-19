@@ -86,6 +86,7 @@ export type TInviteSummary = {
   notAllowed: string[];
   // FORK: PSR-124 Part 2 -- not allowed because the address is not on the workspace's allowed domains
   notAllowedDomain: string[];
+  notAllowedAdminInvite: string[]; // FORK: PSR-124
   /** Rejected by the server; the server's reason is appended when it says more than "Invalid email". */
   invalid: string[];
   /** Sent but missing from the server's answer: nothing is known about them, so they are kept for a retry. */
@@ -113,6 +114,7 @@ type TResultBucket =
   | "alreadyMember"
   | "notAllowed"
   | "notAllowedDomain"
+  | "notAllowedAdminInvite"
   | "invalid";
 
 const bucketFor: Record<TProjectInviteByEmailStatus, TResultBucket> = {
@@ -136,6 +138,7 @@ export const summariseInviteResults = (results: TProjectInviteByEmailResult[], s
     alreadyMember: [],
     notAllowed: [],
     notAllowedDomain: [],
+    notAllowedAdminInvite: [],
     invalid: [],
     failed: [],
     problemEmails: [],
@@ -147,6 +150,7 @@ export const summariseInviteResults = (results: TProjectInviteByEmailResult[], s
     let bucket = bucketFor[result.status] as TResultBucket | undefined;
     // FORK: PSR-124 Part 2 -- the server says WHY an email is not allowed
     if (bucket === "notAllowed" && result.detail === "domain_not_allowed") bucket = "notAllowedDomain";
+    if (bucket === "notAllowed" && result.detail === "admin_invite_super_admin_only") bucket = "notAllowedAdminInvite";
     if (!bucket) {
       // unknown status from a newer server: treat as a problem so it is not silently dropped
       summary.failed.push(result.email);
@@ -164,6 +168,7 @@ export const summariseInviteResults = (results: TProjectInviteByEmailResult[], s
       bucket === "alreadyMember" ||
       bucket === "notAllowed" ||
       bucket === "notAllowedDomain" ||
+      bucket === "notAllowedAdminInvite" ||
       bucket === "invalid"
     ) {
       summary.problemEmails.push(result.email);

@@ -64,15 +64,41 @@ export const selectInviteHint = (
   return { key: "domains", domains: settings.allowed_email_domains.map((domain) => `@${domain}`) };
 };
 
+/** Exact match on the part after the last "@" (lowercase); an empty list allows everything. Mirrors the API. */
+export const isEmailDomainAllowed = (email: string, domains: string[] | null | undefined): boolean => {
+  if (!domains || domains.length === 0) return true;
+  const at = email.lastIndexOf("@");
+  if (at === -1) return false;
+  const domain = email
+    .slice(at + 1)
+    .trim()
+    .toLowerCase();
+  return domains.some((allowed) => allowed.toLowerCase() === domain);
+};
+
 /**
- * Whether the Resend button shows on a project's pending list: workspace Admins always; Project Admins only
- * when the workspace lets them invite people.
+ * Whether the Resend button shows on a project's pending list for `email`: workspace Admins always; Project
+ * Admins only when the workspace lets them invite people AND the address's domain is allowed.
  */
 export const canResendProjectInvite = (
   isWorkspaceAdmin: boolean,
   isProjectAdmin: boolean,
-  settings: TWorkspaceInviteSettings | null | undefined
-): boolean => isWorkspaceAdmin || (isProjectAdmin && !!settings?.project_admins_can_invite);
+  settings: TWorkspaceInviteSettings | null | undefined,
+  email?: string
+): boolean => {
+  if (isWorkspaceAdmin) return true;
+  if (!isProjectAdmin || !settings?.project_admins_can_invite) return false;
+  return email === undefined || isEmailDomainAllowed(email, settings.allowed_email_domains);
+};
+
+/** i18n key suffix for a refused resend, from the server's `detail` code (or its Super Admin message). */
+export const resendDeniedReasonKey = (error: unknown): string | null => {
+  const body = error as { detail?: string; error?: string } | null | undefined;
+  if (body?.detail === "workspace_admin_only") return "resend_denied_workspace_admin_only";
+  if (body?.detail === "domain_not_allowed") return "resend_denied_domain_not_allowed";
+  if (typeof body?.error === "string" && body.error.includes("Super Admin")) return "resend_denied_super_admin_only";
+  return null;
+};
 
 /** The first field error of a `{ field: [message] }` 400 body, if any. */
 export const fieldErrorText = (error: unknown, field: string): string | null => {

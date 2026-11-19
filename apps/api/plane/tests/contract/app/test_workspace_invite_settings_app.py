@@ -727,3 +727,152 @@ def test_invitation_task_passes_expiry_context(workspace, create_user):
     ctx = render.call_args.args[1]
     assert ctx["expiry_days"] == 10
     assert ctx["expires_on"] == invite_expires_at(invite, 10).strftime("%B %d, %Y")
+
+
+# --- FORK: PSR-124 -- review round 1 regressions ------------------------------------------------
+
+
+def _decline_url(workspace, invite):
+    return f"/api/workspaces/{workspace.slug}/invitations/{invite.id}/join/"
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_declined_expired_invite_cannot_be_joined_from_user_invitations(workspace):
+    user = UserFactory(email="new@example.com")
+    invite = _invite_row(workspace, age_days=8)
+    res = _client(user).post(_decline_url(workspace, invite), {"token": invite.token, "accepted": False}, format="json")
+    assert res.status_code == 200
+    res = _client(user).post("/api/users/me/workspaces/invitations/", {"invitations": [str(invite.id)]}, format="json")
+    assert res.status_code == 400
+    assert not WorkspaceMember.objects.filter(workspace=workspace, member=user).exists()
+    # an answered invite is no longer listed
+    listing = _client(user).get("/api/users/me/workspaces/invitations/")
+    assert listing.status_code == 200 and listing.data == []
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_user_invitations_none_acceptable_is_400(workspace):
+    user = UserFactory(email="new@example.com")
+    res = _client(user).post("/api/users/me/workspaces/invitations/", {"invitations": []}, format="json")
+    assert res.status_code == 400
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_resend_admin_invite_needs_super_admin(workspace, admin_client):
+    invite = _invite_row(workspace, "adm@example.com", role=20, age_days=9)
+    url = f"/api/workspaces/{workspace.slug}/invitations/{invite.id}/resend/"
+    plain_admin = _ws_member(workspace, 20)
+    res = _client(plain_admin).post(url)
+    assert res.status_code == 403
+    assert "Super Admin" in res.data["error"]
+    invite.refresh_from_db()
+    assert is_invite_expired(invite, 7)
+    assert admin_client.post(url).status_code == 200  # the owner is a Super Admin
+    # the cooldown was not burned by the refused attempt
+    assert _audit(workspace, "member.invite_resent")[0].target_id == invite.id
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_project_resend_admin_invite_needs_super_admin(workspace, project, admin_client):
+    _post_project_invite(admin_client, workspace, project, [{"email": "n@example.com", "role": 15}])
+    spot = WorkspaceMemberInviteProject.objects.get()
+    WorkspaceMemberInvite.objects.update(role=20, last_sent_at=timezone.now() - timedelta(days=9))
+    plain_admin = _ws_member(workspace, 20)
+    ProjectMember.objects.create(project=project, member=plain_admin, role=20, workspace=workspace)
+    url = f"/api/workspaces/{workspace.slug}/projects/{project.id}/pending-members/{spot.id}/resend/"
+    res = _client(plain_admin).post(url)
+    assert res.status_code == 403 and "Super Admin" in res.data["error"]
+    assert is_invite_expired(WorkspaceMemberInvite.objects.get(), 7)
+    assert admin_client.post(url).status_code == 200
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_project_reinvite_expired_admin_invite_not_renewed_for_non_super_admin(workspace, project, admin_client):
+    _post_project_invite(admin_client, workspace, project, [{"email": "n@example.com", "role": 15}])
+    WorkspaceMemberInvite.objects.update(role=20, last_sent_at=timezone.now() - timedelta(days=9))
+    plain_admin = _ws_member(workspace, 20)
+    ProjectMember.objects.create(project=project, member=plain_admin, role=20, workspace=workspace)
+    res = _post_project_invite(_client(plain_admin), workspace, project, [{"email": "n@example.com", "role": 15}])
+    assert res.status_code == 200
+    assert res.data["results"][0]["status"] == "not_allowed"
+    assert res.data["results"][0]["detail"] == "admin_invite_super_admin_only"
+    assert is_invite_expired(WorkspaceMemberInvite.objects.get(), 7)
+    res = _post_project_invite(admin_client, workspace, project, [{"email": "n@example.com", "role": 15}])
+    assert res.data["results"][0]["status"] == "invited"
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_page_reinvite_existing_pending_is_a_resend(workspace, admin_client, mocked_tasks):
+    expired = _invite_row(workspace, "old@example.com", role=5, age_days=9, expiry_recorded_at=timezone.now())
+    token = expired.token
+    res = admin_client.post(
+        f"/api/workspaces/{workspace.slug}/invitations/",
+        {"emails": [{"email": "old@example.com", "role": 15}, {"email": "new@example.com", "role": 15}]},
+        format="json",
+    )
+    assert res.status_code == 200
+    expired.refresh_from_db()
+    assert expired.token == token and expired.role == 5  # token and role kept
+    assert expired.expiry_recorded_at is None and not is_invite_expired(expired, 7)
+    assert [e.target_label for e in _audit(workspace, "member.invite_resent")] == ["old@example.com"]
+    assert [e.target_label for e in _audit(workspace, "member.invited")] == ["new@example.com"]
+    sent = {c.args[0]: c.args[2] for c in mocked_tasks["workspace"].call_args_list}
+    assert sent["old@example.com"] == token
+    assert sent["new@example.com"] == WorkspaceMemberInvite.objects.get(email="new@example.com").token
+    assert len(sent) == 2
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_workspace_page_reinvite_cooldown_admin_and_declined_are_untouched(workspace, admin_client, mocked_tasks):
+    plain_admin = _ws_member(workspace, 20)
+    admin_invite = _invite_row(workspace, "adm@example.com", role=20, age_days=9)
+    declined = _invite_row(workspace, "dec@example.com", responded_at=timezone.now())
+    body = {"emails": [{"email": "adm@example.com", "role": 15}, {"email": "dec@example.com", "role": 15}]}
+    res = _client(plain_admin).post(f"/api/workspaces/{workspace.slug}/invitations/", body, format="json")
+    assert res.status_code == 200
+    assert not mocked_tasks["workspace"].called
+    assert _audit(workspace, "member.invite_resent") == [] and _audit(workspace, "member.invited") == []
+    admin_invite.refresh_from_db()
+    assert is_invite_expired(admin_invite, 7)
+
+    # the Super Admin renews the Admin invite once; a second submit inside 60 s is untouched
+    only_admin = {"emails": [{"email": "adm@example.com", "role": 15}]}
+    assert admin_client.post(f"/api/workspaces/{workspace.slug}/invitations/", only_admin, format="json").status_code == 200
+    assert mocked_tasks["workspace"].call_count == 1
+    assert admin_client.post(f"/api/workspaces/{workspace.slug}/invitations/", only_admin, format="json").status_code == 200
+    assert mocked_tasks["workspace"].call_count == 1
+    assert len(_audit(workspace, "member.invite_resent")) == 1
+    declined.refresh_from_db()
+    assert declined.responded_at is not None
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_signup_disabled_declined_invite_does_not_unlock_signup(workspace):
+    adapter = Adapter.__new__(Adapter)
+    import logging
+
+    adapter.logger = logging.getLogger("test")
+    check = adapter._Adapter__check_signup
+    with patch("plane.authentication.adapter.base.get_configuration_value", return_value=("0",)):
+        _invite_row(workspace, "dec@example.com", age_days=1, responded_at=timezone.now())
+        with pytest.raises(AuthenticationException):
+            check("dec@example.com")
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+def test_failed_resend_does_not_burn_the_cooldown(workspace, admin_client):
+    invite = _invite_row(workspace, age_days=9)
+    url = f"/api/workspaces/{workspace.slug}/invitations/{invite.id}/resend/"
+    with patch("plane.app.views.workspace.invite_settings.workspace_audit.record_invite_resent", side_effect=RuntimeError):
+        assert admin_client.post(url).status_code == 500  # the API turns the failure into a 500
+    assert admin_client.post(url).status_code == 200  # not 429
+    assert admin_client.post(url).status_code == 429  # a real double click still is

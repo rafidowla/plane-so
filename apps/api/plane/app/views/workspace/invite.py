@@ -37,7 +37,13 @@ from plane.utils.project_invite_spots import (  # FORK: PSR-124
     accept_project_spots,
     remove_project_spots,
 )
-from plane.utils.invite_settings import InviteExpiryCache, is_pending  # FORK: PSR-124
+from plane.utils.invite_settings import (  # FORK: PSR-124
+    InviteExpiryCache,
+    claim_resend_slot,
+    is_pending,
+    release_resend_slot,
+    renew_invite,
+)
 from .. import BaseViewSet
 
 
@@ -121,29 +127,67 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         # FORK: PSR-124 -- the invites, the project-flow flag and the audit entries commit together.
-        with transaction.atomic():
-            # Create workspace member invite
-            workspace_invitations = WorkspaceMemberInvite.objects.bulk_create(
-                workspace_invitations, batch_size=10, ignore_conflicts=True
-            )
-            # FORK: PSR-124 -- an admin re-inviting someone whose pending invite came from a project makes it a
-            # workspace-level invite, so cancelling the last project spot later no longer cancels it.
-            WorkspaceMemberInvite.objects.filter(
-                workspace_id=workspace.id,
-                email__in=[e.get("email").strip().lower() for e in emails],
-                created_from_project=True,
-                accepted=False,
-                responded_at__isnull=True,
-            ).update(created_from_project=False)
-            # FORK: PSR-125 / PSR-124 -- audit log. bulk_create(ignore_conflicts) can't say which rows landed,
-            # so there is one entry per requested email (Admin invites keep their own action).
-            for invitation in workspace_invitations:
-                workspace_audit.record_invite_sent(workspace.id, request.user, invitation)
+        # Only rows that really exist (inserted or renewed) are audited and emailed, with the token stored.
+        is_super_admin = requesting_user.is_super_admin
+        invites_to_send = []
+        claimed_slots = []
+        try:
+            with transaction.atomic():
+                requested_emails = [i.email for i in workspace_invitations]
+                existing = {
+                    i.email: i
+                    for i in WorkspaceMemberInvite.objects.select_for_update().filter(
+                        workspace_id=workspace.id, email__in=requested_emails
+                    )
+                }
+                new_invitations = []
+                for invitation in workspace_invitations:
+                    current = existing.get(invitation.email)
+                    if current is None:
+                        if invitation.email not in {n.email for n in new_invitations}:
+                            new_invitations.append(invitation)
+                        continue
+                    # An existing PENDING invite is treated as a resend: renew it, keep its token and role.
+                    if not is_pending(current):
+                        continue  # declined: upstream behaviour (left as is, nothing sent)
+                    if current.role == 20 and not is_super_admin:
+                        continue  # PSR-125: only a Super Admin renews an Admin invitation
+                    if not claim_resend_slot(current.id):
+                        continue  # inside the 60 s resend cooldown
+                    claimed_slots.append(current.id)
+                    renew_invite(current)
+                    if current.created_from_project:
+                        current.created_from_project = False
+                        current.save(update_fields=["created_from_project", "updated_at"])
+                    workspace_audit.record_invite_resent(workspace.id, request.user, current)
+                    invites_to_send.append(current)
+
+                # Create workspace member invite
+                if new_invitations:
+                    WorkspaceMemberInvite.objects.bulk_create(new_invitations, batch_size=10, ignore_conflicts=True)
+                    landed = {
+                        i.email: i
+                        for i in WorkspaceMemberInvite.objects.filter(
+                            workspace_id=workspace.id,
+                            email__in=[n.email for n in new_invitations],
+                            token__in=[n.token for n in new_invitations],
+                        )
+                    }
+                    for invitation in new_invitations:
+                        saved = landed.get(invitation.email)
+                        if saved is None:
+                            continue  # a concurrent request created it first: nothing of ours exists
+                        workspace_audit.record_invite_sent(workspace.id, request.user, saved)
+                        invites_to_send.append(saved)
+        except Exception:
+            for invite_id in claimed_slots:
+                release_resend_slot(invite_id)
+            raise
 
         current_site = base_host(request=request, is_app=True)
 
         # Send invitations
-        for invitation in workspace_invitations:
+        for invitation in invites_to_send:
             workspace_invitation.delay(
                 invitation.email,
                 workspace.id,
@@ -347,15 +391,23 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
         # apply. Authorization is the `email=request.user.email` filter in
         # get_queryset() above, as for create() below: callers see only
         # invitations addressed to their own email.
-        return super().list(request)
+        # FORK: PSR-124 -- answered (declined) invitations are not acceptable, so they are not listed
+        queryset = self.get_queryset().filter(accepted=False, responded_at__isnull=True)
+        return Response(self.get_serializer(queryset, many=True).data, status=status.HTTP_200_OK)
 
     @invalidate_cache(path="/api/workspaces/", user=False)
     @invalidate_cache(path="/api/users/me/workspaces/", multiple=True)
     @transaction.atomic  # FORK: PSR-124 -- workspace join + project spots land together
     def create(self, request):
         invitations = request.data.get("invitations", [])
+        # FORK: PSR-124 -- only a PENDING invitation (not answered, not cancelled) can be joined. A declined
+        # one must never be joinable, expired or not (decline-then-accept would dodge the expiry check).
         workspace_invitations = WorkspaceMemberInvite.objects.filter(
-            pk__in=invitations, email=request.user.email
+            pk__in=invitations,
+            email=request.user.email,
+            accepted=False,
+            responded_at__isnull=True,
+            deleted_at__isnull=True,
         ).order_by("-created_at")
 
         # FORK: PSR-124 -- materialise once so the spots can be processed before the invites are deleted
@@ -363,7 +415,7 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
 
         # FORK: PSR-124 -- expired invitations are skipped: not joined, not deleted
         expiry = InviteExpiryCache()
-        expired = [i for i in workspace_invitations if is_pending(i) and expiry.is_expired(i)]
+        expired = [i for i in workspace_invitations if expiry.is_expired(i)]
         if expired:
             workspace_invitations = [i for i in workspace_invitations if i not in expired]
             if not workspace_invitations:
@@ -374,6 +426,11 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        elif not workspace_invitations:
+            return Response(
+                {"error": "None of these invitations can be accepted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # If the user is already a member of workspace and was deactivated then activate the user
         for invitation in workspace_invitations:

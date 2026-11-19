@@ -16,7 +16,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions.base import ROLE, allow_permission
+from plane.app.permissions.base import ROLE, allow_permission, is_workspace_super_admin, super_admin_forbidden
 from plane.app.views.base import BaseAPIView
 from plane.bgtasks.workspace_invitation_task import workspace_invitation
 from plane.db.models import Workspace, WorkspaceInviteSettings, WorkspaceMemberInvite
@@ -29,6 +29,7 @@ from plane.utils.invite_settings import (
     get_invite_settings,
     is_pending,
     normalize_domains,
+    release_resend_slot,
     renew_invite,
     settings_payload,
 )
@@ -96,26 +97,35 @@ class WorkspaceInviteSettingsEndpoint(BaseAPIView):
 class WorkspaceInvitationResendEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def post(self, request, slug, pk):
-        with transaction.atomic():
-            invite = (
-                WorkspaceMemberInvite.objects.select_for_update()
-                .filter(pk=pk, workspace__slug=slug)
-                .first()
-            )
-            if invite is None:
-                return Response({"error": "Invitation not found"}, status=status.HTTP_404_NOT_FOUND)
-            if not is_pending(invite):
-                return Response(
-                    {"error": "This invitation has already been answered and can't be resent."},
-                    status=status.HTTP_400_BAD_REQUEST,
+        claimed = False
+        try:
+            with transaction.atomic():
+                invite = (
+                    WorkspaceMemberInvite.objects.select_for_update().filter(pk=pk, workspace__slug=slug).first()
                 )
-            if not claim_resend_slot(invite.id):
-                return Response(
-                    {"error": "Please wait a minute before resending this invitation."},
-                    status=status.HTTP_429_TOO_MANY_REQUESTS,
-                )
-            renew_invite(invite)
-            workspace_audit.record_invite_resent(invite.workspace_id, request.user, invite)
+                if invite is None:
+                    return Response({"error": "Invitation not found"}, status=status.HTTP_404_NOT_FOUND)
+                if not is_pending(invite):
+                    return Response(
+                        {"error": "This invitation has already been answered and can't be resent."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                # FORK: PSR-124 / PSR-125 -- renewing an Admin invitation brings in an Admin: Super Admin only
+                if invite.role == 20 and not is_workspace_super_admin(request.user, workspace_id=invite.workspace_id):
+                    return super_admin_forbidden()
+                if not claim_resend_slot(invite.id):
+                    return Response(
+                        {"error": "Please wait a minute before resending this invitation."},
+                        status=status.HTTP_429_TOO_MANY_REQUESTS,
+                    )
+                claimed = True
+                renew_invite(invite)
+                workspace_audit.record_invite_resent(invite.workspace_id, request.user, invite)
+        except Exception:
+            # rolled back: nothing was sent, so do not burn the cooldown
+            if claimed:
+                release_resend_slot(invite.id)
+            raise
 
         workspace_invitation.delay(
             invite.email,

@@ -18,7 +18,7 @@ import { useTranslation } from "@plane/i18n";
 import type { TProjectPendingMember } from "@plane/types";
 import { copyTextToClipboard } from "@plane/utils";
 // plane web imports
-import { canResendProjectInvite } from "@/plane-web/helpers/workspace-invite-settings";
+import { canResendProjectInvite, resendDeniedReasonKey } from "@/plane-web/helpers/workspace-invite-settings";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -49,7 +49,10 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
   const canManage = isProjectAdmin;
   // FORK: PSR-124 Part 2 -- Project Admins may resend too when the workspace lets them invite people.
   // Copy link stays workspace-Admin only.
-  const canResend = canResendProjectInvite(isWorkspaceAdmin, isProjectAdmin, getInviteSettings(workspaceSlug));
+  const inviteSettings = getInviteSettings(workspaceSlug);
+  // The domain list limits only non-workspace-Admins, so the button is per row.
+  const canResendFor = (email: string) =>
+    canResendProjectInvite(isWorkspaceAdmin, isProjectAdmin, inviteSettings, email);
 
   useSWR(
     canManage && workspaceSlug && projectId ? `PROJECT_PENDING_MEMBERS_${workspaceSlug}_${projectId}` : null,
@@ -77,10 +80,14 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
       await resendPendingMember(workspaceSlug, projectId, spot.id);
       setToast({ type: "success", title: t("success"), message: t(`${base}.resend_success`) });
     } catch (error) {
+      // FORK: PSR-124 -- a refused resend says why, in plain words
+      const reasonKey = resendDeniedReasonKey(error);
       setToast({
         type: "error",
         title: t("error"),
-        message: (error as { error?: string } | undefined)?.error ?? t(`${base}.resend_error`),
+        message: reasonKey
+          ? t(`${base}.${reasonKey}`)
+          : ((error as { error?: string } | undefined)?.error ?? t(`${base}.resend_error`)),
       });
     } finally {
       // Other rows may still be resending; only clear this row's spinner.
@@ -147,7 +154,7 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {canResend && (
+              {canResendFor(spot.email) && (
                 <Button
                   variant="secondary"
                   size="sm"

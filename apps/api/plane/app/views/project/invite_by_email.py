@@ -28,7 +28,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions.base import ROLE, allow_permission
+from plane.app.permissions.base import ROLE, allow_permission, is_workspace_super_admin, super_admin_forbidden
 from plane.app.views.base import BaseAPIView
 from plane.bgtasks.project_add_user_email_task import project_add_user_email
 from plane.bgtasks.workspace_invitation_task import workspace_invitation
@@ -50,6 +50,7 @@ from plane.utils.invite_settings import (
     invite_not_allowed_detail,
     is_invite_expired,
     is_pending,
+    release_resend_slot,
     renew_invite,
 )
 from plane.utils.project_invite_spots import (
@@ -108,12 +109,17 @@ def _sort_key(entry):
     return raw.strip().lower() if isinstance(raw, str) else ""
 
 
-def _invite_and_spot(project, email, role, workspace_role, user, expiry_days):
+class AdminInviteSuperAdminOnly(Exception):
+    """FORK: PSR-124 -- renewing an Admin-role invitation needs a Super Admin."""
+
+
+def _invite_and_spot(project, email, role, workspace_role, user, expiry_days, is_super_admin=False):
     """Reuse (or create) the workspace invitation for ``email`` and add this project's spot.
 
     Returns ``(invite, created, renewed)``. ``renewed`` is True when an EXPIRED pending invitation was
     given a fresh window (the caller sends the email again). Audit entries are written here, inside the
-    caller's transaction.
+    caller's transaction. Raises ``AdminInviteSuperAdminOnly`` when the invitation is expired, carries an
+    Admin role and the requester is not a Super Admin (PSR-125: only a Super Admin brings in an Admin).
     """
     # Lock the invitation (same lock the cancel endpoint takes) so a concurrent cancel of its last spot
     # cannot delete it while this request attaches a new spot to it.
@@ -145,6 +151,9 @@ def _invite_and_spot(project, email, role, workspace_role, user, expiry_days):
         )
     elif is_pending(invite) and is_invite_expired(invite, expiry_days):
         # FORK: PSR-124 -- an expired invitation is renewed and sent again
+        # FORK: PSR-124 / PSR-125 -- renewing an Admin-role invitation is for a Super Admin only
+        if invite.role >= ROLE.ADMIN.value and not is_super_admin:
+            raise AdminInviteSuperAdminOnly()
         renew_invite(invite)
         renewed = True
 
@@ -191,6 +200,7 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
         # FORK: PSR-124 -- Part 2: workspace settings decide what a Project Admin may do. The decorator
         # already guarantees a requester who is not a workspace Admin is a Project Admin.
         invite_settings = get_invite_settings(project.workspace_id)
+        is_super_admin = is_workspace_super_admin(request.user, workspace_id=project.workspace_id)
         if not is_ws_admin:
             # PO-1: a new person invited by a Project Admin is a workspace Member
             workspace_role = ROLE.MEMBER.value
@@ -246,8 +256,20 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                 try:
                     with transaction.atomic():
                         invite, created, renewed = _invite_and_spot(
-                            project, email, role, workspace_role, request.user, invite_settings.invite_expiry_days
+                            project,
+                            email,
+                            role,
+                            workspace_role,
+                            request.user,
+                            invite_settings.invite_expiry_days,
+                            is_super_admin,
                         )
+                except AdminInviteSuperAdminOnly:
+                    # FORK: PSR-124 / PSR-125 -- not renewed; the web shows a readable reason
+                    results.append(
+                        {"email": email, "status": "not_allowed", "detail": "admin_invite_super_admin_only"}
+                    )
+                    continue
                 except IntegrityError:
                     created = False
                     renewed = False
@@ -267,11 +289,27 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                         continue
                     try:
                         with transaction.atomic():
-                            if _upsert_spot(invite, project, role):
+                            # FORK: PSR-124 -- same renew path as above (an expired one is renewed and re-sent)
+                            if is_invite_expired(invite, invite_settings.invite_expiry_days):
+                                if invite.role >= ROLE.ADMIN.value and not is_super_admin:
+                                    raise AdminInviteSuperAdminOnly()
+                                renew_invite(invite)
+                                renewed = True
+                                _upsert_spot(invite, project, role)
+                                workspace_audit.record_invite_resent(
+                                    project.workspace_id, request.user, invite, project, role
+                                )
+                            elif _upsert_spot(invite, project, role):
                                 workspace_audit.record_invite_sent(
                                     project.workspace_id, request.user, invite, project, role
                                 )
+                    except AdminInviteSuperAdminOnly:
+                        results.append(
+                            {"email": email, "status": "not_allowed", "detail": "admin_invite_super_admin_only"}
+                        )
+                        continue
                     except IntegrityError:
+                        renewed = False
                         pass  # the concurrent request already created the spot
 
                 if created:
@@ -374,19 +412,34 @@ class ProjectPendingMemberResendEndpoint(BaseAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        with transaction.atomic():
-            invite = WorkspaceMemberInvite.objects.select_for_update().filter(pk=spot.invite_id).first()
-            if invite is None or not is_pending(invite):
-                return Response({"error": "Pending invitation not found"}, status=status.HTTP_404_NOT_FOUND)
-            # Per-invite cooldown; cache.add is atomic, so a double click sends only once.
-            if not claim_resend_slot(invite.id):
-                return Response(
-                    {"error": "Please wait a minute before resending this invitation."},
-                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+        claimed = False
+        try:
+            with transaction.atomic():
+                invite = WorkspaceMemberInvite.objects.select_for_update().filter(pk=spot.invite_id).first()
+                if invite is None or not is_pending(invite):
+                    return Response({"error": "Pending invitation not found"}, status=status.HTTP_404_NOT_FOUND)
+                # FORK: PSR-124 / PSR-125 -- renewing an Admin-role invitation is for a Super Admin only
+                if invite.role >= ROLE.ADMIN.value and not is_workspace_super_admin(
+                    request.user, workspace_id=invite.workspace_id
+                ):
+                    return super_admin_forbidden()
+                # Per-invite cooldown; cache.add is atomic, so a double click sends only once.
+                if not claim_resend_slot(invite.id):
+                    return Response(
+                        {"error": "Please wait a minute before resending this invitation."},
+                        status=status.HTTP_429_TOO_MANY_REQUESTS,
+                    )
+                claimed = True
+                # FORK: PSR-124 -- a resend starts a fresh expiry window
+                renew_invite(invite)
+                workspace_audit.record_invite_resent(
+                    invite.workspace_id, request.user, invite, spot.project, spot.role
                 )
-            # FORK: PSR-124 -- a resend starts a fresh expiry window
-            renew_invite(invite)
-            workspace_audit.record_invite_resent(invite.workspace_id, request.user, invite, spot.project, spot.role)
+        except Exception:
+            # FORK: PSR-124 -- rolled back, nothing was sent: do not burn the cooldown
+            if claimed:
+                release_resend_slot(invite.id)
+            raise
         workspace_invitation.delay(
             invite.email,
             invite.workspace_id,

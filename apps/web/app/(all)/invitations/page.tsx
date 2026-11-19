@@ -63,7 +63,7 @@ function UserInvitationsPage() {
 
   const handleInvitation = (workspace_invitation: IWorkspaceMemberInvitation, action: "accepted" | "withdraw") => {
     // FORK: PSR-124 Part 2 -- expired invitations cannot be picked
-    if (workspace_invitation.is_expired) return;
+    if (workspace_invitation.is_expired || workspace_invitation.responded_at) return;
     if (action === "accepted") {
       setInvitationsRespond((prevData) => [...prevData, workspace_invitation.id]);
     } else if (action === "withdraw") {
@@ -143,7 +143,7 @@ function UserInvitationsPage() {
                 <h4 className="text-20 font-semibold">{t("join_a_workspace")}</h4>
                 <div className="max-h-[37vh] space-y-4 overflow-y-auto md:w-3/5">
                   {invitations.map((invitation) => {
-                    const isExpired = !!invitation.is_expired; // FORK: PSR-124 Part 2
+                    const isExpired = !!invitation.is_expired || !!invitation.responded_at; // FORK: PSR-124 Part 2 (answered = not acceptable)
                     const isSelected = !isExpired && invitationsRespond.includes(invitation.id);
 
                     return (

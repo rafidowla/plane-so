@@ -198,4 +198,14 @@ describe("summariseInviteResults not_allowed details", () => {
     expect(s.problemEmails).toEqual(["a@x.com", "b@x.com", "c@x.com"]);
     expect(s.hasProblems).toBe(true);
   });
+
+  it("separates renewals of Admin invitations that need a Super Admin", () => {
+    const s = summariseInviteResults([
+      { email: "a@x.com", status: "not_allowed", detail: "admin_invite_super_admin_only" },
+    ]);
+    expect(s.notAllowed).toEqual([]);
+    expect(s.notAllowedAdminInvite).toEqual(["a@x.com"]);
+    expect(s.problemEmails).toEqual(["a@x.com"]);
+    expect(s.hasProblems).toBe(true);
+  });
 });

@@ -8,8 +8,10 @@ import { describe, expect, it } from "vitest";
 import {
   canResendProjectInvite,
   fieldErrorText,
+  isEmailDomainAllowed,
   parseDomains,
   parseExpiryDays,
+  resendDeniedReasonKey,
   selectInviteHint,
 } from "./workspace-invite-settings";
 
@@ -80,6 +82,40 @@ describe("canResendProjectInvite", () => {
     expect(canResendProjectInvite(false, true, null)).toBe(false);
     expect(canResendProjectInvite(false, true, settings({ project_admins_can_invite: true }))).toBe(true);
     expect(canResendProjectInvite(false, false, settings({ project_admins_can_invite: true }))).toBe(false);
+  });
+});
+
+describe("canResendProjectInvite with the allowed domains list", () => {
+  const on = settings({ project_admins_can_invite: true, allowed_email_domains: ["groundfloor.co"] });
+  it("hides Resend from a project admin for a disallowed domain, shows it for an allowed one", () => {
+    expect(canResendProjectInvite(false, true, on, "a@groundfloor.co")).toBe(true);
+    expect(canResendProjectInvite(false, true, on, "a@Groundfloor.CO")).toBe(true);
+    expect(canResendProjectInvite(false, true, on, "a@evil.com")).toBe(false);
+    expect(canResendProjectInvite(false, true, on, "a@sub.groundfloor.co")).toBe(false);
+  });
+  it("never limits workspace admins by domain", () => {
+    expect(canResendProjectInvite(true, true, on, "a@evil.com")).toBe(true);
+  });
+});
+
+describe("isEmailDomainAllowed", () => {
+  it("matches the part after the last @ exactly; an empty list allows all", () => {
+    expect(isEmailDomainAllowed("x@any.com", [])).toBe(true);
+    expect(isEmailDomainAllowed("a@b@groundfloor.co", ["groundfloor.co"])).toBe(true);
+    expect(isEmailDomainAllowed("x@groundfloor.co.evil.com", ["groundfloor.co"])).toBe(false);
+    expect(isEmailDomainAllowed("nodomain", ["groundfloor.co"])).toBe(false);
+  });
+});
+
+describe("resendDeniedReasonKey", () => {
+  it("maps server detail codes and the Super Admin message", () => {
+    expect(resendDeniedReasonKey({ detail: "workspace_admin_only" })).toBe("resend_denied_workspace_admin_only");
+    expect(resendDeniedReasonKey({ detail: "domain_not_allowed" })).toBe("resend_denied_domain_not_allowed");
+    expect(resendDeniedReasonKey({ error: "Only a Super Admin of this workspace can do this." })).toBe(
+      "resend_denied_super_admin_only"
+    );
+    expect(resendDeniedReasonKey({ error: "boom" })).toBeNull();
+    expect(resendDeniedReasonKey(undefined)).toBeNull();
   });
 });
 

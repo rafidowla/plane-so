@@ -123,6 +123,13 @@ def claim_resend_slot(invite_id):
     return cache.add(f"psr124:resend-invite:{invite_id}", 1, RESEND_COOLDOWN_SECONDS)
 
 
+def release_resend_slot(invite_id):
+    """Give the cooldown back (the resend rolled back, so nothing was sent)."""
+    from django.core.cache import cache
+
+    cache.delete(f"psr124:resend-invite:{invite_id}")
+
+
 def invite_not_allowed_detail(email, settings_obj, requester_is_workspace_admin, requester_is_project_admin):
     """None when the requester may invite ``email``; else ``workspace_admin_only`` / ``domain_not_allowed``."""
     if requester_is_workspace_admin:
