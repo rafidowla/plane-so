@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.db.models import Exists
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError
+from django.core.exceptions import ValidationError
 
 # Third Party imports
 from rest_framework.response import Response
@@ -124,9 +125,23 @@ class IssueCommentViewSet(BaseViewSet):
         if denied:
             return denied
         data = {key: request.data[key] for key in COMMENT_WRITABLE_FIELDS if key in request.data}
+        # FORK: comment-threads (#26) — upstream's INFRA-1208 allowlist drops `parent`, which
+        # flattened every thread reply into a top-level comment. Accept it again, but only when
+        # it names a comment on this same work item, so a reply can't be attached elsewhere.
+        # Any other value is ignored (saved top-level), matching upstream's "system fields are
+        # dropped, not rejected" contract (test_create_ignores_system_fields).
+        parent_id = request.data.get("parent") or None
+        if parent_id:
+            try:
+                if not IssueComment.objects.filter(
+                    pk=parent_id, issue_id=issue.id, project_id=project_id, workspace__slug=slug
+                ).exists():
+                    parent_id = None
+            except (ValueError, ValidationError):
+                parent_id = None
         serializer = IssueCommentSerializer(data=data)
         if serializer.is_valid():
-            serializer.save(project_id=project_id, issue_id=issue_id, actor=request.user)
+            serializer.save(project_id=project_id, issue_id=issue_id, actor=request.user, parent_id=parent_id)
             issue_activity.delay(
                 type="comment.activity.created",
                 requested_data=json.dumps(serializer.data, cls=DjangoJSONEncoder),

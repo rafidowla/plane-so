@@ -303,6 +303,37 @@ conflicts and you re-apply our small change against their new structure by hand
 minimal and clearly marked, this is a few-minutes fix per file, not a rewrite —
 that is the whole point of the marker discipline.
 
+## Silent breakages seen in past syncs (check these even when Git is clean)
+
+From the 2026-11-19 sync of upstream `18bdefae33` (the Propel design-system
+rewrite). None of these produced a merge conflict:
+
+- **Fresh worktree type-check** needs the turbo build of the shared packages
+  plus route typegen first, or `tsc` reports hundreds of bogus errors.
+- **Component / dependency removals:** upstream dropped `lucide-react` from
+  `apps/web/package.json`, but fork files (`ce/`, time tracking, settings
+  sidebars, comments) still import it — keep the dependency when resolving.
+  Upstream also removed `EmptySpace`/`EmptySpaceItem`; the PSR-124
+  expired-invite page was rebuilt on `EmptyStateDetailed`.
+- **Imports lost in auto-merged hunks:** `analytics/[tabId]` lost the
+  `useEffect`/`useRouter` imports for the time-tracking redirects, and
+  `api/views/project.py` lost its `Q` import (500 on the project summary
+  endpoint). Run `tsc` and the API suite before trusting a clean merge.
+- **`can_bind_asset` vs PSR-104 drafts:** upstream validated the caller's own
+  draft id as an issue, so editor images in a draft were never linked. Our
+  `asset/v2.py` validates it as `draft_issue_id` when it is the caller's own
+  draft in that workspace/project; everything else stays an issue check.
+- **Super Admin constraint vs new upstream tests:** upstream tests that demote
+  the fixture's workspace creator must also clear `is_super_admin` (fork
+  constraint `workspace_member_super_admin_is_active_admin`).
+- **API tests need `test-mq` up** (`docker compose -p <name> -f
+docker-compose-test.yml up -d test-mq`) before running pytest.
+- **Comment `parent` vs INFRA-1208:** upstream's `COMMENT_WRITABLE_FIELDS`
+  allowlist drops `parent`, which flattened every thread reply (comment-threads
+  #26). The create view re-reads `parent` and keeps it only when it names a
+  comment on the same work item; any other value is ignored, per upstream's
+  `test_create_ignores_system_fields`.
+
 ## Deployment settings (not code — carry these across any upgrade)
 
 These live in your server's environment, not in git, so they must be
