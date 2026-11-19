@@ -37,11 +37,13 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
   } = useMember();
   const [toCancel, setToCancel] = useState<TProjectPendingMember | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const isProjectAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
   const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
-  const canManage = isProjectAdmin || isWorkspaceAdmin;
+  // The server only lets project Admins use these endpoints (a workspace Admin must be in the project too);
+  // resend and copy link additionally need workspace Admin.
+  const canManage = isProjectAdmin;
 
   useSWR(
     canManage && workspaceSlug && projectId ? `PROJECT_PENDING_MEMBERS_${workspaceSlug}_${projectId}` : null,
@@ -57,7 +59,8 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
   const base = "project_settings.members.pending";
 
   const handleResend = async (spot: TProjectPendingMember) => {
-    setBusyId(spot.id);
+    if (busyIds.has(spot.id)) return;
+    setBusyIds((current) => new Set(current).add(spot.id));
     try {
       await resendPendingMember(workspaceSlug, projectId, spot.id);
       setToast({ type: "success", title: t("success"), message: t(`${base}.resend_success`) });
@@ -68,7 +71,12 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
         message: (error as { error?: string } | undefined)?.error ?? t(`${base}.resend_error`),
       });
     } finally {
-      setBusyId(null);
+      // Other rows may still be resending; only clear this row's spinner.
+      setBusyIds((current) => {
+        const next = new Set(current);
+        next.delete(spot.id);
+        return next;
+      });
     }
   };
 
@@ -124,7 +132,7 @@ export const ProjectPendingMemberList = observer(function ProjectPendingMemberLi
                   size="sm"
                   stretch="auto"
                   label={t(`${base}.resend`)}
-                  loading={busyId === spot.id}
+                  loading={busyIds.has(spot.id)}
                   onClick={() => handleResend(spot)}
                 />
               )}

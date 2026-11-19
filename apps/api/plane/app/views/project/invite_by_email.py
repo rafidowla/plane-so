@@ -271,7 +271,11 @@ class ProjectPendingMemberDetailEndpoint(BaseAPIView):
             return Response({"error": "Pending invitation not found"}, status=status.HTTP_404_NOT_FOUND)
 
         with transaction.atomic():
-            invite = spot.invite
+            # Lock the invitation first so two cancels of its last two spots run one after the other;
+            # otherwise each still sees the other's spot and neither removes the invitation.
+            invite = WorkspaceMemberInvite.objects.select_for_update().filter(pk=spot.invite_id).first()
+            if invite is None:
+                return Response({"error": "Pending invitation not found"}, status=status.HTTP_404_NOT_FOUND)
             WorkspaceMemberInviteProject.objects.filter(pk=spot.pk).delete()  # soft delete, immediate
             remaining = WorkspaceMemberInviteProject.objects.filter(invite=invite).exists()
             # The workspace invitation only goes away when this flow created it and no spot is left.

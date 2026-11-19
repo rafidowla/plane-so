@@ -6,9 +6,12 @@
 // FORK: PSR-124
 import { describe, expect, it } from "vitest";
 import {
+  apiErrorText,
+  chipsAfterSend,
   isNoteDropped,
   isValidEmail,
   parseEmails,
+  shouldCommitPastedEmails,
   shouldCommitTypedEmails,
   summariseInviteResults,
 } from "./project-invite-by-email";
@@ -38,6 +41,10 @@ describe("parseEmails", () => {
     const r = parseEmails("good@x.com bad bad also@bad");
     expect(r.valid).toEqual(["good@x.com"]);
     expect(r.invalid).toEqual(["bad", "also@bad"]);
+  });
+  it("keeps invalid text as typed (case kept), de-duplicated case-insensitively", () => {
+    const r = parseEmails("Foo FOO Bar@baz");
+    expect(r.invalid).toEqual(["Foo", "Bar@baz"]);
   });
   it("unwraps <address> tokens and handles empty input", () => {
     expect(parseEmails("<a@x.com>").valid).toEqual(["a@x.com"]);
@@ -84,6 +91,21 @@ describe("summariseInviteResults", () => {
     expect(summariseInviteResults([{ email: "a@x.com", status: "added" }]).hasProblems).toBe(false);
     const s = summariseInviteResults([{ email: "z@x.com", status: "weird" as never }]);
     expect(s.hasProblems).toBe(true);
+    expect(s.failed).toEqual(["z@x.com"]);
+  });
+  it("keeps an email the server did not answer for as a problem", () => {
+    const s = summariseInviteResults([{ email: "a@x.com", status: "added" }], ["a@x.com", "b@x.com"]);
+    expect(s.failed).toEqual(["b@x.com"]);
+    expect(s.problemEmails).toEqual(["b@x.com"]);
+    expect(s.hasProblems).toBe(true);
+  });
+  it("shows the server's reason for an invalid result unless it is just 'Invalid email'", () => {
+    const s = summariseInviteResults([
+      { email: "a@x.com", status: "invalid", detail: "Please try again." },
+      { email: "b@x", status: "invalid", detail: "Invalid email" },
+    ]);
+    expect(s.invalid).toEqual(["a@x.com (Please try again.)", "b@x"]);
+    expect(s.problemEmails).toEqual(["a@x.com", "b@x"]);
   });
 });
 
@@ -103,6 +125,47 @@ describe("shouldCommitTypedEmails", () => {
   });
   it("does not commit while typing", () => {
     expect(shouldCommitTypedEmails("a@x.com")).toBe(false);
+  });
+});
+
+describe("shouldCommitPastedEmails", () => {
+  it("commits a pasted list once the browser has inserted it", () => {
+    expect(shouldCommitPastedEmails("a@x.com b@x.com")).toBe(true);
+    expect(shouldCommitPastedEmails("John Doe <j@x.com>")).toBe(true);
+    expect(shouldCommitPastedEmails("foo, a@x.com")).toBe(true);
+    expect(shouldCommitPastedEmails("a@x.com ")).toBe(true);
+  });
+  it("leaves a single address, a bare name or an unclosed <...> for more typing", () => {
+    expect(shouldCommitPastedEmails("a@x.com")).toBe(false);
+    expect(shouldCommitPastedEmails("John Doe")).toBe(false);
+    expect(shouldCommitPastedEmails("John Doe <j@x.com")).toBe(false);
+  });
+  it("judges the final value, so a paste that replaced a selection leaves no stale text", () => {
+    // draft "foo" fully selected, "a@b.com c@d.com" pasted: the browser's value has no "foo" in it
+    const value = "a@b.com c@d.com";
+    expect(shouldCommitPastedEmails(value)).toBe(true);
+    expect(parseEmails(value)).toEqual({ valid: ["a@b.com", "c@d.com"], invalid: [] });
+  });
+});
+
+describe("chipsAfterSend", () => {
+  it("drops sent emails that succeeded, keeps problems and chips that were not sent", () => {
+    expect(chipsAfterSend(["a@x.com", "b@x.com", "c@x.com"], ["a@x.com", "b@x.com"], ["b@x.com"])).toEqual([
+      "b@x.com",
+      "c@x.com",
+    ]);
+  });
+  it("adds problem emails that are not chips yet", () => {
+    expect(chipsAfterSend([], ["a@x.com"], ["a@x.com"])).toEqual(["a@x.com"]);
+  });
+});
+
+describe("apiErrorText", () => {
+  it("reads error or detail, else null", () => {
+    expect(apiErrorText({ error: "nope" })).toBe("nope");
+    expect(apiErrorText({ detail: "denied" })).toBe("denied");
+    expect(apiErrorText(undefined)).toBeNull();
+    expect(apiErrorText(null)).toBeNull();
   });
 });
 

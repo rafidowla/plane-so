@@ -5,8 +5,9 @@
  */
 
 // FORK: PSR-124 -- "Invite by email" section of the project invitation modal.
-// State lives in `useInviteByEmailForm` (owned by the modal) so ONE submit button can send both the
-// picked workspace members and the typed emails, and so nothing typed is lost on partial failure.
+// State lives in `useInviteByEmailForm` (owned by the modal's form) so ONE submit button can send both the
+// picked workspace members and the typed emails, and so nothing typed is lost on partial failure. The modal
+// mounts a fresh form for every open, so this state never needs resetting by hand.
 
 import { useState } from "react";
 import { observer } from "mobx-react";
@@ -22,8 +23,11 @@ import { useUserPermissions } from "@/hooks/store/user";
 // plane web imports
 import {
   MAX_INVITE_EMAILS,
+  apiErrorText,
+  chipsAfterSend,
   isNoteDropped,
   parseEmails,
+  shouldCommitPastedEmails,
   shouldCommitTypedEmails,
   summariseInviteResults,
 } from "@/plane-web/helpers/project-invite-by-email";
@@ -65,15 +69,26 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
     label: ROLE[key],
   }));
 
-  /** Valid addresses become chips; anything else stays in the input (comma separated) with an error. */
-  const commitDraft = (raw: string) => {
+  /**
+   * Valid addresses become chips; anything else stays in the input (comma separated) with an error.
+   * With `keepIfInvalid` (blur) the text is only turned into chips when ALL of it is valid; otherwise it
+   * is left exactly as typed, with the error, so a half-typed "Name <a@x" is never rewritten.
+   */
+  const commitDraft = (raw: string, options?: { keepIfInvalid?: boolean }) => {
     if (!raw.trim()) {
       setDraft("");
       setInvalidTokens([]);
       return;
     }
     const parsed = parseEmails(raw, emails);
-    if (parsed.valid.length) setEmails((prev) => [...prev, ...parsed.valid]);
+    if (options?.keepIfInvalid && parsed.invalid.length) {
+      setDraft(raw);
+      setInvalidTokens(parsed.invalid);
+      return;
+    }
+    if (parsed.valid.length) {
+      setEmails((prev) => [...prev, ...parsed.valid.filter((email) => !prev.includes(email))]);
+    }
     setInvalidTokens(parsed.invalid);
     setDraft(parsed.invalid.join(", "));
     setFormError(null);
@@ -81,25 +96,29 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
 
   /**
    * Gather the emails to send (chips + whatever is typed). Returns null when the typed text has invalid
-   * entries: they stay visible with an error and nothing should be sent yet.
+   * entries: the text is left as typed, with an error, and nothing should be sent yet.
    */
   const collect = (): string[] | null => {
     const parsed = draft.trim() ? parseEmails(draft, emails) : { valid: [] as string[], invalid: [] as string[] };
-    const all = [...emails, ...parsed.valid];
-    if (draft.trim()) {
-      if (parsed.valid.length) setEmails(all);
+    if (parsed.invalid.length) {
       setInvalidTokens(parsed.invalid);
-      setDraft(parsed.invalid.join(", "));
+      return null;
     }
-    if (parsed.invalid.length) return null;
+    const all = [...emails, ...parsed.valid];
     if (all.length > MAX_INVITE_EMAILS) {
       setFormError(t(`${BASE}.too_many`, { count: MAX_INVITE_EMAILS }));
       return null;
     }
+    if (draft.trim()) {
+      // the typed addresses become chips, so a failed send keeps them visible
+      setEmails(all);
+      setDraft("");
+      setInvalidTokens([]);
+    }
     return all;
   };
 
-  /** Call the API for the given emails. Updates chips/summary; rethrows API errors after setting formError. */
+  /** Call the API for the given emails. Updates chips/summary; on a failed request sets formError, returns null. */
   const send = async (toSend: string[]): Promise<TInviteSummary | null> => {
     try {
       const response = await inviteMembersByEmail(workspaceSlug, projectId, {
@@ -107,34 +126,15 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
         ...(isWorkspaceAdmin ? { workspace_role: workspaceRole as 5 | 15 } : {}),
         message: message.trim() || null,
       });
-      const result = summariseInviteResults(response?.results ?? []);
-      // only emails that still need attention stay as chips; successful ones are done
-      setEmails(result.problemEmails);
+      const result = summariseInviteResults(response?.results ?? [], toSend);
+      // successful emails are done; anything that needs attention (or was not part of this send) stays
+      setEmails((prev) => chipsAfterSend(prev, toSend, result.problemEmails));
       setSummary(result);
       return result;
     } catch (error) {
-      const detail = (error as { error?: unknown; detail?: unknown } | undefined) ?? {};
-      setFormError(
-        typeof detail.error === "string"
-          ? detail.error
-          : typeof detail.detail === "string"
-            ? detail.detail
-            : t(`${BASE}.failed`)
-      );
+      setFormError(apiErrorText(error) ?? t(`${BASE}.failed`));
       return null;
     }
-  };
-
-  const reset = () => {
-    setEmails([]);
-    setDraft("");
-    setInvalidTokens([]);
-    setProjectRole(EUserPermissions.MEMBER);
-    setWorkspaceRole(EUserPermissions.MEMBER);
-    setMessage("");
-    setSummary(null);
-    setMembersAdded(0);
-    setFormError(null);
   };
 
   return {
@@ -161,7 +161,6 @@ export const useInviteByEmailForm = (workspaceSlug: string, projectId: string) =
     commitDraft,
     collect,
     send,
-    reset,
     /** True when there is anything typed or chipped to send. */
     hasInput: emails.length > 0 || draft.trim().length > 0,
   };
@@ -205,6 +204,7 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
   const { form } = props;
   const { t } = useTranslation();
   const { summary } = form;
+  const addedCount = (summary?.added.length ?? 0) + form.membersAdded;
 
   return (
     <div className="space-y-3 border-t border-subtle pt-4">
@@ -241,25 +241,22 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
             aria-invalid={form.invalidTokens.length > 0}
             onChange={(e) => {
               const value = e.target.value;
-              // commas/semicolons, or a space after one bare valid address, turn the text into chips;
-              // anything else (e.g. "John Doe <j@x.com>" being typed) stays in the box until Enter/blur
-              if (shouldCommitTypedEmails(value)) form.commitDraft(value);
+              // A paste is never intercepted: the browser inserts it (replacing any selection, at the caret)
+              // and the resulting value is parsed here, like typed text.
+              const pasted = (e.nativeEvent as InputEvent | undefined)?.inputType === "insertFromPaste";
+              // commas/semicolons, a space after one bare valid address, or a pasted list turn the text into
+              // chips; anything else (e.g. "John Doe <j@x.com>" being typed) stays in the box until Enter/blur
+              if (pasted ? shouldCommitPastedEmails(value) : shouldCommitTypedEmails(value)) form.commitDraft(value);
               else form.setDraft(value);
-            }}
-            onPaste={(e) => {
-              const text = e.clipboardData.getData("text");
-              if (!/[\s,;]/.test(text.trim())) return;
-              e.preventDefault();
-              form.commitDraft(form.draft ? `${form.draft}, ${text}` : text);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 // never submit the surrounding member form from here
                 e.preventDefault();
-                form.commitDraft(form.draft);
+                form.commitDraft(e.currentTarget.value);
               }
             }}
-            onBlur={() => form.commitDraft(form.draft)}
+            onBlur={(e) => form.commitDraft(e.currentTarget.value, { keepIfInvalid: true })}
           />
         </InputGroup>
         {form.invalidTokens.length > 0 && (
@@ -307,27 +304,30 @@ export const InviteByEmailSection = observer(function InviteByEmailSection(props
         />
       </div>
       {form.formError && <p className="text-13 text-danger-primary">{form.formError}</p>}
-      {summary?.hasProblems && (
+      {/* The modal is still open after a submit only when part of it failed: say what DID happen too, so
+          rows/emails that were dealt with (and so left the form) never vanish without a word. */}
+      {(summary || form.membersAdded > 0) && (
         <div className="space-y-1 rounded-md border border-subtle bg-layer-1 p-3 text-13" role="status">
-          <p className="font-medium">{t(`${BASE}.summary_title`)}</p>
-          {summary.added.length + form.membersAdded > 0 && (
-            <p>{t(`${BASE}.summary_added`, { count: summary.added.length + form.membersAdded })}</p>
-          )}
-          {summary.invited.length > 0 && <p>{t(`${BASE}.summary_invited`, { count: summary.invited.length })}</p>}
-          {summary.inviteUpdated.length > 0 && (
+          <p className="font-medium">{t(summary?.hasProblems ? `${BASE}.summary_title` : `${BASE}.results_title`)}</p>
+          {addedCount > 0 && <p>{t(`${BASE}.summary_added`, { count: addedCount })}</p>}
+          {!!summary?.invited.length && <p>{t(`${BASE}.summary_invited`, { count: summary.invited.length })}</p>}
+          {!!summary?.inviteUpdated.length && (
             <p>{t(`${BASE}.summary_invite_updated`, { emails: list(summary.inviteUpdated) })}</p>
           )}
           {isNoteDropped(form.message, summary, form.membersAdded > 0) && <p>{t(`${BASE}.note_not_sent`)}</p>}
-          {summary.alreadyMember.length > 0 && (
+          {!!summary?.alreadyMember.length && (
             <p>{t(`${BASE}.summary_already_member`, { emails: list(summary.alreadyMember) })}</p>
           )}
-          {summary.notAllowed.length > 0 && (
+          {!!summary?.notAllowed.length && (
             <p className="text-danger-primary">
               {t(`${BASE}.summary_not_allowed`, { emails: list(summary.notAllowed) })}
             </p>
           )}
-          {summary.invalid.length > 0 && (
+          {!!summary?.invalid.length && (
             <p className="text-danger-primary">{t(`${BASE}.summary_invalid`, { emails: list(summary.invalid) })}</p>
+          )}
+          {!!summary?.failed.length && (
+            <p className="text-danger-primary">{t(`${BASE}.summary_failed`, { emails: list(summary.failed) })}</p>
           )}
         </div>
       )}

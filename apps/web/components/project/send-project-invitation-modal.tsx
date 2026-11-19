@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 // plane imports
@@ -29,7 +29,7 @@ import {
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 // FORK: PSR-124
 import { InviteByEmailSection, useInviteByEmailForm } from "./invite-by-email-section";
-import { isNoteDropped } from "@/plane-web/helpers/project-invite-by-email";
+import { apiErrorText, isNoteDropped } from "@/plane-web/helpers/project-invite-by-email";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -56,24 +56,59 @@ type TRoleOption = {
   label: string;
 };
 
-const defaultValues: FormValues = {
+const defaultValues = (): FormValues => ({
   members: [
     {
       role: 5,
       member_id: "",
     },
   ],
-};
-
-const errorText = (error: unknown): string | null => {
-  const detail = (error as { error?: unknown; detail?: unknown } | undefined) ?? {};
-  if (typeof detail.error === "string") return detail.error;
-  if (typeof detail.detail === "string") return detail.detail;
-  return null;
-};
+});
 
 export const SendProjectInvitationModal = observer(function SendProjectInvitationModal(props: Props) {
   const { isOpen, onClose, onSuccess, projectId, workspaceSlug } = props;
+  // FORK: PSR-124 -- every open gets a brand-new form (new key), so nothing from an earlier invitation -- note,
+  // chips, results, picked rows -- can show, not even for one frame. The key is derived DURING render (React's
+  // "adjust state when a prop changes" pattern), not in an effect, which would paint the old state first; no
+  // timers are needed either, because the closing dialog keeps showing the old form until it unmounts.
+  const [session, setSession] = useState(0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setSession((value) => value + 1);
+  }
+  // FORK: PSR-124 -- while a submit is in flight the dialog cannot be dismissed, so its outcome is always seen
+  const busyRef = useRef(false);
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !busyRef.current) onClose();
+      }}
+    >
+      <DialogContent size="md">
+        <ProjectInvitationForm
+          key={session}
+          onClose={onClose}
+          onSuccess={onSuccess}
+          onBusyChange={(busy) => {
+            busyRef.current = busy;
+          }}
+          projectId={projectId}
+          workspaceSlug={workspaceSlug}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+});
+
+type FormProps = Omit<Props, "isOpen"> & {
+  onBusyChange: (busy: boolean) => void;
+};
+
+const ProjectInvitationForm = observer(function ProjectInvitationForm(props: FormProps) {
+  const { onClose, onSuccess, onBusyChange, projectId, workspaceSlug } = props;
   // plane hooks
   const { t } = useTranslation();
   // store hooks
@@ -84,8 +119,6 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
   } = useMember();
   // FORK: PSR-124 -- state of the "invite by email" section; one submit sends both it and the member rows
   const emailForm = useInviteByEmailForm(workspaceSlug, projectId);
-  const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wasClosedRef = useRef(!isOpen);
   const submittingRef = useRef(false);
   // form info
   const {
@@ -95,7 +128,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     reset,
     handleSubmit,
     control,
-  } = useForm<FormValues>();
+  } = useForm<FormValues>({ defaultValues: defaultValues() });
   const { fields, append, remove } = useFieldArray({
     control,
     name: "members",
@@ -109,38 +142,6 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
       const isInvited = projectMemberDetails?.member.id && projectMemberDetails?.original_role;
       return !isInvited;
     }) ?? [];
-
-  // FORK: PSR-124 -- the Dialog unmounts its content on close, but THIS component (and its form state) stays
-  // mounted, so state is reset explicitly: after the close animation, and always (synchronously) when the
-  // modal reopens, so a stale note/summary/chips can never survive into the next invitation.
-  const resetAll = () => {
-    reset(defaultValues);
-    emailForm.reset();
-  };
-  const resetAllRef = useRef(resetAll);
-  resetAllRef.current = resetAll;
-
-  const clearPendingReset = () => {
-    if (resetTimeoutRef.current) {
-      clearTimeout(resetTimeoutRef.current);
-      resetTimeoutRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    if (!isOpen) {
-      wasClosedRef.current = true;
-      return;
-    }
-    if (wasClosedRef.current) {
-      wasClosedRef.current = false;
-      clearPendingReset();
-      resetAllRef.current();
-    }
-  }, [isOpen]);
-
-  // only on unmount: a timer left running after the modal is gone
-  useEffect(() => clearPendingReset, []);
 
   // FORK: PSR-124 -- ONE submit: picked member rows go through bulk add, typed emails through invite-by-email.
   // Close only if everything succeeded; otherwise keep failed emails / unsent rows in place.
@@ -159,10 +160,12 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     // a ref, not `isSubmitting`: the latter is a stale render closure, so it cannot stop a quick double click
     if (!workspaceSlug || !projectId || submittingRef.current) return;
     submittingRef.current = true;
+    onBusyChange(true);
     try {
       await submit(formData);
     } finally {
       submittingRef.current = false;
+      onBusyChange(false);
     }
   };
 
@@ -195,13 +198,13 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     if (rowsOk) {
       emailForm.setMembersAdded(rows.length);
       // these people are members now: drop them from the form so they are never re-sent
-      reset(defaultValues);
+      reset(defaultValues());
       onSuccess?.();
     }
     if (rowsFailed) {
       console.error(rowsResult.reason);
       emailForm.setFormError(
-        errorText(rowsResult.reason) ?? t("project_settings.members.invite_members.by_email.members_failed")
+        apiErrorText(rowsResult.reason) ?? t("project_settings.members.invite_members.by_email.members_failed")
       );
     }
 
@@ -219,16 +222,8 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
       isNoteDropped(emailForm.message, emailSummary, rowsOk) ? t(`${by}.note_not_sent`) : null,
     ].filter(Boolean);
     setToast({ title: t(`${by}.success_title`), type: "success", message: messageParts.join(". ") });
-    handleClose();
-  };
-
-  const handleClose = () => {
+    // the busy flag is still set here (cleared in onSubmit's finally), so close directly
     onClose();
-    clearPendingReset();
-    resetTimeoutRef.current = setTimeout(() => {
-      resetAll();
-      resetTimeoutRef.current = null;
-    }, 500);
   };
 
   const appendField = () => {
@@ -277,135 +272,136 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
   };
 
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) handleClose();
-      }}
-    >
-      <DialogContent size="md">
-        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
-          <DialogMain>
-            <DialogHeader>
-              <DialogHeading>
-                <DialogTitle>{t("project_settings.members.invite_members.title")}</DialogTitle>
-                <DialogDescription>{t("project_settings.members.invite_members.sub_heading")}</DialogDescription>
-              </DialogHeading>
-            </DialogHeader>
-            <DialogBody>
-              <div className="space-y-4">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="group mb-1 flex w-full items-start justify-between gap-x-4 text-13">
-                    <div className="flex w-full grow flex-col gap-1">
-                      <Controller
-                        control={control}
-                        name={`members.${index}.member_id`}
-                        render={({ field: { value, onChange } }) => (
-                          <MemberSelect
-                            value={value || null}
-                            onChange={(val: string) => handleMemberChange(index, val, onChange)}
-                            variant="select-lg"
-                            memberIds={uninvitedPeople}
-                            placeholder="Select co-worker"
-                          />
-                        )}
-                      />
-                      {errors.members && errors.members[index]?.member_id && (
-                        <span className="px-1 text-13 text-danger-primary">
-                          {errors.members[index]?.member_id?.message}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex shrink-0 items-center justify-between gap-2">
-                      <div className="flex flex-col gap-1">
-                        <Controller
-                          name={`members.${index}.role`}
-                          control={control}
-                          rules={{ required: "Select Role" }}
-                          render={({ field: { value, onChange } }) => {
-                            const roleOptions = getRoleOptions(watch(`members.${index}.member_id`));
-                            return (
-                              <div className="w-32">
-                                <Select<TRoleOption>
-                                  getValues={() => roleOptions}
-                                  value={roleOptions.find((role) => role.key === value) ?? null}
-                                  onChange={(key) => onChange(parseInt(key))}
-                                  getOptionValue={(role) => String(role.key)}
-                                  getOptionLabel={(role) => role.label}
-                                  placeholder="Select role"
-                                  showSearch={false}
-                                  pinSelected={false}
-                                >
-                                  <Select.Trigger<TRoleOption>
-                                    variant="pill-md"
-                                    appendIcon={<ChevronDownOutline />}
-                                    tooltip={{ emptyContent: "Select role" }}
-                                  >
-                                    <span className="min-w-0 grow truncate text-left capitalize">
-                                      {value ? ROLE[value] : "Select role"}
-                                    </span>
-                                  </Select.Trigger>
-                                </Select>
-                              </div>
-                            );
-                          }}
+    <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+      <DialogMain>
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t("project_settings.members.invite_members.title")}</DialogTitle>
+            <DialogDescription>{t("project_settings.members.invite_members.sub_heading")}</DialogDescription>
+          </DialogHeading>
+        </DialogHeader>
+        <DialogBody>
+          {/* FORK: PSR-124 -- nothing can be edited while a submit is in flight, so its result can't
+                  overwrite something typed or picked meanwhile */}
+          <fieldset disabled={isSubmitting} className="m-0 min-w-0 border-0 p-0">
+            <div className="space-y-4">
+              {fields.map((field, index) => (
+                <div key={field.id} className="group mb-1 flex w-full items-start justify-between gap-x-4 text-13">
+                  <div className="flex w-full grow flex-col gap-1">
+                    <Controller
+                      control={control}
+                      name={`members.${index}.member_id`}
+                      render={({ field: { value, onChange } }) => (
+                        <MemberSelect
+                          value={value || null}
+                          onChange={(val: string) => handleMemberChange(index, val, onChange)}
+                          variant="select-lg"
+                          memberIds={uninvitedPeople}
+                          placeholder="Select co-worker"
                         />
-                        {errors.members && errors.members[index]?.role && (
-                          <span className="px-1 text-13 text-danger-primary">
-                            {errors.members[index]?.role?.message}
-                          </span>
-                        )}
-                      </div>
+                      )}
+                    />
+                    {errors.members && errors.members[index]?.member_id && (
+                      <span className="px-1 text-13 text-danger-primary">
+                        {errors.members[index]?.member_id?.message}
+                      </span>
+                    )}
+                  </div>
 
-                      {fields.length > 1 && (
-                        <div className="flex-item flex w-6">
-                          <button
-                            type="button"
-                            aria-label={t("remove")}
-                            className="place-items-center self-center rounded-sm"
-                            onClick={() => remove(index)}
-                          >
-                            <CloseOutline className="h-4 w-4 text-secondary" />
-                          </button>
-                        </div>
+                  <div className="flex shrink-0 items-center justify-between gap-2">
+                    <div className="flex flex-col gap-1">
+                      <Controller
+                        name={`members.${index}.role`}
+                        control={control}
+                        rules={{ required: "Select Role" }}
+                        render={({ field: { value, onChange } }) => {
+                          const roleOptions = getRoleOptions(watch(`members.${index}.member_id`));
+                          return (
+                            <div className="w-32">
+                              <Select<TRoleOption>
+                                getValues={() => roleOptions}
+                                value={roleOptions.find((role) => role.key === value) ?? null}
+                                onChange={(key) => onChange(parseInt(key))}
+                                getOptionValue={(role) => String(role.key)}
+                                getOptionLabel={(role) => role.label}
+                                placeholder="Select role"
+                                showSearch={false}
+                                pinSelected={false}
+                              >
+                                <Select.Trigger<TRoleOption>
+                                  variant="pill-md"
+                                  appendIcon={<ChevronDownOutline />}
+                                  tooltip={{ emptyContent: "Select role" }}
+                                >
+                                  <span className="min-w-0 grow truncate text-left capitalize">
+                                    {value ? ROLE[value] : "Select role"}
+                                  </span>
+                                </Select.Trigger>
+                              </Select>
+                            </div>
+                          );
+                        }}
+                      />
+                      {errors.members && errors.members[index]?.role && (
+                        <span className="px-1 text-13 text-danger-primary">{errors.members[index]?.role?.message}</span>
                       )}
                     </div>
+
+                    {fields.length > 1 && (
+                      <div className="flex-item flex w-6">
+                        <button
+                          type="button"
+                          aria-label={t("remove")}
+                          className="place-items-center self-center rounded-sm"
+                          onClick={() => remove(index)}
+                        >
+                          <CloseOutline className="h-4 w-4 text-secondary" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-              {/* FORK: PSR-124 -- invite people who aren't in the workspace yet, by email */}
-              <div className="mt-4">
-                <InviteByEmailSection form={emailForm} />
-              </div>
-            </DialogBody>
-          </DialogMain>
-          <DialogActions>
-            <div className="flex w-full items-center justify-between gap-2">
-              <button
-                type="button"
-                className="flex items-center gap-2 bg-transparent py-2 pr-3 text-13 font-medium text-accent-primary outline-accent-strong"
-                onClick={appendField}
-              >
-                <AddOutline className="h-4 w-4" />
-                {t("common.add_more")}
-              </button>
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" size="md" stretch="auto" label={t("cancel")} onClick={handleClose} />
-                <Button
-                  variant="primary"
-                  size="md"
-                  stretch="auto"
-                  type="submit"
-                  disabled={!hasPickedRows && !emailForm.hasInput}
-                  label={submitLabel}
-                  loading={isSubmitting}
-                />
-              </div>
+                </div>
+              ))}
             </div>
-          </DialogActions>
-        </form>
-      </DialogContent>
-    </Dialog>
+            {/* FORK: PSR-124 -- invite people who aren't in the workspace yet, by email */}
+            <div className="mt-4">
+              <InviteByEmailSection form={emailForm} />
+            </div>
+          </fieldset>
+        </DialogBody>
+      </DialogMain>
+      <DialogActions>
+        <div className="flex w-full items-center justify-between gap-2">
+          <button
+            type="button"
+            className="flex items-center gap-2 bg-transparent py-2 pr-3 text-13 font-medium text-accent-primary outline-accent-strong"
+            onClick={appendField}
+            disabled={isSubmitting}
+          >
+            <AddOutline className="h-4 w-4" />
+            {t("common.add_more")}
+          </button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="md"
+              stretch="auto"
+              label={t("cancel")}
+              onClick={onClose}
+              disabled={isSubmitting}
+            />
+            <Button
+              variant="primary"
+              size="md"
+              stretch="auto"
+              type="submit"
+              disabled={!hasPickedRows && !emailForm.hasInput}
+              label={submitLabel}
+              loading={isSubmitting}
+            />
+          </div>
+        </div>
+      </DialogActions>
+    </form>
   );
 });
