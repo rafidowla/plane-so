@@ -173,6 +173,12 @@
                     {{ personal_message|linebreaksbr }}
                   </p>
                   {% endif %}
+                  {% if expires_on %}
+                  <!-- FORK: PSR-124 expiry notice -->
+                  <p style="margin: 0 0 12px; color: #444444;">
+                    This invitation expires on {{ expires_on }} ({{ expiry_days }} days).
+                  </p>
+                  {% endif %}
 
                   <!-- Primary button -->
                   <table
