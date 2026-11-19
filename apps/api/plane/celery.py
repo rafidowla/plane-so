@@ -60,6 +60,11 @@ app.conf.beat_schedule = {
         "task": "plane.bgtasks.time_tracking_sweep.time_tracking_timer_sweep",
         "schedule": crontab(minute="*"),  # Every minute
     },
+    # FORK: PSR-124 -- log one "invitation expired" audit entry per expired send
+    "check-every-hour-to-record-expired-invitations": {
+        "task": "plane.bgtasks.workspace_invite_expiry_task.record_expired_invitations",
+        "schedule": crontab(minute=5),  # Every hour at :05
+    },
     "push-instance-metrics": {
         "task": "plane.license.bgtasks.telemetry_metrics.push_instance_metrics",
         "schedule": schedule(run_every=timedelta(minutes=METRICS_PUSH_INTERVAL_MINUTES)),

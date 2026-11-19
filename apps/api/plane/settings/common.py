@@ -382,6 +382,8 @@ CELERY_IMPORTS = (
     "plane.bgtasks.cleanup_task",
     # FORK: time-tracking-v2 — beat-scheduled timer sweep
     "plane.bgtasks.time_tracking_sweep",
+    # FORK: PSR-124 -- hourly sweep that audits expired workspace invitations
+    "plane.bgtasks.workspace_invite_expiry_task",
     "plane.license.bgtasks.telemetry_metrics",
     # management tasks
     "plane.bgtasks.dummy_data_task",
