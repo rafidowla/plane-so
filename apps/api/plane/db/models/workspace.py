@@ -10,6 +10,7 @@ from typing import Optional, Any
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone  # FORK: PSR-124
 
 # Module imports
 from .base import BaseModel
@@ -257,6 +258,10 @@ class WorkspaceMemberInvite(BaseModel):
     # FORK: PSR-124 -- True only when this invite was created by the "add to project by email" flow;
     # such an invite is cancelled with its last pending project spot.
     created_from_project = models.BooleanField(default=False)
+    # FORK: PSR-124 -- when the invitation email was last sent; the expiry window starts here.
+    last_sent_at = models.DateTimeField(default=timezone.now, db_index=True)
+    # FORK: PSR-124 -- set when the "expired" audit entry was written; cleared on resend.
+    expiry_recorded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ["email", "workspace", "deleted_at"]
@@ -301,6 +306,23 @@ class WorkspaceMemberInviteProject(BaseModel):
 
     def __str__(self):
         return f"{self.invite_id} {self.project_id} {self.role}"
+
+
+# FORK: PSR-124 -- per-workspace invitation settings. No row = defaults (see plane/utils/invite_settings.py).
+class WorkspaceInviteSettings(BaseModel):
+    workspace = models.OneToOneField("db.Workspace", on_delete=models.CASCADE, related_name="invite_settings")
+    invite_expiry_days = models.PositiveSmallIntegerField(default=7)
+    allowed_email_domains = models.JSONField(default=list)
+    project_admins_can_invite = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Workspace Invite Settings"
+        verbose_name_plural = "Workspace Invite Settings"
+        db_table = "workspace_invite_settings"
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.workspace_id} invite settings"
 
 
 class Team(BaseModel):
