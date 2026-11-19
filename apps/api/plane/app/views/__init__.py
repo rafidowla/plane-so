@@ -83,6 +83,8 @@ from .workspace.invite import (
     WorkspaceJoinEndpoint,
     UserWorkspaceInvitationsViewSet,
 )
+# FORK: PSR-124
+from .workspace.invite_settings import WorkspaceInviteSettingsEndpoint, WorkspaceInvitationResendEndpoint
 from .workspace.label import WorkspaceLabelsEndpoint
 from .workspace.state import WorkspaceStatesEndpoint
 from .workspace.user import (

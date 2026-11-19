@@ -123,7 +123,35 @@ class WorkspaceMemberAdminSerializer(WorkSpaceMemberSerializer):
     member = UserAdminLiteSerializer(read_only=True)
 
 
-class WorkSpaceMemberInviteSerializer(BaseSerializer):
+# FORK: PSR-124 -- expiry is computed from the workspace's setting; one lookup per workspace per request.
+class InviteExpiryMixin(serializers.Serializer):
+    expires_at = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+
+    def _expiry(self):
+        from plane.utils.invite_settings import InviteExpiryCache
+
+        ctx = self.context
+        cache = ctx.get("invite_expiry_cache")
+        if cache is None:
+            cache = InviteExpiryCache()
+            try:
+                ctx["invite_expiry_cache"] = cache
+            except TypeError:
+                pass
+        return cache
+
+    def get_expires_at(self, obj):
+        return self._expiry().expires_at(obj)
+
+    def get_is_expired(self, obj):
+        # only a pending invitation can expire
+        if obj.accepted or obj.responded_at is not None:
+            return False
+        return self._expiry().is_expired(obj)
+
+
+class WorkSpaceMemberInviteSerializer(InviteExpiryMixin, BaseSerializer):
     workspace = WorkspaceLiteSerializer(read_only=True)
     invite_link = serializers.SerializerMethodField()
 
@@ -143,10 +171,14 @@ class WorkSpaceMemberInviteSerializer(BaseSerializer):
             "created_at",
             "updated_at",
             "invite_link",
+            "last_sent_at",  # FORK: PSR-124
+            "expiry_recorded_at",  # FORK: PSR-124
+            "expires_at",  # FORK: PSR-124
+            "is_expired",  # FORK: PSR-124
         ]
 
 
-class WorkSpaceMemberInvitePublicSerializer(BaseSerializer):
+class WorkSpaceMemberInvitePublicSerializer(InviteExpiryMixin, BaseSerializer):
     """Safe read-only serializer for the public workspace invite GET endpoint.
 
     Intentionally excludes ``token`` and ``invite_link`` so that an
@@ -169,6 +201,8 @@ class WorkSpaceMemberInvitePublicSerializer(BaseSerializer):
             "created_at",
             "updated_at",
             "created_by",
+            "expires_at",  # FORK: PSR-124
+            "is_expired",  # FORK: PSR-124
         ]
         read_only_fields = fields
 

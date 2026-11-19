@@ -97,3 +97,38 @@ class InviteExpiryCache:
 
     def expires_at(self, invite):
         return invite_expires_at(invite, self.days(invite.workspace_id))
+
+
+# ---- renewal / resend helpers -------------------------------------------------------------------
+
+RESEND_COOLDOWN_SECONDS = 60
+
+
+def is_pending(invite):
+    return not invite.accepted and invite.responded_at is None
+
+
+def renew_invite(invite):
+    """Start a fresh expiry window (call on a locked row, inside a transaction)."""
+    invite.last_sent_at = timezone.now()
+    invite.expiry_recorded_at = None
+    invite.save(update_fields=["last_sent_at", "expiry_recorded_at", "updated_at"])
+    return invite
+
+
+def claim_resend_slot(invite_id):
+    """Per-invite cooldown. ``cache.add`` is atomic, so a double click sends only once."""
+    from django.core.cache import cache
+
+    return cache.add(f"psr124:resend-invite:{invite_id}", 1, RESEND_COOLDOWN_SECONDS)
+
+
+def invite_not_allowed_detail(email, settings_obj, requester_is_workspace_admin, requester_is_project_admin):
+    """None when the requester may invite ``email``; else ``workspace_admin_only`` / ``domain_not_allowed``."""
+    if requester_is_workspace_admin:
+        return None
+    if not (requester_is_project_admin and settings_obj.project_admins_can_invite):
+        return "workspace_admin_only"
+    if not email_domain_allowed(email, settings_obj.allowed_email_domains):
+        return "domain_not_allowed"
+    return None

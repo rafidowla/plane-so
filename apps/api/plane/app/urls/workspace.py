@@ -6,6 +6,8 @@ from django.urls import path
 
 
 from plane.app.views import (
+    WorkspaceInviteSettingsEndpoint,  # FORK: PSR-124
+    WorkspaceInvitationResendEndpoint,  # FORK: PSR-124
     UserWorkspaceInvitationsViewSet,
     WorkSpaceViewSet,
     WorkspaceJoinEndpoint,
@@ -79,6 +81,17 @@ urlpatterns = [
         "workspaces/<str:slug>/invitations/<uuid:pk>/",
         WorkspaceInvitationsViewset.as_view({"delete": "destroy", "get": "retrieve", "patch": "partial_update"}),
         name="workspace-invitations",
+    ),
+    # FORK: PSR-124 -- invitation expiry / allowed domains settings, and resend from the workspace page
+    path(
+        "workspaces/<str:slug>/invite-settings/",
+        WorkspaceInviteSettingsEndpoint.as_view(),
+        name="workspace-invite-settings",
+    ),
+    path(
+        "workspaces/<str:slug>/invitations/<uuid:pk>/resend/",
+        WorkspaceInvitationResendEndpoint.as_view(),
+        name="workspace-invitation-resend",
     ),
     # user workspace invitations
     path(
