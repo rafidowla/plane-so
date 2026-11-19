@@ -96,6 +96,16 @@ class Adapter:
             )
         return
 
+    def _has_usable_invite(self, email):
+        """FORK: PSR-124 -- an invitation counts unless it is pending AND expired."""
+        from plane.utils.invite_settings import InviteExpiryCache
+
+        expiry = InviteExpiryCache()
+        for invite in WorkspaceMemberInvite.objects.filter(email=email):
+            if invite.accepted or invite.responded_at is not None or not expiry.is_expired(invite):
+                return True
+        return False
+
     def __check_signup(self, email):
         """Check if sign up is enabled or not and raise exception if not enabled"""
 
@@ -105,7 +115,8 @@ class Adapter:
         ])
 
         # Check if sign up is disabled and invite is present or not
-        if ENABLE_SIGNUP == "0" and not WorkspaceMemberInvite.objects.filter(email=email).exists():
+        # FORK: PSR-124 -- only a pending, non-expired invitation unlocks sign-up
+        if ENABLE_SIGNUP == "0" and not self._has_usable_invite(email):
             self.logger.warning("Sign up is disabled and invite is not present")
             # Raise exception
             raise AuthenticationException(

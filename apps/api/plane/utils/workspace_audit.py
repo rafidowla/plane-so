@@ -121,7 +121,8 @@ INVITE_SETTINGS_FIELDS = ("invite_expiry_days", "allowed_email_domains", "projec
 
 
 def _invite_facts(invite, project=None, project_role=None, **extra):
-    facts = {"email": invite.email, "role": invite.role, "role_name": ROLE_NAMES.get(invite.role, str(invite.role))}
+    role = int(invite.role)
+    facts = {"email": invite.email, "role": role, "role_name": ROLE_NAMES.get(role, str(role))}
     if project is not None:
         facts.update({"project_id": str(project.id), "project_name": project.name, "project_role": project_role})
     facts.update(extra)

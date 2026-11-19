@@ -2,11 +2,14 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-"""FORK: PSR-124 -- add people to a project by email (Part 1).
+"""FORK: PSR-124 -- add people to a project by email (Part 1, Part 2).
 
 Existing workspace members are added straight away. For anyone else a workspace Admin creates (or
 reuses) ONE pending workspace invitation per email and adds a pending project spot for this project;
 the spot becomes a project membership when the invitation is accepted.
+
+Part 2: a Project Admin who is not a workspace Admin may also invite new emails when the workspace
+setting allows it and the domain is allowed; invitations expire; every step is written to the audit log.
 """
 
 # Python imports
@@ -18,7 +21,6 @@ import jwt
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.core.cache import cache
 from django.db import IntegrityError, transaction
 
 # Third Party imports
@@ -38,8 +40,18 @@ from plane.db.models import (
     WorkspaceMemberInvite,
     WorkspaceMemberInviteProject,
 )
+from plane.utils import workspace_audit
 from plane.utils.cache import invalidate_cache_directly
 from plane.utils.host import base_host
+from plane.utils.invite_settings import (
+    InviteExpiryCache,
+    claim_resend_slot,
+    get_invite_settings,
+    invite_not_allowed_detail,
+    is_invite_expired,
+    is_pending,
+    renew_invite,
+)
 from plane.utils.project_invite_spots import (
     cap_project_role,
     remove_project_spots,
@@ -48,10 +60,10 @@ from plane.utils.project_invite_spots import (
 
 MAX_EMAILS_PER_CALL = 50
 MAX_MESSAGE_LENGTH = 1000
-RESEND_COOLDOWN_SECONDS = 60
 PROJECT_ROLES = (5, 15, 20)
 WORKSPACE_ROLES_FOR_NEW_PEOPLE = (5, 15)
-NOT_ALLOWED_DETAIL = "Only workspace admins can invite people who aren't in the workspace yet."
+# FORK: PSR-124 -- ``detail`` of a ``not_allowed`` result is a code the web turns into a message:
+# "workspace_admin_only" (setting off / not a project admin) or "domain_not_allowed".
 
 
 def _is_workspace_admin(user, slug):
@@ -75,18 +87,20 @@ def _spots_for_project(slug, project_id):
         invite__deleted_at__isnull=True,
         invite__accepted=False,
         invite__responded_at__isnull=True,
-    ).select_related("invite", "created_by")
+    ).select_related("invite", "created_by", "project")
 
 
 def _upsert_spot(invite, project, role):
+    """Create or update the spot; returns True when a new spot was created."""
     spot = WorkspaceMemberInviteProject.objects.filter(invite=invite, project=project).first()
     if spot is None:
         WorkspaceMemberInviteProject.objects.create(
             invite=invite, project=project, workspace_id=project.workspace_id, role=role
         )
-    else:
-        spot.role = role
-        spot.save()
+        return True
+    spot.role = role
+    spot.save()
+    return False
 
 
 def _sort_key(entry):
@@ -94,8 +108,13 @@ def _sort_key(entry):
     return raw.strip().lower() if isinstance(raw, str) else ""
 
 
-def _invite_and_spot(project, email, role, workspace_role, user):
-    """Reuse (or create) the workspace invitation for ``email`` and add this project's spot."""
+def _invite_and_spot(project, email, role, workspace_role, user, expiry_days):
+    """Reuse (or create) the workspace invitation for ``email`` and add this project's spot.
+
+    Returns ``(invite, created, renewed)``. ``renewed`` is True when an EXPIRED pending invitation was
+    given a fresh window (the caller sends the email again). Audit entries are written here, inside the
+    caller's transaction.
+    """
     # Lock the invitation (same lock the cancel endpoint takes) so a concurrent cancel of its last spot
     # cannot delete it while this request attaches a new spot to it.
     invite = (
@@ -110,6 +129,7 @@ def _invite_and_spot(project, email, role, workspace_role, user):
         invite = None
 
     created = invite is None
+    renewed = False
     if created:
         invite = WorkspaceMemberInvite.objects.create(
             workspace_id=project.workspace_id,
@@ -123,8 +143,17 @@ def _invite_and_spot(project, email, role, workspace_role, user):
             created_by=user,
             created_from_project=True,
         )
-    _upsert_spot(invite, project, role)
-    return invite, created
+    elif is_pending(invite) and is_invite_expired(invite, expiry_days):
+        # FORK: PSR-124 -- an expired invitation is renewed and sent again
+        renew_invite(invite)
+        renewed = True
+
+    spot_created = _upsert_spot(invite, project, role)
+    if renewed:
+        workspace_audit.record_invite_resent(project.workspace_id, user, invite, project, role)
+    elif created or spot_created:
+        workspace_audit.record_invite_sent(project.workspace_id, user, invite, project, role)
+    return invite, created, renewed
 
 
 class ProjectInviteByEmailEndpoint(BaseAPIView):
@@ -159,10 +188,16 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
         project = Project.objects.get(pk=project_id, workspace__slug=slug)
         is_ws_admin = _is_workspace_admin(request.user, slug)
         host = base_host(request=request, is_app=True)
+        # FORK: PSR-124 -- Part 2: workspace settings decide what a Project Admin may do. The decorator
+        # already guarantees a requester who is not a workspace Admin is a Project Admin.
+        invite_settings = get_invite_settings(project.workspace_id)
+        if not is_ws_admin:
+            # PO-1: a new person invited by a Project Admin is a workspace Member
+            workspace_role = ROLE.MEMBER.value
 
         results = []
         added_project_member_ids = []
-        invites_to_send = []
+        invites_to_send = []  # (invite, personal message)
         # Invitation rows are locked until the batch commits, so take them in a fixed (email) order to
         # avoid deadlocks between two overlapping batches; results go back in request order below.
         order = sorted(range(len(emails)), key=lambda i: _sort_key(emails[i]))
@@ -201,17 +236,21 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                     results.append({"email": email, "status": "added"})
                     continue
 
-                if not is_ws_admin:
-                    results.append({"email": email, "status": "not_allowed", "detail": NOT_ALLOWED_DETAIL})
+                denied = invite_not_allowed_detail(email, invite_settings, is_ws_admin, True)
+                if denied is not None:
+                    results.append({"email": email, "status": "not_allowed", "detail": denied})
                     continue
 
                 # One savepoint per email: a concurrent request creating the same invite/spot must not
                 # fail (or roll back) the rest of the batch.
                 try:
                     with transaction.atomic():
-                        invite, created = _invite_and_spot(project, email, role, workspace_role, request.user)
+                        invite, created, renewed = _invite_and_spot(
+                            project, email, role, workspace_role, request.user, invite_settings.invite_expiry_days
+                        )
                 except IntegrityError:
                     created = False
+                    renewed = False
                     # only a still-pending invitation may receive the spot (never a declined/accepted one)
                     invite = (
                         WorkspaceMemberInvite.objects.select_for_update()
@@ -228,22 +267,26 @@ class ProjectInviteByEmailEndpoint(BaseAPIView):
                         continue
                     try:
                         with transaction.atomic():
-                            _upsert_spot(invite, project, role)
+                            if _upsert_spot(invite, project, role):
+                                workspace_audit.record_invite_sent(
+                                    project.workspace_id, request.user, invite, project, role
+                                )
                     except IntegrityError:
                         pass  # the concurrent request already created the spot
 
                 if created:
-                    invites_to_send.append(invite)
-                results.append({"email": email, "status": "invited" if created else "invite_updated"})
+                    invites_to_send.append((invite, message))
+                elif renewed:
+                    # a re-send: the personal note only ever goes in the first email
+                    invites_to_send.append((invite, None))
+                results.append({"email": email, "status": "invited" if (created or renewed) else "invite_updated"})
 
         # exactly one result per entry, appended in processing order -> restore request order
         results = [result for _, result in sorted(zip(order, results), key=lambda pair: pair[0])]
 
         # Side effects only once the data is committed
-        for invite in invites_to_send:
-            workspace_invitation.delay(
-                invite.email, project.workspace_id, invite.token, host, request.user.email, message
-            )
+        for invite, note in invites_to_send:
+            workspace_invitation.delay(invite.email, project.workspace_id, invite.token, host, request.user.email, note)
         for pm_id in added_project_member_ids:
             project_add_user_email.delay(host, pm_id, request.user.id)
         if added_project_member_ids:
@@ -261,6 +304,7 @@ class ProjectPendingMembersEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN])
     def get(self, request, slug, project_id):
         is_ws_admin = _is_workspace_admin(request.user, slug)
+        expiry = InviteExpiryCache()  # FORK: PSR-124 -- one settings lookup per workspace
         payload = []
         for spot in _spots_for_project(slug, project_id).order_by("created_at"):
             item = {
@@ -272,6 +316,8 @@ class ProjectPendingMembersEndpoint(BaseAPIView):
                 "effective_role": cap_project_role(spot.role, spot.invite.role),
                 "workspace_role": spot.invite.role,
                 "created_at": spot.created_at,
+                "expires_at": expiry.expires_at(spot.invite),  # FORK: PSR-124
+                "is_expired": expiry.is_expired(spot.invite),  # FORK: PSR-124
                 "invited_by": (
                     {"id": spot.created_by_id, "display_name": spot.created_by.display_name}
                     if spot.created_by_id
@@ -298,6 +344,10 @@ class ProjectPendingMemberDetailEndpoint(BaseAPIView):
             if invite is None:
                 return Response({"error": "Pending invitation not found"}, status=status.HTTP_404_NOT_FOUND)
             WorkspaceMemberInviteProject.objects.filter(pk=spot.pk).delete()  # soft delete, immediate
+            # FORK: PSR-124 -- one "cancelled" entry naming the project, whether or not the invitation goes too
+            workspace_audit.record_invite_cancelled(
+                invite.workspace_id, request.user, invite, spot.project, spot.role
+            )
             remaining = WorkspaceMemberInviteProject.objects.filter(invite=invite).exists()
             # The workspace invitation only goes away when this flow created it and no spot is left.
             if invite.created_from_project and not remaining:
@@ -311,18 +361,32 @@ class ProjectPendingMemberResendEndpoint(BaseAPIView):
         spot = _spots_for_project(slug, project_id).filter(pk=pk).first()
         if spot is None:
             return Response({"error": "Pending invitation not found"}, status=status.HTTP_404_NOT_FOUND)
-        if not _is_workspace_admin(request.user, slug):
+
+        # FORK: PSR-124 (PO-4) -- a workspace Admin always; a Project Admin only when the workspace setting
+        # is on and the domain is still allowed.
+        invite_settings = get_invite_settings(spot.invite.workspace_id)
+        denied = invite_not_allowed_detail(
+            spot.invite.email, invite_settings, _is_workspace_admin(request.user, slug), True
+        )
+        if denied is not None:
             return Response(
-                {"error": "Only workspace admins can resend invitations."}, status=status.HTTP_403_FORBIDDEN
+                {"error": "You are not allowed to resend this invitation.", "detail": denied},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
-        invite = spot.invite
-        # Per-invite cooldown; cache.add is atomic, so a double click sends only once.
-        if not cache.add(f"psr124:resend-invite:{invite.id}", 1, RESEND_COOLDOWN_SECONDS):
-            return Response(
-                {"error": "Please wait a minute before resending this invitation."},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
+        with transaction.atomic():
+            invite = WorkspaceMemberInvite.objects.select_for_update().filter(pk=spot.invite_id).first()
+            if invite is None or not is_pending(invite):
+                return Response({"error": "Pending invitation not found"}, status=status.HTTP_404_NOT_FOUND)
+            # Per-invite cooldown; cache.add is atomic, so a double click sends only once.
+            if not claim_resend_slot(invite.id):
+                return Response(
+                    {"error": "Please wait a minute before resending this invitation."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+            # FORK: PSR-124 -- a resend starts a fresh expiry window
+            renew_invite(invite)
+            workspace_audit.record_invite_resent(invite.workspace_id, request.user, invite, spot.project, spot.role)
         workspace_invitation.delay(
             invite.email,
             invite.workspace_id,

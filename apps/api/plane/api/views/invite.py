@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Django imports
+from django.db import transaction  # FORK: PSR-124
+
 # Third party imports
 from rest_framework.response import Response
 from rest_framework import status
@@ -95,9 +98,10 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         # FORK: PSR-125 -- only a Super Admin can bring in a new Admin.
         if serializer.validated_data.get("role") == 20 and not is_workspace_super_admin(request.user, slug=slug):
             return super_admin_forbidden()
-        invite = serializer.save(workspace=workspace, created_by=request.user)
-        if invite.role == 20:  # FORK: PSR-125 -- audit log
-            workspace_audit.record_admin_invite(workspace.id, request.user, invite.email, invite.id)
+        # FORK: PSR-125 / PSR-124 -- audit log, committed with the invite (Admin invites keep their own action)
+        with transaction.atomic():
+            invite = serializer.save(workspace=workspace, created_by=request.user)
+            workspace_audit.record_invite_sent(workspace.id, request.user, invite)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     # FORK: put-permission — the router maps PUT to ``update``; the default skipped partial_update's
@@ -172,5 +176,10 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
                 data={"error": "Invite already responded", "code": "INVITE_ALREADY_RESPONDED"},
             )
-        workspace_member_invite.delete()
+        with transaction.atomic():
+            workspace_member_invite.delete()
+            # FORK: PSR-124 -- audit log
+            workspace_audit.record_invite_cancelled(
+                workspace_member_invite.workspace_id, request.user, workspace_member_invite
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)

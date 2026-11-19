@@ -37,6 +37,7 @@ from plane.utils.project_invite_spots import (  # FORK: PSR-124
     accept_project_spots,
     remove_project_spots,
 )
+from plane.utils.invite_settings import InviteExpiryCache, is_pending  # FORK: PSR-124
 from .. import BaseViewSet
 
 
@@ -119,24 +120,25 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-        # Create workspace member invite
-        workspace_invitations = WorkspaceMemberInvite.objects.bulk_create(
-            workspace_invitations, batch_size=10, ignore_conflicts=True
-        )
-        # FORK: PSR-124 -- an admin re-inviting someone whose pending invite came from a project makes it a
-        # workspace-level invite, so cancelling the last project spot later no longer cancels it.
-        WorkspaceMemberInvite.objects.filter(
-            workspace_id=workspace.id,
-            email__in=[e.get("email").strip().lower() for e in emails],
-            created_from_project=True,
-            accepted=False,
-            responded_at__isnull=True,
-        ).update(created_from_project=False)
-        # FORK: PSR-125 -- audit log. bulk_create(ignore_conflicts) can't say which rows landed, so
-        # the entry names the email only.
-        for invitation in workspace_invitations:
-            if int(invitation.role) == 20:
-                workspace_audit.record_admin_invite(workspace.id, request.user, invitation.email)
+        # FORK: PSR-124 -- the invites, the project-flow flag and the audit entries commit together.
+        with transaction.atomic():
+            # Create workspace member invite
+            workspace_invitations = WorkspaceMemberInvite.objects.bulk_create(
+                workspace_invitations, batch_size=10, ignore_conflicts=True
+            )
+            # FORK: PSR-124 -- an admin re-inviting someone whose pending invite came from a project makes it a
+            # workspace-level invite, so cancelling the last project spot later no longer cancels it.
+            WorkspaceMemberInvite.objects.filter(
+                workspace_id=workspace.id,
+                email__in=[e.get("email").strip().lower() for e in emails],
+                created_from_project=True,
+                accepted=False,
+                responded_at__isnull=True,
+            ).update(created_from_project=False)
+            # FORK: PSR-125 / PSR-124 -- audit log. bulk_create(ignore_conflicts) can't say which rows landed,
+            # so there is one entry per requested email (Admin invites keep their own action).
+            for invitation in workspace_invitations:
+                workspace_audit.record_invite_sent(workspace.id, request.user, invitation)
 
         current_site = base_host(request=request, is_app=True)
 
@@ -190,6 +192,11 @@ class WorkspaceInvitationsViewset(BaseViewSet):
             # FORK: PSR-124 -- cancelling the invitation drops its pending project spots too.
             remove_project_spots(workspace_member_invite)
             workspace_member_invite.delete()
+            # FORK: PSR-124 -- audit; removing an answered (declined) invitation is clean-up, not a cancel
+            if is_pending(workspace_member_invite):
+                workspace_audit.record_invite_cancelled(
+                    workspace_member_invite.workspace_id, request.user, workspace_member_invite
+                )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -247,7 +254,18 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            workspace_invite.accepted = request.data.get("accepted", False)
+            accepting = request.data.get("accepted", False)
+            # FORK: PSR-124 -- an expired invitation can be declined but not accepted
+            if accepting and InviteExpiryCache().is_expired(workspace_invite):
+                return Response(
+                    {
+                        "error": "This invitation has expired. Ask a workspace admin to resend it.",
+                        "error_code": "INVITATION_EXPIRED",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            workspace_invite.accepted = accepting
             workspace_invite.responded_at = timezone.now()
             workspace_invite.save()
 
@@ -285,6 +303,9 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                     # FORK: PSR-124 -- turn the pending project spots into project memberships
                     project_ids = accept_project_spots(workspace_invite, user, workspace_member.role)
                     project_id = str(project_ids[0]) if project_ids else None
+                    workspace_audit.record_invite_accepted(  # FORK: PSR-124
+                        workspace_invite.workspace_id, request.user, workspace_invite
+                    )
 
                     # Delete the invitation
                     workspace_invite.delete()
@@ -295,6 +316,9 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                 )
 
             # Workspace invitation rejected
+            workspace_audit.record_invite_declined(  # FORK: PSR-124
+                workspace_invite.workspace_id, request.user, workspace_invite
+            )
             return Response(
                 {"message": "Workspace Invitation was not accepted"},
                 status=status.HTTP_200_OK,
@@ -337,6 +361,20 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
         # FORK: PSR-124 -- materialise once so the spots can be processed before the invites are deleted
         workspace_invitations = list(workspace_invitations)
 
+        # FORK: PSR-124 -- expired invitations are skipped: not joined, not deleted
+        expiry = InviteExpiryCache()
+        expired = [i for i in workspace_invitations if is_pending(i) and expiry.is_expired(i)]
+        if expired:
+            workspace_invitations = [i for i in workspace_invitations if i not in expired]
+            if not workspace_invitations:
+                return Response(
+                    {
+                        "error": "This invitation has expired. Ask a workspace admin to resend it.",
+                        "error_code": "INVITATION_EXPIRED",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         # If the user is already a member of workspace and was deactivated then activate the user
         for invitation in workspace_invitations:
             invalidate_cache_directly(
@@ -376,6 +414,7 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
             )
             if workspace_role is not None:
                 accept_project_spots(invitation, request.user, workspace_role)
+                workspace_audit.record_invite_accepted(invitation.workspace_id, request.user, invitation)
 
         # Delete joined workspace invites
         WorkspaceMemberInvite.objects.filter(pk__in=[i.pk for i in workspace_invitations]).delete()
