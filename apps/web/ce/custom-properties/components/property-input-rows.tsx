@@ -43,7 +43,7 @@ export const PropertyInputRows = observer(function PropertyInputRows(props: Prop
         if (!Input) return null;
         return (
           <div key={property.id} className="flex min-h-8 items-center gap-2">
-            <span className="w-2/5 flex-shrink-0 truncate text-sm text-tertiary">
+            <span className="text-sm w-2/5 flex-shrink-0 truncate text-tertiary">
               {property.display_name || property.name}
             </span>
             <div className="w-3/5">

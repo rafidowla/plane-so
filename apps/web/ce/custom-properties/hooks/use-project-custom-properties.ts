@@ -41,7 +41,5 @@ export const useProjectCustomProperties = (
 };
 
 /** Thin gate: just whether custom properties are enabled for the project. */
-export const useCustomPropertiesEnabled = (
-  workspaceSlug: string | undefined,
-  projectId: string | undefined
-): boolean => useProjectCustomProperties(workspaceSlug, projectId).enabled;
+export const useCustomPropertiesEnabled = (workspaceSlug: string | undefined, projectId: string | undefined): boolean =>
+  useProjectCustomProperties(workspaceSlug, projectId).enabled;

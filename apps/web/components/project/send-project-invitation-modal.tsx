@@ -286,7 +286,10 @@ const ProjectInvitationForm = observer(function ProjectInvitationForm(props: For
           <fieldset disabled={isSubmitting} className="m-0 min-w-0 border-0 p-0">
             <div className="space-y-4">
               {fields.map((field, index) => (
-                <div key={field.id} className="group mb-1 flex w-full items-start justify-between gap-x-4 text-body-xs-regular">
+                <div
+                  key={field.id}
+                  className="group mb-1 flex w-full items-start justify-between gap-x-4 text-body-xs-regular"
+                >
                   <div className="flex w-full grow flex-col gap-1">
                     <Controller
                       control={control}
@@ -343,7 +346,9 @@ const ProjectInvitationForm = observer(function ProjectInvitationForm(props: For
                         }}
                       />
                       {errors.members && errors.members[index]?.role && (
-                        <span className="px-1 text-body-xs-regular text-danger-primary">{errors.members[index]?.role?.message}</span>
+                        <span className="px-1 text-body-xs-regular text-danger-primary">
+                          {errors.members[index]?.role?.message}
+                        </span>
                       )}
                     </div>
 

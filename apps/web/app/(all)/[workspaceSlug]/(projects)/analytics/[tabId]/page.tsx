@@ -4,7 +4,9 @@
  * See the LICENSE file for details.
  */
 
+import { useEffect } from "react";
 import { observer } from "mobx-react";
+import { useRouter } from "next/navigation";
 // plane package imports
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
@@ -27,6 +29,8 @@ import type { Route } from "./+types/page";
 
 function AnalyticsPage({ params }: Route.ComponentProps) {
   const { tabId } = params;
+  // FORK: time-tracking-v2 S5 -- used to redirect stale /analytics/time and hidden timesheets tabs
+  const router = useRouter();
 
   // plane imports
   const { t } = useTranslation();

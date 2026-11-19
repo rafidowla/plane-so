@@ -175,7 +175,9 @@ function UserInvitationsPage() {
                             {ROLE[invitation.role]}
                           </span>
                           {isExpired && (
-                            <span className="block text-caption-sm-regular text-danger-primary">{EXPIRED_INVITATION_MESSAGE}</span>
+                            <span className="block text-caption-sm-regular text-danger-primary">
+                              {EXPIRED_INVITATION_MESSAGE}
+                            </span>
                           )}
                         </span>
                         {!isExpired && (

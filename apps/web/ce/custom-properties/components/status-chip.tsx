@@ -20,7 +20,10 @@ export function StatusChip({ option, className }: Props) {
   const bg = option.logo_props?.color?.background ?? EMPTY_OPTION_BG;
   return (
     <span
-      className={cn("inline-flex max-w-full items-center truncate rounded px-1.5 py-0.5 text-[11px] font-medium", className)}
+      className={cn(
+        "inline-flex max-w-full items-center truncate rounded px-1.5 py-0.5 text-[11px] font-medium",
+        className
+      )}
       style={{ backgroundColor: bg, color: textColorFor(bg) }}
     >
       {option.name}

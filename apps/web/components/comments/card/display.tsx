@@ -233,7 +233,7 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
               <button
                 type="button"
                 onClick={() => setIsExpanded((prev) => !prev)}
-                className="flex w-fit items-center gap-1 text-xs font-medium text-tertiary transition-colors hover:text-secondary"
+                className="text-xs flex w-fit items-center gap-1 font-medium text-tertiary transition-colors hover:text-secondary"
               >
                 {isExpanded ? (
                   <>

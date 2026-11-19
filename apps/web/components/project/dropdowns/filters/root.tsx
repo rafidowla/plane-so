@@ -44,7 +44,10 @@ export const ProjectFiltersSelection = observer(function ProjectFiltersSelection
       />
 
       {/* FORK: PSR-123 -- category */}
-      <FilterCategory appliedFilters={filters.category ?? null} handleUpdate={(val) => handleFiltersUpdate("category", val)} />
+      <FilterCategory
+        appliedFilters={filters.category ?? null}
+        handleUpdate={(val) => handleFiltersUpdate("category", val)}
+      />
 
       {/* lead */}
       <MemberFilterSubmenu

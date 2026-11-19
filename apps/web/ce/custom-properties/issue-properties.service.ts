@@ -6,12 +6,7 @@
 
 import { API_BASE_URL } from "@plane/constants";
 import { APIService } from "@/services/api.service";
-import type {
-  TIssueProperty,
-  TIssuePropertyOption,
-  TProjectPropertiesFeature,
-  TPropertyValuesMap,
-} from "./types";
+import type { TIssueProperty, TIssuePropertyOption, TProjectPropertiesFeature, TPropertyValuesMap } from "./types";
 
 /**
  * Client for the fork's plane.properties endpoints. Mirrors the sibling
@@ -129,12 +124,7 @@ export class IssuePropertiesService extends APIService {
       });
   }
 
-  async deleteOption(
-    workspaceSlug: string,
-    projectId: string,
-    propertyId: string,
-    optionId: string
-  ): Promise<void> {
+  async deleteOption(workspaceSlug: string, projectId: string, propertyId: string, optionId: string): Promise<void> {
     return this.delete(
       `/api/workspaces/${workspaceSlug}/projects/${projectId}/work-item-properties/${propertyId}/options/${optionId}/`
     )

@@ -690,7 +690,9 @@ export const IssueProperties = observer(function IssueProperties(props: IIssuePr
   // FORK: custom-properties — status chips for the project's option properties. They render beside the
   // upstream chip list (not as an overflow entry: they render nothing when the feature is off and are not
   // collapsible into the "+N" menu).
-  const customPropertyChips = <WorkItemLayoutAdditionalProperties displayProperties={displayProperties} issue={issue} />;
+  const customPropertyChips = (
+    <WorkItemLayoutAdditionalProperties displayProperties={displayProperties} issue={issue} />
+  );
 
   if (overflowBudgetPx !== undefined) {
     return (

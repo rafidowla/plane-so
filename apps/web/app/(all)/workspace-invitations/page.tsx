@@ -96,16 +96,22 @@ function WorkspaceInvitationPage() {
       <div className="flex h-full w-full flex-col items-center justify-center px-3">
         {invitationDetail && !invitationDetail.responded_at && (invitationDetail.is_expired || acceptExpired) ? (
           // FORK: PSR-124 Part 2 -- an expired invitation cannot be accepted; a workspace admin has to resend it
-          <EmptySpace
+          <EmptyStateDetailed
+            align="center"
+            assetKey="invalid-link"
             title="This invitation has expired. Ask a workspace admin to send it again."
             description={`The invitation to join ${invitationDetail.workspace.name} is no longer valid.`}
-          >
-            {!currentUser ? (
-              <EmptySpaceItem Icon={UserOutline} title="Sign in to continue" href="/" />
-            ) : (
-              <EmptySpaceItem Icon={BoxesOutline} title="Continue to home" href="/" />
-            )}
-          </EmptySpace>
+            customButton={
+              <Button
+                variant="primary"
+                size="lg"
+                stretch="auto"
+                label={!currentUser ? "Sign in to continue" : "Continue to home"}
+                nativeButton={false}
+                render={<Link href="/" />}
+              />
+            }
+          />
         ) : invitationDetail && !invitationDetail.responded_at ? (
           error ? (
             <EmptyStateDetailed
